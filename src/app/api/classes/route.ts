@@ -39,36 +39,36 @@ export async function GET(request: Request) {
     }))
 
     // ── SINGLE-PASS AGGREGATED COUNTS via raw SQL ────────────────────
-    // Reduces ~50 individual COUNT queries to just 4 aggregation queries
+    // Reduces ~50 individual COUNT queries to just 2 aggregation queries
     const allSubjectIds = classMeta.flatMap((c) => c.subjectIds)
 
     const [mcqCounts, cqCounts] = await Promise.all([
-      // MCQ aggregation: counts per subject in one query
+      // MCQ aggregation: counts per subject in one query (SQLite-compatible)
       allSubjectIds.length > 0
-        ? db.$queryRaw<Array<{ subject_id: string; total: bigint; free: bigint; board: bigint; free_board: bigint }>>(
+        ? db.$queryRaw<Array<{ subject_id: string; total: number; free: number; board: number; free_board: number }>>(
             Prisma.sql`
               SELECT "subjectId" AS subject_id,
-                     COUNT(*)::bigint AS total,
-                     COUNT(*) FILTER (WHERE "isPremium" = false)::bigint AS free,
-                     COUNT(*) FILTER (WHERE "board" IS NOT NULL AND "year" IS NOT NULL)::bigint AS board,
-                     COUNT(*) FILTER (WHERE "board" IS NOT NULL AND "year" IS NOT NULL AND "isPremium" = false)::bigint AS free_board
+                     COUNT(*) AS total,
+                     SUM(CASE WHEN "isPremium" = 0 THEN 1 ELSE 0 END) AS free,
+                     SUM(CASE WHEN "board" IS NOT NULL AND "year" IS NOT NULL THEN 1 ELSE 0 END) AS board,
+                     SUM(CASE WHEN "board" IS NOT NULL AND "year" IS NOT NULL AND "isPremium" = 0 THEN 1 ELSE 0 END) AS free_board
               FROM "MCQ"
-              WHERE "subjectId" IN (${Prisma.join(allSubjectIds)}) AND "isActive" = true
+              WHERE "subjectId" IN (${Prisma.join(allSubjectIds)}) AND "isActive" = 1
               GROUP BY "subjectId"
             `,
           )
         : Promise.resolve([]),
-      // CQ aggregation
+      // CQ aggregation (SQLite-compatible)
       allSubjectIds.length > 0
-        ? db.$queryRaw<Array<{ subject_id: string; total: bigint; free: bigint; board: bigint; free_board: bigint }>>(
+        ? db.$queryRaw<Array<{ subject_id: string; total: number; free: number; board: number; free_board: number }>>(
             Prisma.sql`
               SELECT "subjectId" AS subject_id,
-                     COUNT(*)::bigint AS total,
-                     COUNT(*) FILTER (WHERE "isPremium" = false)::bigint AS free,
-                     COUNT(*) FILTER (WHERE "board" IS NOT NULL AND "year" IS NOT NULL)::bigint AS board,
-                     COUNT(*) FILTER (WHERE "board" IS NOT NULL AND "year" IS NOT NULL AND "isPremium" = false)::bigint AS free_board
+                     COUNT(*) AS total,
+                     SUM(CASE WHEN "isPremium" = 0 THEN 1 ELSE 0 END) AS free,
+                     SUM(CASE WHEN "board" IS NOT NULL AND "year" IS NOT NULL THEN 1 ELSE 0 END) AS board,
+                     SUM(CASE WHEN "board" IS NOT NULL AND "year" IS NOT NULL AND "isPremium" = 0 THEN 1 ELSE 0 END) AS free_board
               FROM "CQ"
-              WHERE "subjectId" IN (${Prisma.join(allSubjectIds)}) AND "isActive" = true
+              WHERE "subjectId" IN (${Prisma.join(allSubjectIds)}) AND "isActive" = 1
               GROUP BY "subjectId"
             `,
           )

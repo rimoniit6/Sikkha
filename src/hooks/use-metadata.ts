@@ -189,8 +189,11 @@ export function useFAQs() {
   const { data: faqs = [], isLoading, error } = useQuery({
     queryKey: queryKeys.faqs,
     queryFn: async () => {
-      const json = await fetchJSON<{ faqs?: MetadataFAQ[]; data?: MetadataFAQ[] }>('/api/faqs')
-      return Array.isArray(json.faqs) ? json.faqs : (Array.isArray(json.data) ? json.data : [])
+      const json = await fetchJSON<{ faqs?: MetadataFAQ[]; data?: MetadataFAQ[] | { faqs?: MetadataFAQ[] } }>('/api/faqs')
+      if (Array.isArray(json.faqs)) return json.faqs
+      if (json.data && Array.isArray(json.data)) return json.data
+      if (json.data && typeof json.data === 'object' && 'faqs' in json.data && Array.isArray(json.data.faqs)) return json.data.faqs
+      return []
     },
     select: (data) => data,
   })
@@ -202,12 +205,13 @@ export function useTestimonials() {
   const { data: testimonials = [], isLoading, error } = useQuery({
     queryKey: queryKeys.testimonials,
     queryFn: async () => {
-      const json = await fetchJSON<{ testimonials?: MetadataTestimonial[]; data?: MetadataTestimonial[] }>(
+      const json = await fetchJSON<{ testimonials?: MetadataTestimonial[]; data?: MetadataTestimonial[] | { testimonials?: MetadataTestimonial[] } }>(
         '/api/testimonials'
       )
-      return Array.isArray(json.testimonials)
-        ? json.testimonials
-        : (Array.isArray(json.data) ? json.data : [])
+      if (Array.isArray(json.testimonials)) return json.testimonials
+      if (json.data && Array.isArray(json.data)) return json.data
+      if (json.data && typeof json.data === 'object' && 'testimonials' in json.data && Array.isArray(json.data.testimonials)) return json.data.testimonials
+      return []
     },
     select: (data) => data,
   })
@@ -219,8 +223,11 @@ export function useTeacherModerators() {
   const { data: teachers = [], isLoading, error } = useQuery({
     queryKey: queryKeys.teachers,
     queryFn: async () => {
-      const json = await fetchJSON<{ teachers?: MetadataTeacherModerator[] }>('/api/teacher-moderators')
-      return Array.isArray(json.teachers) ? json.teachers : []
+      const json = await fetchJSON<{ teachers?: MetadataTeacherModerator[]; data?: MetadataTeacherModerator[] | { teachers?: MetadataTeacherModerator[] } }>('/api/teacher-moderators')
+      if (Array.isArray(json.teachers)) return json.teachers
+      if (json.data && Array.isArray(json.data)) return json.data
+      if (json.data && typeof json.data === 'object' && 'teachers' in json.data && Array.isArray(json.data.teachers)) return json.data.teachers
+      return []
     },
     select: (data) => data,
   })
@@ -249,7 +256,11 @@ export function useSiteConfig() {
 export function usePublicStats() {
   const { data: stats = null, isLoading, error } = useQuery({
     queryKey: queryKeys.stats,
-    queryFn: () => fetchJSON<PublicStats>('/api/stats'),
+    queryFn: async () => {
+      const res = await fetchJSON<{ success?: boolean; data?: PublicStats }>('/api/stats')
+      if (res && typeof res === 'object' && 'data' in res && res.data) return res.data
+      throw new Error('Stats response format error')
+    },
     placeholderData: defaultPublicStats,
   })
 

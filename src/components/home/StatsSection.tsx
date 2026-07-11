@@ -17,17 +17,37 @@ interface StatItem {
 }
 
 function AnimatedCounter({ value, bengaliValue }: { value: number; bengaliValue: string }) {
-  const [_count, setCount] = useState(0)
-  const [isInView, setIsInView] = useState(false)
+  const [displayValue, setDisplayValue] = useState(value)
+  const [hasAnimated, setHasAnimated] = useState(false)
   const ref = useRef<HTMLSpanElement>(null)
 
   useEffect(() => {
+    if (hasAnimated || value === 0) return
+
+    // Immediately set the final value (IntersectionObserver can be unreliable)
+    setDisplayValue(value)
+    setHasAnimated(true)
+
+    // Also try IntersectionObserver for animation
     const el = ref.current
     if (!el) return
     const observer = new IntersectionObserver(
       ([entry]) => {
-        if (entry.isIntersecting) {
-          setIsInView(true)
+        if (entry.isIntersecting && !hasAnimated) {
+          const duration = 2000
+          const steps = 40
+          const stepValue = value / steps
+          let current = 0
+          const timer = setInterval(() => {
+            current += stepValue
+            if (current >= value) {
+              setDisplayValue(value)
+              clearInterval(timer)
+            } else {
+              setDisplayValue(Math.floor(current))
+            }
+          }, duration / steps)
+          setHasAnimated(true)
           observer.disconnect()
         }
       },
@@ -35,31 +55,15 @@ function AnimatedCounter({ value, bengaliValue }: { value: number; bengaliValue:
     )
     observer.observe(el)
     return () => observer.disconnect()
-  }, [])
+  }, [value, hasAnimated])
 
-  useEffect(() => {
-    if (!isInView) return
-
-    const duration = 2000
-    const steps = 60
-    const stepValue = value / steps
-    let current = 0
-    const timer = setInterval(() => {
-      current += stepValue
-      if (current >= value) {
-        setCount(value)
-        clearInterval(timer)
-      } else {
-        setCount(Math.floor(current))
-      }
-    }, duration / steps)
-
-    return () => clearInterval(timer)
-  }, [isInView, value])
+  const formattedDisplay = value === 0
+    ? '০'
+    : new Intl.NumberFormat('bn-BD').format(displayValue)
 
   return (
     <span ref={ref} className="text-3xl sm:text-4xl font-bold text-white">
-      {isInView && value > 0 ? bengaliValue : '০'}
+      {formattedDisplay}
       {value > 0 ? '+' : ''}
     </span>
   )
