@@ -116,7 +116,9 @@ export function useBoardQuestionFilters() {
   return useQuery({
     queryKey: queryKeys.boardQuestionFilters,
     queryFn: async () => {
-      const data = await fetchJSON<BoardQuestionFilterData>('/api/board-questions/filters')
+      const res = await fetchJSON<{ success?: boolean; data?: BoardQuestionFilterData }>('/api/board-questions/filters')
+      // Unwrap { success, data } envelope
+      const data = (res && typeof res === 'object' && 'data' in res && res.data) ? res.data : res as BoardQuestionFilterData
       return {
         classLevels: data.classLevels || [],
         boards: data.boards || [],

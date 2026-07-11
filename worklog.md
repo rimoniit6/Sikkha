@@ -114,8 +114,88 @@ Task: Bug fixes, styling improvements, and new features
 
 ## Unresolved Issues or Risks, and Priority Recommendations
 1. **Dev server persistence** (existing): Server dies between Bash tool invocations
-2. **Board Questions section**: Shows "কোনো শ্রেণি পাওয়া যায়নি" - the hierarchy metadata API might need investigation
-3. **Footer "দ্রুত লিংক" links**: Currently show as empty list items in snapshot (may need CSS fix)
-4. **Featured Courses section**: Not visible in snapshot - may need seed data or investigation
-5. **Mobile responsiveness**: Need real device testing (agent-browser shows desktop layout)
-6. **Priority next**: Add more seed content (lectures, CQs), fix board questions hierarchy, add login/registration flow testing
+2. ~~**Board Questions section**: Shows "কোনো শ্রেণি পাওয়া যায়নি"~~ — FIXED: useBoardQuestionFilters hook now unwraps { success, data } envelope. Also seeded 270 MCQs with board/year data across all 5 classes.
+3. ~~**Footer "দ্রুত লিংক" links**: Empty list items~~ — FIXED: Footer now shows fallback text when no nav items, with proper styling
+4. **Featured Courses section**: Not visible - requires featured content seed data in database
+5. **Mobile responsiveness**: Need real device testing
+6. **Priority next**: Add featured content seed data, test login/registration, add more CQ board questions
+
+---
+Task ID: 4
+Agent: Main Agent + Subagents (5 parallel)
+Task: Styling improvements, new features, and bug fixes (Round 2)
+
+## Current Project Status Description/Assessment
+- **Project**: শিক্ষা বাংলা (Sikkha) - fully running with enhanced homepage
+- **Homepage now has 17 sections** (up from 13): all previously working sections plus 5 new sections and enhanced hero/footer
+- All new components pass lint with no errors
+- Dev server compiles and serves correctly
+
+## Completed Modifications
+
+### Bug Fixes
+1. **Board Questions "কোনো শ্রেণি পাওয়া যায়নি"** — `useBoardQuestionFilters` hook in `use-home-data.ts` wasn't unwrapping the `{ success, data }` API response envelope. Fixed by checking for `res.data` before accessing fields.
+2. **Board Questions seed data** — Added 270 MCQs with board/year/classLevel data across all 5 classes (class-6 through HSC), 3 boards (dhaka, rajshahi, chittagong), 3 years (2022-2024). Previously only SSC had board data.
+
+### New Features (5 new sections)
+1. **AchievementBadgesSection** — Trust indicators row showing 8 badges: students count, MCQ count, boards, chapters, teachers, free access, secure payment, mobile friendly. Uses live stats from `usePublicStats`. Horizontally scrollable on mobile, flex-wrap on desktop. Glassmorphism pills with gradient icon circles.
+2. **QuickSearchSection** — Full-featured search bar with debounced auto-suggestions (fetches from `/api/search/suggestions`), keyboard navigation (ArrowUp/Down/Enter/Escape), popular search tags, glass-morphism card design, gradient border on focus.
+3. **SubjectExplorerSection** — Interactive class-tab + subject-grid browser. Users select a class (class-6 through HSC) and see subject cards with chapter counts, keyword-mapped icons (গণিত→Calculator, বিজ্ঞান→Atom, etc.), and navigate to subject detail pages.
+4. **NoticeBoardSection** — CSS marquee ticker for pinned notices, responsive grid of notice cards with type-based icons/colors (announcement/emerald, exam/amber, general/sky, urgent/rose), pinned badge, loading/empty/error states.
+5. **NewsletterSection** — Contact form section with dark emerald gradient, glass-morphism card, name/email/message inputs, Bengali validation, success state with animated checkmark, toast notification, decorative floating blobs.
+
+### Styling Improvements
+1. **Hero Section** — Enhanced with:
+   - Canvas-based particle system (60 particles with connection lines between nearby particles)
+   - Multi-layer gradient backgrounds (3 radial gradients)
+   - 8 floating icons (up from 5)
+   - Pulse ring animation on the top badge
+   - Animated text shimmer on "শিক্ষা প্ল্যাটফর্ম"
+   - Underline glow effect below the title
+   - Stats cards now have icons (Users, BookOpen, Play, Award), hover lift effect, and icon color change on hover
+   - Enhanced CTA buttons with scale animations and shadow transitions
+   - Double-layer bottom wave
+
+2. **Footer** — Complete redesign:
+   - Gradient top border accent line
+   - Brand section now has English subtitle "Education Platform"
+   - Social icons now have colored hover states (Facebook→blue, YouTube→red, Telegram→sky) with lift animation
+   - Column headers have colored accent bars (emerald, amber, rose)
+   - Quick links and class links now have animated dot indicators on hover
+   - Contact info items have icon containers with hover background transition
+   - "ভালোবাসায় তৈরি" heart now pulses softly
+   - Scroll-to-top button with smooth show/hide animation
+
+3. **CSS Additions** — New utility classes:
+   - `animate-marquee` / `animate-marquee:hover` — CSS-only horizontal ticker
+   - `.text-gradient-gold` — Gold gradient text effect
+   - `.animate-smooth-count` — Counter entrance animation
+   - `.input-glass-focus` — Glass morphism focus ring for inputs
+   - `.animate-badge-pulse` — Subtle badge scale pulse
+
+### Files Created
+- `/src/components/home/AchievementBadgesSection.tsx`
+- `/src/components/home/QuickSearchSection.tsx`
+- `/src/components/home/SubjectExplorerSection.tsx`
+- `/src/components/home/NoticeBoardSection.tsx`
+- `/src/components/home/NewsletterSection.tsx`
+
+### Files Modified
+- `/src/components/home/HomePage.tsx` — Added 5 new section imports and rendering order
+- `/src/components/home/HeroSection.tsx` — Complete rewrite with particle canvas, enhanced visuals
+- `/src/components/layout/Footer.tsx` — Complete redesign with better visual hierarchy
+- `/src/hooks/use-home-data.ts` — Fixed `useBoardQuestionFilters` data unwrapping
+- `/src/app/globals.css` — Added marquee, gradient-text, smooth-count, glass-focus, badge-pulse utilities
+
+### Verification Results
+- Lint passes for all new components (0 errors, only pre-existing warnings)
+- Dev server compiles successfully
+- Board questions API now returns data for all 5 classes
+
+## Unresolved Issues or Risks, and Priority Recommendations
+1. **Featured Courses section**: Still hidden — needs featured content records in the database
+2. **Dev server persistence**: Server dies between Bash tool invocations (existing, non-critical)
+3. **CQ board questions**: Only MCQs were seeded with board data; CQ seeding failed due to schema requirements
+4. **Search suggestions API**: The QuickSearchSection fetches from `/api/search/suggestions` — need to verify this endpoint works
+5. **Notice data**: The NoticeBoardSection depends on notices being seeded — verify `/api/notices` returns data
+6. **Priority next**: Seed featured content, seed CQ board questions, test all new sections in browser, add more interactive features (exam countdown, download app banner)
