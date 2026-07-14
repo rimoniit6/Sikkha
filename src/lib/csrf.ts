@@ -1,15 +1,27 @@
 import { SignJWT, jwtVerify } from 'jose'
 import { cookies } from 'next/headers'
 
-const CSRF_SECRET = new TextEncoder().encode(
-  (() => {
-    const secret = process.env.CSRF_SECRET
-    if (!secret || secret.length < 32) {
-      throw new Error('CSRF_SECRET environment variable must be set and at least 32 characters long')
+function getCsrfSecret(): Uint8Array {
+  const secret = process.env.CSRF_SECRET
+  if (!secret || secret.length < 32) {
+    // In development, use a fallback secret instead of crashing
+    if (process.env.NODE_ENV !== 'production') {
+      return new TextEncoder().encode('dev-fallback-csrf-secret-that-is-long-enough-32ch!')
     }
-    return secret
-  })()
-)
+    throw new Error('CSRF_SECRET environment variable must be set and at least 32 characters long')
+  }
+  return new TextEncoder().encode(secret)
+}
+
+// Lazy initialization to avoid top-level crashes
+let _csrfSecret: Uint8Array | null = null
+function getCsrfSecretCached(): Uint8Array {
+  if (!_csrfSecret) {
+    _csrfSecret = getCsrfSecret()
+  }
+  return _csrfSecret
+}
+
 const CSRF_COOKIE_NAME = 'csrf_token'
 const CSRF_HEADER_NAME = 'x-csrf-token'
 
@@ -18,7 +30,7 @@ export async function generateCsrfToken(): Promise<string> {
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime('1h')
-    .sign(CSRF_SECRET)
+    .sign(getCsrfSecretCached())
   return token
 }
 
@@ -40,7 +52,7 @@ export async function getCsrfToken(): Promise<string | null> {
 
 export async function validateCsrfToken(token: string): Promise<boolean> {
   try {
-    await jwtVerify(token, CSRF_SECRET)
+    await jwtVerify(token, getCsrfSecretCached())
     return true
   } catch {
     return false

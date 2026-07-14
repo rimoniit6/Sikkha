@@ -1,12 +1,9 @@
 import { PrismaClient } from '@prisma/client'
 import { PrismaLibSql } from '@prisma/adapter-libsql'
-import { dirname, resolve } from 'path'
-import { fileURLToPath } from 'url'
+import { join } from 'path'
 
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = dirname(__filename)
-const dbPath = resolve(__dirname, '..', 'dev.db')
-const dbUrl = `file:///${dbPath.replace(/\\/g, '/').replace(/ /g, '%20')}`
+const dbPath = join(process.cwd(), 'dev.db')
+const dbUrl = `file:${dbPath}`
 
 const adapter = new PrismaLibSql({ url: dbUrl })
 const db = new PrismaClient({ adapter })

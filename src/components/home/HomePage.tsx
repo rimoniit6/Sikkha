@@ -10,11 +10,12 @@ import RecentContentSection from './RecentContentSection'
 import NoticeBoardSection from './NoticeBoardSection'
 import WhyChooseUsSection from './WhyChooseUsSection'
 import FeaturedCourses from './FeaturedCourses'
-import StatsSection from './StatsSection'
+import EnhancedStatsSection from './EnhancedStatsSection'
+import ExamCountdownSection from './ExamCountdownSection'
 import BoardQuestionSection from './BoardQuestionSection'
 import PremiumBanner from './PremiumBanner'
 import TeacherModeratorsSection from './TeacherModeratorsSection'
-import TestimonialsSection from './TestimonialsSection'
+import StudentShowcaseSection from './StudentShowcaseSection'
 import FAQSection from './FAQSection'
 import NewsletterSection from './NewsletterSection'
 import CTASection from './CTASection'
@@ -32,11 +33,12 @@ export default function HomePage() {
       <NoticeBoardSection />
       <WhyChooseUsSection />
       <FeaturedCourses />
-      <StatsSection />
+      <EnhancedStatsSection />
+      <ExamCountdownSection />
       <BoardQuestionSection />
       <PremiumBanner />
       <TeacherModeratorsSection />
-      <TestimonialsSection />
+      <StudentShowcaseSection />
       <FAQSection />
       <NewsletterSection />
       <CTASection />
