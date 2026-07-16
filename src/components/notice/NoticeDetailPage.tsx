@@ -146,7 +146,7 @@ export default function NoticeDetailPage() {
     )
   }
 
-  const badgeConfig = typeBadgeConfig[notice.type]
+  const badgeConfig = typeBadgeConfig[notice.type] || typeBadgeConfig.text
 
   // ─── Render ─────────────────────────────────────────────────
 
