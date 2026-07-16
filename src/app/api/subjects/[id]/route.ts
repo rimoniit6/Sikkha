@@ -103,7 +103,7 @@ export async function GET(
     >(
       `SELECT
         (SELECT COUNT(*) FROM "Suggestion" WHERE "subjectId" = $1 AND "isActive" = true) as "suggestionCount",
-        (SELECT COUNT(*) FROM "Exam" WHERE "subjectId" = $1 AND "isActive" = true AND "status" = 'published') as "examCount",
+        (SELECT COUNT(*) FROM "Exam" WHERE "subjectId" = $1 AND "isActive" = true AND "status" = 'PUBLISHED') as "examCount",
         (SELECT COUNT(*) FROM "MCQ" WHERE "subjectId" = $1 AND "isActive" = true AND "board" IS NOT NULL AND "year" IS NOT NULL) as "boardMcqCount",
         (SELECT COUNT(*) FROM "CQ" WHERE "subjectId" = $1 AND "isActive" = true AND "board" IS NOT NULL AND "year" IS NOT NULL) as "boardCqCount",
         (SELECT COUNT(*) FROM "Lecture" l INNER JOIN "Chapter" ch ON l."chapterId" = ch."id" WHERE ch."subjectId" = $1 AND l."isActive" = true AND l."isPremium" = false) as "freeLectureCount",
@@ -114,7 +114,7 @@ export async function GET(
         (SELECT COUNT(*) FROM "KnowledgeQuestion" kq INNER JOIN "Chapter" ch ON kq."chapterId" = ch."id" WHERE ch."subjectId" = $1 AND kq."isActive" = true) as "shortQuestionCount",
         (SELECT COUNT(*) FROM "KnowledgeQuestion" kq INNER JOIN "Chapter" ch ON kq."chapterId" = ch."id" WHERE ch."subjectId" = $1 AND kq."isActive" = true AND kq."isPremium" = false) as "freeShortQuestionCount",
         (SELECT COUNT(*) FROM "Suggestion" WHERE "subjectId" = $1 AND "isActive" = true AND "isPremium" = false) as "freeSuggestionCount",
-        (SELECT COUNT(*) FROM "Exam" WHERE "subjectId" = $1 AND "isActive" = true AND "status" = 'published' AND "isPremium" = false) as "freeExamCount"`,
+        (SELECT COUNT(*) FROM "Exam" WHERE "subjectId" = $1 AND "isActive" = true AND "status" = 'PUBLISHED' AND "isPremium" = false) as "freeExamCount"`,
       id
     )
     const sr = subjectCountRows[0]

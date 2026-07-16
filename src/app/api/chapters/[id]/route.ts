@@ -58,7 +58,7 @@ export async function GET(
         (SELECT COUNT(*) FROM "MCQ" WHERE "chapterId" = $1 AND "isActive" = true AND "board" IS NOT NULL AND "year" IS NOT NULL) as "boardMcqCount",
         (SELECT COUNT(*) FROM "CQ" WHERE "chapterId" = $1 AND "isActive" = true AND "board" IS NOT NULL AND "year" IS NOT NULL) as "boardCqCount",
         (SELECT COUNT(*) FROM "Suggestion" WHERE "chapterId" = $1 AND "isActive" = true) as "suggestionCount",
-        (SELECT COUNT(*) FROM "Exam" WHERE "isActive" = true AND "status" = 'published' AND "chapterIds" LIKE '%' || $1 || '%') as "examCount",
+        (SELECT COUNT(*) FROM "Exam" WHERE "isActive" = true AND "status" = 'PUBLISHED' AND "chapterIds" LIKE '%' || $1 || '%') as "examCount",
         (SELECT COUNT(*) FROM "KnowledgeQuestion" WHERE "chapterId" = $1 AND "isActive" = true) as "shortQuestionCount",
         (SELECT COUNT(*) FROM "KnowledgeQuestion" WHERE "chapterId" = $1 AND "isActive" = true AND "isPremium" = false) as "freeShortQuestionCount",
         (SELECT COUNT(*) FROM "Lecture" WHERE "chapterId" = $1 AND "isActive" = true AND "isPremium" = false) as "freeLectureCount",
@@ -67,7 +67,7 @@ export async function GET(
         (SELECT COUNT(*) FROM "MCQ" WHERE "chapterId" = $1 AND "isActive" = true AND "isPremium" = false AND "board" IS NOT NULL AND "year" IS NOT NULL) as "freeBoardMcqCount",
         (SELECT COUNT(*) FROM "CQ" WHERE "chapterId" = $1 AND "isActive" = true AND "isPremium" = false AND "board" IS NOT NULL AND "year" IS NOT NULL) as "freeBoardCqCount",
         (SELECT COUNT(*) FROM "Suggestion" WHERE "chapterId" = $1 AND "isActive" = true AND "isPremium" = false) as "freeSuggestionCount",
-        (SELECT COUNT(*) FROM "Exam" WHERE "isActive" = true AND "status" = 'published' AND "isPremium" = false AND "chapterIds" LIKE '%' || $1 || '%') as "freeExamCount"`,
+        (SELECT COUNT(*) FROM "Exam" WHERE "isActive" = true AND "status" = 'PUBLISHED' AND "isPremium" = false AND "chapterIds" LIKE '%' || $1 || '%') as "freeExamCount"`,
       id
     )
 
@@ -92,7 +92,9 @@ export async function GET(
       id: chapter.id,
       name: chapter.name,
       number: chapter.order,
+      slug: chapter.slug,
       subjectName: chapter.subject.name,
+      subjectSlug: chapter.subject.slug,
       className: chapter.subject.class.name,
       classSlug: chapter.subject.class.slug,
       subjectId: chapter.subject.id,

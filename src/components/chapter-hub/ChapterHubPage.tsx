@@ -19,7 +19,8 @@ import { SuggestionsTab } from './tabs/SuggestionsTab'
 export default function ChapterHubPage() {
   const params = useRouteParams()
   const chapterId = params.chapterId
-  const { data: chapter, isLoading, error } = useChapterData(chapterId)
+  const subjectId = params.subjectId
+  const { data: chapter, isLoading, error } = useChapterData(chapterId, subjectId)
   const [activeTab, setActiveTab] = useState('all')
 
   // Set initial tab from params (if coming from content chip click) or reset on chapter change

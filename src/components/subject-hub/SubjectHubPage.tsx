@@ -13,6 +13,7 @@ import { Card,CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useHierarchyMetadata } from '@/hooks/use-hierarchy-metadata'
+import { useSubjectResolver } from '@/hooks/use-subject-resolver'
 import { fetchJSON } from '@/lib/fetch-json'
 import { cn,toBengaliNumerals } from '@/lib/utils'
 import { useRouterStore, useRouteParams } from '@/store/router'
@@ -116,15 +117,24 @@ export default function SubjectHubPage() {
 
   const classSlug = params.classSlug
 
-  // Resolve subject ID from params or from slug-based lookup via hierarchy metadata
+  // First: use direct ID if provided
+  // Second: resolve slug to ID using API (for fresh URL loads)
+  const resolvedSubjectId = useSubjectResolver(
+    params.subjectId || params.subjectSlug,
+    params.classSlug
+  )
+
+  // Combine resolved ID with fallback metadata lookup
   const subjectId = useMemo(() => {
+    if (resolvedSubjectId.data) return resolvedSubjectId.data
     if (params.subjectId) return params.subjectId
+    // Fallback: try to find in metadata
     if (!metadata || !params.classSlug || !params.subjectSlug) return undefined
     const cls = metadata.classes.find((c) => c.slug === params.classSlug)
     if (!cls) return undefined
     const sub = metadata.subjects.find((s) => s.slug === params.subjectSlug && s.classId === cls.id)
     return sub?.id
-  }, [params.subjectId, params.classSlug, params.subjectSlug, metadata])
+  }, [resolvedSubjectId.data, params.subjectId, params.classSlug, params.subjectSlug, metadata])
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['subject-detail', subjectId],

@@ -88,6 +88,7 @@ export async function GET(
             subjectName: lecture.chapter.subject.name,
             className: lecture.chapter.subject.class.name,
             classSlug: lecture.chapter.subject.class.slug,
+            subjectSlug: lecture.chapter.subject.slug,
             subjectId: lecture.chapter.subject.id,
             chapterId: lecture.chapter.id,
             hasAccess: false,

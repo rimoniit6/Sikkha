@@ -31,7 +31,7 @@ export function ChapterHeader({ chapter }: ChapterHeaderProps) {
           </BreadcrumbItem>
           <BreadcrumbSeparator />
           <BreadcrumbItem>
-            <BreadcrumbLink onClick={() => navigate('subject-detail', { classSlug: chapter.classSlug, subjectId: chapter.subjectId })}>
+            <BreadcrumbLink onClick={() => navigate('subject-detail', { classSlug: chapter.classSlug, subjectId: chapter.subjectId, subjectSlug: chapter.subjectSlug })}>
               {chapter.subjectName}
             </BreadcrumbLink>
           </BreadcrumbItem>
