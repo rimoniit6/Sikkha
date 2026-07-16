@@ -346,7 +346,7 @@ export default function UserExamListPage() {
         params.set('page', String(page))
         params.set('limit', String(pagination.limit))
         params.set('isActive', 'true')
-        params.set('status', 'published')
+        params.set('status', 'PUBLISHED')
 
         if (chapterId) {
           params.set('chapterId', chapterId)

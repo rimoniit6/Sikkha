@@ -204,7 +204,7 @@ export async function startExamSession(
   examId: string
 ): Promise<SessionStartResult> {
   // Validate exam exists and is active
-  const exam = await db.exam.findUnique({
+  const exam = await db.exam.findFirst({
     where: { id: examId, isActive: true, status: 'PUBLISHED' },
     select: { id: true, duration: true },
   })
@@ -441,7 +441,7 @@ export async function submitExam(
   idempotencyKey?: string
 ): Promise<SubmitResult> {
   // 1. Validate exam
-  const exam = await db.exam.findUnique({
+  const exam = await db.exam.findFirst({
     where: { id: examId, isActive: true, status: 'PUBLISHED' },
     select: {
       id: true,
@@ -563,7 +563,7 @@ export async function getExamWithQuestions(
   includeAnswers: boolean,
   userId?: string
 ): Promise<ExamWithQuestions> {
-  const exam = await db.exam.findUnique({
+  const exam = await db.exam.findFirst({
     where: { id: examId, isActive: true },
     include: {
       questions: { orderBy: { order: 'asc' } },
@@ -883,7 +883,7 @@ export async function getResultDetail(userId: string, resultId: string, isAdmin:
 
 export async function getExamAnalytics(userId: string, examId: string) {
   // Verify exam ownership
-  const exam = await db.exam.findUnique({
+  const exam = await db.exam.findFirst({
     where: { id: examId, creatorId: userId },
     select: { id: true, title: true },
   })

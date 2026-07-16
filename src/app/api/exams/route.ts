@@ -21,7 +21,7 @@ export async function GET(request: Request) {
 
     const where: Record<string, unknown> = {}
     where.isActive = isActive === 'false' ? false : true
-    where.status = status || 'published'
+    where.status = (status || 'PUBLISHED').toUpperCase()
 
     if (classLevel) where.classLevel = classLevel
     if (subjectId) where.subjectId = subjectId

@@ -100,7 +100,7 @@ export async function POST(request: Request) {
         chapterIds: chapterIds || null, type: type as 'MCQ' | 'CQ' | 'MIXED', duration,
         totalMarks: totalMarks ?? 0, marksPerMcq: marksPerMcq ?? 1, negativeMarks: negativeMarks ?? 0,
         isPremium: isPremium ?? false, price: price ?? 0, isActive: isActive ?? true,
-        status: (status ?? 'DRAFT') as 'DRAFT' | 'PUBLISHED' | 'ARCHIVED', instructions: instructions || null,
+        status: ((status ?? 'DRAFT') as string).toUpperCase() as 'DRAFT' | 'PUBLISHED' | 'ARCHIVED', instructions: instructions || null,
         startsAt: startsAt ? new Date(startsAt) : null,
         endsAt: endsAt ? new Date(endsAt) : null,
         questions: questions && questions.length > 0
@@ -143,7 +143,9 @@ export async function PUT(request: Request) {
     ]
 
     for (const field of allowedFields) {
-      if (updateData[field] !== undefined) updateFields[field] = updateData[field]
+      if (updateData[field] !== undefined) {
+        updateFields[field] = field === 'status' ? String(updateData[field]).toUpperCase() : updateData[field]
+      }
     }
 
     if (updateData.startsAt !== undefined) updateFields.startsAt = updateData.startsAt ? new Date(updateData.startsAt) : null
