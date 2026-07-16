@@ -28,11 +28,66 @@ export async function GET(request: Request) {
       return apiError('Forbidden', 403)
     }
 
-    const where: any = { userId }
-    if (courseId) where.courseId = courseId
+    if (!courseId) {
+      return apiError('courseId is required', 400)
+    }
 
-    const rows = await db.lessonProgress.findMany({ where })
-    return apiResponse(rows)
+    const [lessons, progressRows, lessonExams, lessonAssignments, assignmentSubmissions] =
+      await Promise.all([
+        db.courseLesson.findMany({
+          where: { courseId },
+          select: { id: true, lessonType: true },
+        }),
+        db.lessonProgress.findMany({
+          where: { courseId, userId },
+          select: { lessonId: true, completed: true },
+        }),
+        db.lessonExam.findMany({
+          where: { lesson: { courseId } },
+          select: { id: true, examType: true },
+        }),
+        db.lessonAssignment.findMany({
+          where: { lesson: { courseId } },
+          select: { id: true },
+        }),
+        db.assignmentSubmission.findMany({
+          where: { assignment: { lesson: { courseId } }, userId },
+          select: { assignmentId: true },
+        }),
+      ])
+
+    const lessonProgress: Record<string, boolean> = {}
+    const completedSet = new Set<string>()
+    for (const row of progressRows) {
+      lessonProgress[row.lessonId] = row.completed
+      if (row.completed) completedSet.add(row.lessonId)
+    }
+
+    const total = lessons.length
+    const completed = completedSet.size
+    const percent = total === 0 ? 0 : Math.min(100, Math.round((completed / total) * 100))
+
+    const liveLessons = lessons.filter(l => l.lessonType === 'LIVE')
+    const recordedLessons = lessons.filter(l => l.lessonType === 'RECORDED')
+    const liveCompleted = liveLessons.filter(l => completedSet.has(l.id)).length
+    const recordedCompleted = recordedLessons.filter(l => completedSet.has(l.id)).length
+
+    const mcqExams = lessonExams.filter(e => e.examType === 'MCQ')
+    const cqExams = lessonExams.filter(e => e.examType === 'CQ')
+    const submittedAssignmentIds = new Set(assignmentSubmissions.map(s => s.assignmentId))
+
+    return apiResponse({
+      lessonProgress,
+      overall: { total, completed, percent },
+      breakdown: {
+        lessons: { total, completed },
+        liveClasses: { total: liveLessons.length, completed: liveCompleted },
+        recordedClasses: { total: recordedLessons.length, completed: recordedCompleted },
+        assignments: { total: lessonAssignments.length, completed: submittedAssignmentIds.size },
+        mcqExams: { total: mcqExams.length, completed: 0 },
+        cqExams: { total: cqExams.length, completed: 0 },
+      },
+    })
   } catch (error) {
     return handleApiError(error, 'Fetch Progress')
   }

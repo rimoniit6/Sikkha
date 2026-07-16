@@ -2,14 +2,13 @@
 
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
-import { ArrowLeft, BookOpen, Crown, Loader2, Calendar, Layers, Search, X, Award } from 'lucide-react'
+import { ArrowLeft, BookOpen, Crown, Loader2, Layers, Search, X, Award } from 'lucide-react'
 import SafeImage from '@/components/ui/safe-image'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useRouterStore, useRouteParams } from '@/store/router'
-import { useHierarchyMetadata } from '@/hooks/use-hierarchy-metadata'
+import { useRouterStore } from '@/store/router'
 import { courseService, type CourseRecord } from '@/services/api/course.service'
 
 const DIFFICULTY_LABEL: Record<string, string> = {
@@ -31,18 +30,12 @@ function FilterChips({ options, value, onChange }: { options: { value: string; l
 }
 
 export default function CourseListPage() {
-  const params = useRouteParams()
   const navigate = useRouterStore((s) => s.navigate)
   const goBack = useRouterStore((s) => s.goBack)
-  const { metadata } = useHierarchyMetadata()
-  const classList = (metadata?.classes || []) as { id: string; name: string; slug: string }[]
-  const subjectList = (metadata?.subjects || []) as { id: string; name: string; slug: string }[]
 
   const [courses, setCourses] = useState<CourseRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [filterClassId, setFilterClassId] = useState(params.classId || '')
-  const [filterSubjectId, setFilterSubjectId] = useState(params.subjectId || '')
   const [filterPrice, setFilterPrice] = useState('')
   const [filterDifficulty, setFilterDifficulty] = useState('')
   const [sort, setSort] = useState('newest')
@@ -57,14 +50,12 @@ export default function CourseListPage() {
   useEffect(() => {
     fetchCourses()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filterClassId, filterSubjectId, filterPrice, filterDifficulty, sort, debouncedSearch])
+  }, [filterPrice, filterDifficulty, sort, debouncedSearch])
 
   async function fetchCourses() {
     setLoading(true)
     try {
       const result = await courseService.list({
-        classId: filterClassId || undefined,
-        subjectId: filterSubjectId || undefined,
         q: debouncedSearch || undefined,
         price: filterPrice || undefined,
         difficulty: filterDifficulty || undefined,
@@ -79,15 +70,13 @@ export default function CourseListPage() {
   }
 
   function clearFilters() {
-    setFilterClassId('')
-    setFilterSubjectId('')
     setFilterPrice('')
     setFilterDifficulty('')
     setSort('newest')
     setSearch('')
   }
 
-  const hasActiveFilters = !!filterClassId || !!filterSubjectId || !!filterPrice || !!filterDifficulty || !!search
+  const hasActiveFilters = !!filterPrice || !!filterDifficulty || !!search
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-sky-50 to-white dark:from-gray-950 dark:to-gray-900">
@@ -124,30 +113,7 @@ export default function CourseListPage() {
           )}
         </div>
 
-        {/* Level (class) filter */}
-        <div className="mb-3">
-          <p className="mb-1.5 text-xs font-medium text-muted-foreground">শ্রেণি</p>
-          <FilterChips
-            value={filterClassId}
-            onChange={setFilterClassId}
-            options={[{ value: '', label: 'সব' }, ...classList.map((c) => ({ value: c.id, label: c.name }))]}
-          />
-        </div>
-
-        {/* Subject filter */}
-        <div className="mb-3">
-          <p className="mb-1.5 text-xs font-medium text-muted-foreground">বিষয়</p>
-          <div className="flex flex-wrap gap-2">
-            <Button variant={!filterSubjectId ? 'default' : 'outline'} size="sm" onClick={() => setFilterSubjectId('')}>সব</Button>
-            {subjectList.map((s) => (
-              <Button key={s.id} variant={filterSubjectId === s.id ? 'default' : 'outline'} size="sm" onClick={() => setFilterSubjectId(s.id)}>
-                {s.name}
-              </Button>
-            ))}
-          </div>
-        </div>
-
-        {/* Price + Status (difficulty) + Sort */}
+        {/* Price + Difficulty + Sort */}
         <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <div>
             <p className="mb-1.5 text-xs font-medium text-muted-foreground">মূল্য</p>

@@ -1793,12 +1793,13 @@ async function seed() {
     // Header navigation
     { label: 'হোম', route: 'home', icon: 'Home', location: 'header', order: 1, isAuthOnly: false, isAdminOnly: false, isActive: true },
     { label: 'ক্লাসসমূহ', route: 'class-list', icon: 'GraduationCap', location: 'header', order: 2, isAuthOnly: false, isAdminOnly: false, isActive: true },
-    { label: 'এক্সাম', route: 'exam-center', icon: 'ClipboardCheck', location: 'header', order: 3, isAuthOnly: false, isAdminOnly: false, isActive: true },
-    { label: 'সাজেশন', route: 'suggestions', icon: 'BookOpen', location: 'header', order: 4, isAuthOnly: false, isAdminOnly: false, isActive: true },
-    { label: 'বোর্ড প্রশ্ন', route: 'board-questions', icon: 'BookOpen', location: 'header', order: 5, isAuthOnly: false, isAdminOnly: false, isActive: true },
-    { label: 'নোটিশ', route: 'notices', icon: 'Megaphone', location: 'header', order: 6, isAuthOnly: false, isAdminOnly: false, isActive: true },
-    { label: 'প্রিমিয়াম', route: 'premium', icon: 'Crown', location: 'header', order: 7, isAuthOnly: false, isAdminOnly: false, isActive: true },
-    { label: 'এডমিন', route: 'admin-dashboard', icon: 'LayoutDashboard', location: 'header', order: 8, isAuthOnly: false, isAdminOnly: true, isActive: true },
+    { label: 'কোর্স', route: 'course-list', icon: 'BookOpen', location: 'header', order: 3, isAuthOnly: false, isAdminOnly: false, isActive: true },
+    { label: 'এক্সাম', route: 'exam-center', icon: 'ClipboardCheck', location: 'header', order: 4, isAuthOnly: false, isAdminOnly: false, isActive: true },
+    { label: 'সাজেশন', route: 'suggestions', icon: 'BookOpen', location: 'header', order: 5, isAuthOnly: false, isAdminOnly: false, isActive: true },
+    { label: 'বোর্ড প্রশ্ন', route: 'board-questions', icon: 'BookOpen', location: 'header', order: 6, isAuthOnly: false, isAdminOnly: false, isActive: true },
+    { label: 'নোটিশ', route: 'notices', icon: 'Megaphone', location: 'header', order: 7, isAuthOnly: false, isAdminOnly: false, isActive: true },
+    { label: 'প্রিমিয়াম', route: 'premium', icon: 'Crown', location: 'header', order: 8, isAuthOnly: false, isAdminOnly: false, isActive: true },
+    { label: 'এডমিন', route: 'admin-dashboard', icon: 'LayoutDashboard', location: 'header', order: 9, isAuthOnly: false, isAdminOnly: true, isActive: true },
 
     // Bottom navigation (mobile)
     { label: 'হোম', route: 'home', icon: 'Home', location: 'bottomNav', order: 1, isAuthOnly: false, isAdminOnly: false, isActive: true },

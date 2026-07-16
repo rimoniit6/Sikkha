@@ -102,7 +102,7 @@ export function useStudentCourseDetail(slug: string | null) {
     try {
       const result = await courseService.progress(courseId)
       setProgress(result.lessonProgress)
-      setOverallProgress(result.overall)
+      setOverallProgress(result?.overall ?? { total: 0, completed: 0, percent: 0 })
       setBreakdown(result.breakdown)
     } catch {
       /* keep stale data */
