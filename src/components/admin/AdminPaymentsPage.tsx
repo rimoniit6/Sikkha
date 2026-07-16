@@ -44,10 +44,11 @@ TrendingUp,
 XCircle
 } from 'lucide-react'
 import Image from 'next/image'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import { usePayments } from '@/hooks/admin/use-payments'
 import { paymentService } from '@/services/api/payment.service'
+import { useAdminAlerts } from '@/contexts/AdminAlertContext'
 
 interface PaymentRecord {
   id: string
@@ -78,6 +79,8 @@ const methodLabels: Record<string, string> = { bkash: 'বিকাশ', nagad: 
 export default function AdminPaymentsPage() {
   const { toast } = useToast()
   const { getLabel, getIcon } = useContentTypes()
+  const { acknowledgePayment } = useAdminAlerts()
+  useEffect(() => { acknowledgePayment() }, [acknowledgePayment])
 
   const renderContentTypeIcon = (type: string | null) => {
     if (!type) return <CreditCard className="size-4 text-muted-foreground" />
@@ -215,7 +218,7 @@ export default function AdminPaymentsPage() {
     {
       key: 'status',
       header: 'স্ট্যাটাস',
-      render: (payment) => <Badge className={statusColors[payment.status]}>{statusLabels[payment.status]}</Badge>,
+      render: (payment) => <Badge className={statusColors[payment.status?.toLowerCase() || '']}>{statusLabels[payment.status?.toLowerCase() || '']}</Badge>,
     },
     {
       key: 'actions',
@@ -224,7 +227,7 @@ export default function AdminPaymentsPage() {
       render: (payment) => (
         <div className="flex items-center gap-1">
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setDetailPayment(payment)} aria-label="বিস্তারিত"><Eye className="h-4 w-4" /></Button>
-          {payment.status === 'pending' && (
+          {payment.status?.toLowerCase() === 'pending' && (
             <>
               <Button variant="ghost" size="icon" className="h-8 w-8 text-emerald-600" onClick={() => { setApproveDialog(payment); setAdminNote('') }} aria-label="অনুমোদন করুন"><CheckCircle className="h-4 w-4" /></Button>
               <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => { setRejectDialog(payment); setRejectReason('') }} aria-label="প্রত্যাখ্যান করুন"><XCircle className="h-4 w-4" /></Button>
@@ -306,9 +309,9 @@ export default function AdminPaymentsPage() {
     return <QueryError error={error} onRetry={() => refetch()} />
   }
 
-  const totalRevenue = payments.filter((p) => p.status === 'approved').reduce((s, p) => s + toDecimal(p.amount), 0)
-  const pendingCount = payments.filter((p) => p.status === 'pending').length
-  const approvedCount = payments.filter((p) => p.status === 'approved').length
+  const totalRevenue = payments.filter((p) => p.status?.toLowerCase() === 'approved').reduce((s, p) => s + toDecimal(p.amount), 0)
+  const pendingCount = payments.filter((p) => p.status?.toLowerCase() === 'pending').length
+  const approvedCount = payments.filter((p) => p.status?.toLowerCase() === 'approved').length
 
   return (
     <div className="space-y-6 animate-fade-in-up">
@@ -419,24 +422,24 @@ export default function AdminPaymentsPage() {
                 <div><span className="text-muted-foreground">তারিখ:</span></div>
                 <div>{new Date(detailPayment.createdAt).toLocaleDateString('bn-BD')}</div>
                 <div><span className="text-muted-foreground">স্ট্যাটাস:</span></div>
-                <div><Badge className={statusColors[detailPayment.status]}>{statusLabels[detailPayment.status]}</Badge></div>
+                <div><Badge className={statusColors[detailPayment.status?.toLowerCase() || '']}>{statusLabels[detailPayment.status?.toLowerCase() || '']}</Badge></div>
               </div>
 
               {detailPayment.adminNote && (
                 <>
                   <Separator />
                   <div className={`rounded-lg p-3 ${
-                    detailPayment.status === 'rejected'
+                    detailPayment.status?.toLowerCase() === 'rejected'
                       ? 'bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800'
                       : 'bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800'
                   }`}>
                     <div className="flex items-start gap-2">
                       <MessageSquare className={`size-4 mt-0.5 shrink-0 ${
-                        detailPayment.status === 'rejected' ? 'text-red-500' : 'text-emerald-500'
+                        detailPayment.status?.toLowerCase() === 'rejected' ? 'text-red-500' : 'text-emerald-500'
                       }`} />
                       <div>
                         <p className="text-xs font-semibold mb-1">
-                          {detailPayment.status === 'rejected' ? 'প্রত্যাখ্যানের কারণ' : 'অ্যাডমিন নোট'}
+                          {detailPayment.status?.toLowerCase() === 'rejected' ? 'প্রত্যাখ্যানের কারণ' : 'অ্যাডমিন নোট'}
                         </p>
                         <p className="text-sm">{detailPayment.adminNote}</p>
                       </div>
@@ -452,7 +455,7 @@ export default function AdminPaymentsPage() {
                 </div>
               )}
 
-              {detailPayment.status === 'pending' && (
+              {detailPayment.status?.toLowerCase() === 'pending' && (
                 <>
                   <Separator />
                   <div className="flex gap-3">

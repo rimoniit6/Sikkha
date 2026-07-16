@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { courseAdminService } from '@/services/api/course-admin.service'
 import type { CourseRecord } from '@/services/api/course.service'
 import { createRaceGuard } from '@/features/common/admin-utils'
+import { toast } from '@/hooks/use-toast'
 
 export type ViewMode = 'list' | 'form' | 'detail'
 
@@ -62,8 +63,10 @@ export function useCourses() {
       await courseAdminService.delete(deleteTarget)
       setDeleteTarget(null)
       fetchCourses()
+      toast({ title: 'কোর্স মুছে ফেলা হয়েছে' })
     } catch (err) {
       console.error('[Courses] Failed to delete course:', err)
+      toast({ title: 'ত্রুটি', description: 'কোর্স মুছে ফেলা যায়নি', variant: 'destructive' })
     }
   }
 

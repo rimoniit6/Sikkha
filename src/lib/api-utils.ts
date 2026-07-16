@@ -1,4 +1,4 @@
-import type { Role } from '@prisma/client'
+import type { Role } from '@/lib/auth'
 import { NextResponse } from 'next/server'
 import { ZodError,ZodSchema } from 'zod'
 import { requireAdmin,requireAuth,requireRole,requireSuperAdmin,type AuthResult } from './auth'

@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server'
 import { apiError, withCsrf, applyRateLimit } from '@/lib/api-utils'
 import { handleApiError } from '@/lib/errors'
 import { apiLimiter } from '@/lib/rate-limit'
-import { $Enums } from '@prisma/client'
+
 
 // Transform raw CQ Prisma object to frontend-expected format
 function transformCQ(cq: {
@@ -31,7 +31,7 @@ function transformCQ(cq: {
   price: number
   board: string | null
   year: string | null
-  difficulty: $Enums.Difficulty
+  difficulty: string
   chapterId: string
   chapter?: { id: string; name: string; slug: string; subject?: { id: string; name: string; slug: string; class?: { id: string; name: string; slug: string } } }
   [key: string]: unknown
@@ -95,7 +95,7 @@ function transformCQList(cq: {
   uddeepokImage?: string | null
   isPremium: boolean
   price: number
-  difficulty: $Enums.Difficulty
+  difficulty: string
   board: string | null
   year: string | null
   chapterId: string

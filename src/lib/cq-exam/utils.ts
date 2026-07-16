@@ -29,7 +29,7 @@ export function quickMarkButtons(maxMarks: number): number[] {
 }
 
 export function getTypeLabel(type: string): string {
-  switch (type) {
+  switch (type.toLowerCase()) {
     case 'mcq-single':
       return 'MCQ (একক উত্তর)'
     case 'mcq-multiple':
@@ -48,13 +48,13 @@ export function getTypeLabel(type: string): string {
 }
 
 export function getStatusBadge(status: string): { label: string; color: string } {
-  switch (status) {
+  switch (status?.toLowerCase()) {
     case 'graded':
     case 'published':
       return { label: 'মূল্যায়ন সম্পন্ন', color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' }
     case 'submitted':
       return { label: 'জমা দেওয়া হয়েছে', color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' }
-    case 'in-progress':
+    case 'in_progress':
       return { label: 'চলমান', color: 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400' }
     case 'not-started':
       return { label: 'শুরু হয়নি', color: 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400' }

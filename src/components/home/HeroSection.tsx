@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { BookOpen, GraduationCap, ArrowRight, Sparkles, Star, Loader2, Play, Users, Award, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useRouterStore } from '@/store/router'
@@ -122,6 +122,18 @@ export default function HeroSection() {
   const navigate = useRouterStore((s) => s.navigate)
   const { stats, loading } = usePublicStats()
   const { config } = useSiteConfig()
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0 })
+
+  // Subtle mouse parallax for floating elements
+  useEffect(() => {
+    const handleMove = (e: MouseEvent) => {
+      const x = (e.clientX / window.innerWidth - 0.5) * 2
+      const y = (e.clientY / window.innerHeight - 0.5) * 2
+      setMousePos({ x, y })
+    }
+    window.addEventListener('mousemove', handleMove, { passive: true })
+    return () => window.removeEventListener('mousemove', handleMove)
+  }, [])
 
   const heroStats = stats
     ? [
@@ -143,14 +155,21 @@ export default function HeroSection() {
       {/* Particle Canvas */}
       <ParticleCanvas />
 
-      {/* Animated floating elements */}
+      {/* Animated floating elements with mouse parallax */}
       {floatingElements.map(({ Icon, x, y, delay, size }, i) => {
         const floatClass = `animate-float-${(i % 5) + 1}`
+        const parallaxFactor = (i % 3) * 0.15 + 0.1
         return (
           <div
             key={i}
             className={`absolute text-white/15 pointer-events-none ${floatClass}`}
-            style={{ left: x, top: y, animationDelay: `${delay}s` }}
+            style={{
+              left: x,
+              top: y,
+              animationDelay: `${delay}s`,
+              transform: `translate(${mousePos.x * parallaxFactor * -30}px, ${mousePos.y * parallaxFactor * -30}px)`,
+              transition: 'transform 0.3s ease-out',
+            }}
             aria-hidden="true"
           >
             <Icon size={size} />
@@ -193,7 +212,7 @@ export default function HeroSection() {
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-14">
               <Button
                 size="lg"
-                className="group relative bg-white text-emerald-700 hover:bg-white/95 font-bold text-lg px-10 h-13 shadow-xl shadow-black/20 transition-all duration-300 hover:shadow-2xl hover:shadow-black/25 hover:scale-[1.02] active:scale-[0.98]"
+                className="group relative bg-white text-emerald-700 hover:bg-white/95 font-bold text-lg px-10 h-13 shadow-xl shadow-black/20 transition-all duration-300 hover:shadow-2xl hover:shadow-black/25 hover:scale-[1.02] active:scale-[0.97] hover-shine"
                 onClick={() => navigate('class-list')}
               >
                 <span className="flex items-center gap-2">
@@ -204,7 +223,7 @@ export default function HeroSection() {
               <Button
                 variant="outline"
                 size="lg"
-                className="group border-2 border-white/30 text-white hover:bg-white/15 hover:border-white/50 hover:text-white font-bold text-lg px-10 h-13 bg-white/5 backdrop-blur-sm transition-all duration-300 hover:scale-[1.02] active:scale-[0.98]"
+                className="group border-2 border-white/30 text-white hover:bg-white/15 hover:border-white/50 hover:text-white font-bold text-lg px-10 h-13 bg-white/5 backdrop-blur-sm transition-all duration-300 hover:scale-[1.02] active:scale-[0.97] hover-shine"
                 onClick={() => navigate('premium')}
               >
                 <span className="flex items-center gap-2">

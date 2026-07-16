@@ -20,9 +20,9 @@ export async function GET(request: Request) {
       return apiError('contentId এবং contentType আবশ্যক', 400)
     }
 
-    const validContentTypes = ['mcq', 'cq', 'lecture']
+    const validContentTypes = ['mcq', 'cq', 'lecture', 'course']
     if (!validContentTypes.includes(contentType)) {
-      return apiError('contentType অবশ্যই mcq, cq, বা lecture হতে হবে', 400)
+      return apiError('contentType অবশ্যই mcq, cq, lecture, বা course হতে হবে', 400)
     }
 
     const bookmark = await db.bookmark.findUnique({

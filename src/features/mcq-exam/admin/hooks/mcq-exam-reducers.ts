@@ -94,7 +94,7 @@ export const initialPackageFormState: PackageFormState = {
   pkgThumbnail: '',
   pkgIsActive: true,
   pkgOrder: '',
-  pkgStatus: 'draft',
+  pkgStatus: 'DRAFT',
 }
 
 export function packageFormReducer(state: PackageFormState, action: PackageFormAction): PackageFormState {
@@ -143,7 +143,7 @@ export const initialSetFormState: SetFormState = {
   setInstructions: '',
   setAllowRetake: false,
   setOrder: '0',
-  setStatus: 'draft',
+  setStatus: 'DRAFT',
 }
 
 export function setFormReducer(state: SetFormState, action: SetFormAction): SetFormState {

@@ -1,6 +1,6 @@
 'use client'
 
-import { BookOpen, Crown, Clock, User, GraduationCap, BarChart3, Check, Loader2, Play, Award } from 'lucide-react'
+import { Crown, Clock, User, GraduationCap, BarChart3, Check, Loader2, Play, Award } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'

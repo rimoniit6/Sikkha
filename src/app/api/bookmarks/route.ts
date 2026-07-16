@@ -4,7 +4,7 @@ import { verifyAuth } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { handleApiError } from '@/lib/errors'
 
-const VALID_CONTENT_TYPES = ['mcq', 'cq', 'lecture']
+const VALID_CONTENT_TYPES = ['mcq', 'cq', 'lecture', 'course']
 
 async function batchResolveTitles(items: { contentId: string; contentType: string }[]): Promise<Map<string, string>> {
   const titleMap = new Map<string, string>()
@@ -23,6 +23,9 @@ async function batchResolveTitles(items: { contentId: string; contentType: strin
     } else if (type === 'lecture') {
       const lectures = await db.lecture.findMany({ where: { id: { in: ids } }, select: { id: true, title: true } })
       for (const l of lectures) titleMap.set(l.id, l.title)
+    } else if (type === 'course') {
+      const courses = await db.course.findMany({ where: { id: { in: ids } }, select: { id: true, title: true } })
+      for (const c of courses) titleMap.set(c.id, c.title)
     }
   })
   await Promise.all(queries)
@@ -83,11 +86,10 @@ export async function POST(request: Request) {
     if (!auth) return apiError('প্রমাণীকরণ প্রয়োজন', 401, 'UNAUTHORIZED')
 
     const userId = auth.user.id
-    const body = await request.json()
-    const { contentId, contentType } = body
+    const { contentId, contentType } = await resolveBookmarkTarget(request)
 
     if (!contentId || !contentType) return apiError('contentId এবং contentType আবশ্যক', 400)
-    if (!VALID_CONTENT_TYPES.includes(contentType)) return apiError('contentType অবশ্যই mcq, cq, বা lecture হতে হবে', 400)
+    if (!VALID_CONTENT_TYPES.includes(contentType)) return apiError('contentType অবশ্যই mcq, cq, lecture, বা course হতে হবে', 400)
 
     await db.bookmark.upsert({
       where: { userId_contentId_contentType: { userId, contentId, contentType } },
@@ -113,16 +115,29 @@ export async function DELETE(request: Request) {
     if (!auth) return apiError('প্রমাণীকরণ প্রয়োজন', 401, 'UNAUTHORIZED')
 
     const userId = auth.user.id
-    const body = await request.json()
-    const { contentId, contentType } = body
+    const { contentId, contentType } = await resolveBookmarkTarget(request)
 
     if (!contentId || !contentType) return apiError('contentId এবং contentType আবশ্যক', 400)
-    if (!VALID_CONTENT_TYPES.includes(contentType)) return apiError('contentType অবশ্যই mcq, cq, বা lecture হতে হবে', 400)
+    if (!VALID_CONTENT_TYPES.includes(contentType)) return apiError('contentType অবশ্যই mcq, cq, lecture, বা course হতে হবে', 400)
 
     await db.bookmark.deleteMany({ where: { userId, contentId, contentType } })
 
     return apiResponse({ bookmarked: false })
   } catch (error) {
     return handleApiError(error, 'Remove bookmark error')
+  }
+}
+
+// Accept contentId/contentType from JSON body OR query params
+async function resolveBookmarkTarget(request: Request): Promise<{ contentId?: string; contentType?: string }> {
+  const url = new URL(request.url)
+  const contentType = url.searchParams.get('contentType') || undefined
+  const contentId = url.searchParams.get('contentId') || undefined
+  if (contentId && contentType) return { contentId, contentType }
+  try {
+    const body = await request.json()
+    return { contentId: body.contentId, contentType: body.contentType }
+  } catch {
+    return { contentId, contentType }
   }
 }

@@ -79,6 +79,24 @@ export async function POST(request: NextRequest) {
 }
 
 // ============================================================================
+// Utility: subjectIds is stored as a JSON string ("[]" default) in SQLite —
+// parse defensively so a malformed value never crashes the route.
+// ============================================================================
+
+function parseSubjectIds(raw: unknown): string[] {
+  if (Array.isArray(raw)) return raw.filter((id): id is string => typeof id === 'string')
+  if (typeof raw !== 'string' || raw.trim() === '') return []
+  try {
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed)
+      ? parsed.filter((id): id is string => typeof id === 'string')
+      : []
+  } catch {
+    return []
+  }
+}
+
+// ============================================================================
 // 1. LIST — Published packages with pagination
 // ============================================================================
 
@@ -144,13 +162,8 @@ async function handleList(searchParams: URLSearchParams) {
   // Collect all unique subject IDs across all packages
   const allSubjectIds = new Set<string>()
   for (const pkg of packages) {
-    try {
-      const ids = (pkg.subjectIds || []) as string[]
-      for (const id of ids) {
-        if (id) allSubjectIds.add(id)
-      }
-    } catch {
-      // Skip invalid JSON
+    for (const id of parseSubjectIds(pkg.subjectIds)) {
+      if (id) allSubjectIds.add(id)
     }
   }
 
@@ -166,12 +179,7 @@ async function handleList(searchParams: URLSearchParams) {
   // ---- Enrich each package with subjects, examSetSummary, and totals ----
   const enrichedPackages = packages.map((pkg) => {
     // Parse subject IDs and resolve names
-    let subjectIds: string[] = []
-    try {
-      subjectIds = (pkg.subjectIds || []) as string[]
-    } catch {
-      subjectIds = []
-    }
+    const subjectIds = parseSubjectIds(pkg.subjectIds)
     const subjects = subjectIds
       .filter((id) => id)
       .map((id) => ({ id, name: subjectMap.get(id) || 'Unknown' }))
@@ -589,7 +597,7 @@ async function handleTakeExam(searchParams: URLSearchParams, request: NextReques
       setId: setId,
       status: 'IN_PROGRESS',
       startedAt: new Date(),
-          answers: {},
+          answers: '{}',
       totalMarks: examSet.totalMarks,
       canRetake: hadCanRetake,
     },
@@ -1173,7 +1181,7 @@ async function handleWeaknessAnalysis(searchParams: URLSearchParams, request: Ne
   const answerMap: Record<string, string> = {}
   for (const result of results) {
     try {
-      const parsed = result.answers as Record<string, string>
+      const parsed = (typeof result.answers === 'string' ? JSON.parse(result.answers) : result.answers) as Record<string, string>
       for (const [mcqId, answer] of Object.entries(parsed)) {
         answerMap[mcqId] = answer
       }

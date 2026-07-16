@@ -1,12 +1,16 @@
 import { apiError, applyRateLimit } from '@/lib/api-utils'
 import { apiLimiter } from '@/lib/rate-limit'
 import { NextResponse } from 'next/server'
-import { generateCsrfToken, setCsrfCookie } from '@/lib/csrf'
+import { generateCsrfToken, setCsrfCookie, isCsrfEnabled } from '@/lib/csrf'
 
 export async function GET(request: Request) {
   try {
     const rateCheck = await applyRateLimit(apiLimiter, request)
     if ('error' in rateCheck) return rateCheck.error
+
+    if (!isCsrfEnabled()) {
+      return NextResponse.json({ token: '', enabled: false })
+    }
 
     const token = await generateCsrfToken()
     await setCsrfCookie(token)

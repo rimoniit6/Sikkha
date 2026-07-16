@@ -67,8 +67,15 @@ function getSubjectIcon(name: string): LucideIcon {
 // ─── Component ──────────────────────────────────────────────────
 
 export default function SubjectExplorerSection() {
-  const { classOptions, getClassName, getClassColor, subjects, chapters, loading } =
-    useHierarchyMetadata()
+  const {
+    classOptions,
+    getClassName,
+    getClassColor,
+    subjects,
+    chapters,
+    loading,
+    metadata,
+  } = useHierarchyMetadata()
   const navigate = useRouterStore((s) => s.navigate)
 
   const [selectedClass, setSelectedClass] = useState<string>(CLASS_TABS[0])
@@ -102,18 +109,22 @@ export default function SubjectExplorerSection() {
     [classOptions, selectedClass]
   )
 
+  // Map class slug -> class id so we can match subjects by their classId (UUID)
+  const classSlugToId = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const c of metadata?.classes ?? []) map.set(c.slug, c.id)
+    return map
+  }, [metadata?.classes])
+
   // Filter subjects for the selected class
   const filteredSubjects = useMemo(() => {
     if (!selectedClassInfo) return []
-    // Subjects have classId that matches the class id from hierarchy
-    // We need to match subjects by classId against the selected class's value/id
-    const selectedClassId = selectedClassInfo.value
-    return subjects.filter(
-      (s) =>
-        s.classId === selectedClassId ||
-        s.classId === selectedClass
-    )
-  }, [subjects, selectedClassInfo, selectedClass])
+    // Subjects are linked to the class by classId (the class UUID), while
+    // the selected tab only exposes the class slug — resolve it first.
+    const selectedClassId = classSlugToId.get(selectedClassInfo.value)
+    if (!selectedClassId) return []
+    return subjects.filter((s) => s.classId === selectedClassId)
+  }, [subjects, selectedClassInfo, classSlugToId])
 
   // Count chapters per subject
   const chapterCounts = useMemo(() => {

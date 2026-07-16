@@ -1,21 +1,21 @@
 export const statusOptions = [
   { value: '', label: 'সকল স্ট্যাটাস' },
-  { value: 'draft', label: 'ড্রাফট' },
-  { value: 'published', label: 'প্রকাশিত' },
-  { value: 'archived', label: 'আর্কাইভ' },
+  { value: 'DRAFT', label: 'ড্রাফট' },
+  { value: 'PUBLISHED', label: 'প্রকাশিত' },
+  { value: 'ARCHIVED', label: 'আর্কাইভ' },
 ] as const
 
 export const statusLabels: Record<string, string> = {
-  'draft': 'ড্রাফট',
-  'published': 'প্রকাশিত',
-  'archived': 'আর্কাইভ',
+  'DRAFT': 'ড্রাফট',
+  'PUBLISHED': 'প্রকাশিত',
+  'ARCHIVED': 'আর্কাইভ',
   'completed': 'সম্পন্ন',
 }
 
 export const statusColors: Record<string, string> = {
-  'draft': 'bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300',
-  'published': 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300',
-  'archived': 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400',
+  'DRAFT': 'bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300',
+  'PUBLISHED': 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300',
+  'ARCHIVED': 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400',
   'completed': 'bg-sky-100 text-sky-700 dark:bg-sky-900 dark:text-sky-300',
 }
 

@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server'
 import { checkContentAccess } from '@/lib/access-control'
 import { apiError, withCsrf } from '@/lib/api-utils'
 import { handleApiError } from '@/lib/errors'
-import { $Enums } from '@prisma/client'
+
 
 function transformCQ(cq: {
   id: string
@@ -28,7 +28,7 @@ function transformCQ(cq: {
   answer4Image?: string | null
   isPremium: boolean
   price: number
-  difficulty: $Enums.Difficulty
+  difficulty: string
   board: string | null
   year: string | null
   chapterId: string

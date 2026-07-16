@@ -9,17 +9,17 @@ import { cn } from '@/lib/utils'
 import { CQExamPackageRecord, CQExamSetRecord } from '@/features/cq-exam/types'
 
 const statusLabels: Record<string, string> = {
-  'draft': 'ড্রাফট',
-  'published': 'প্রকাশিত',
-  'archived': 'আর্কাইভ',
-  'completed': 'সম্পন্ন',
+  'DRAFT': 'ড্রাফট',
+  'PUBLISHED': 'প্রকাশিত',
+  'ARCHIVED': 'আর্কাইভ',
+  'COMPLETED': 'সম্পন্ন',
 }
 
 const statusColors: Record<string, string> = {
-  'draft': 'bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300',
-  'published': 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300',
-  'archived': 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400',
-  'completed': 'bg-sky-100 text-sky-700 dark:bg-sky-900 dark:text-sky-300',
+  'DRAFT': 'bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300',
+  'PUBLISHED': 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300',
+  'ARCHIVED': 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400',
+  'COMPLETED': 'bg-sky-100 text-sky-700 dark:bg-sky-900 dark:text-sky-300',
 }
 
 const formatDate = (dateStr: string) => {
@@ -89,7 +89,7 @@ export function CQPackageDetail({
               </div>
               <div className="space-y-1">
                 <p className="text-xs text-muted-foreground">স্ট্যাটাস</p>
-                <Badge className={cn('text-xs', statusColors[currentPackage.status] || statusColors['draft'])}>
+                <Badge className={cn('text-xs', statusColors[currentPackage.status] || statusColors['DRAFT'])}>
                   {statusLabels[currentPackage.status] || currentPackage.status}
                 </Badge>
               </div>
@@ -175,7 +175,7 @@ export function CQPackageDetail({
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
                       <h4 className="font-semibold text-sm">{set.title}</h4>
-                      <Badge className={cn('text-xs', statusColors[set.status] || statusColors['draft'])}>
+                      <Badge className={cn('text-xs', statusColors[set.status] || statusColors['DRAFT'])}>
                         {statusLabels[set.status] || set.status}
                       </Badge>
                       {(set as any).allowRetake && (

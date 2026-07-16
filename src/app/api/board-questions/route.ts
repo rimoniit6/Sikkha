@@ -215,10 +215,10 @@ export async function GET(request: Request) {
         ? db
             .$queryRaw<AnalyticsRow[]>`
               SELECT
-                COUNT(*) FILTER (WHERE "isPremium" = true)::int AS "premiumCount",
-                COUNT(DISTINCT "board")::int       AS "distinctBoards",
-                COUNT(DISTINCT "subjectId")::int   AS "distinctSubjects",
-                COUNT(DISTINCT "chapterId")::int   AS "distinctChapters"
+                COUNT(*) FILTER (WHERE "isPremium" = true) AS "premiumCount",
+                COUNT(DISTINCT "board")       AS "distinctBoards",
+                COUNT(DISTINCT "subjectId")   AS "distinctSubjects",
+                COUNT(DISTINCT "chapterId")   AS "distinctChapters"
               FROM "MCQ"
               WHERE ${analyticsWhere(analyticsParams, 'question', search ?? undefined)}
             `
@@ -233,10 +233,10 @@ export async function GET(request: Request) {
         ? db
             .$queryRaw<AnalyticsRow[]>`
               SELECT
-                COUNT(*) FILTER (WHERE "isPremium" = true)::int AS "premiumCount",
-                COUNT(DISTINCT "board")::int       AS "distinctBoards",
-                COUNT(DISTINCT "subjectId")::int   AS "distinctSubjects",
-                COUNT(DISTINCT "chapterId")::int   AS "distinctChapters"
+                COUNT(*) FILTER (WHERE "isPremium" = true) AS "premiumCount",
+                COUNT(DISTINCT "board")       AS "distinctBoards",
+                COUNT(DISTINCT "subjectId")   AS "distinctSubjects",
+                COUNT(DISTINCT "chapterId")   AS "distinctChapters"
               FROM "CQ"
               WHERE ${analyticsWhere(analyticsParams, 'uddeepok', search ?? undefined)}
             `

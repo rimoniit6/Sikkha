@@ -4,7 +4,7 @@ import { db } from '@/lib/db'
 import { handleApiError } from '@/lib/errors'
 
 import { adminUpdateUserSchema } from '@/lib/validations'
-import type { Role } from '@prisma/client'
+import type { Role } from '@/lib/auth'
 import { NextResponse } from 'next/server'
 
 const SUPER_ADMIN_ROLE: Role = 'SUPER_ADMIN'

@@ -1,9 +1,8 @@
 import { db } from '@/lib/db'
 import { verifyToken, getSessionCookieName } from '@/lib/auth/jwt'
-import type { Role } from '@prisma/client'
 import { AuthenticationError, AuthorizationError } from './errors'
 
-export type { Role }
+export type Role = 'SUPER_ADMIN' | 'ADMIN' | 'STUDENT'
 
 export interface AuthUser {
   id: string
@@ -36,7 +35,7 @@ export async function verifyAuth(request?: Request): Promise<AuthResult | null> 
     })
     if (!dbUser) return null
     return {
-      user: dbUser,
+      user: { ...dbUser, role: dbUser.role as Role },
       isSuperAdmin: dbUser.role === 'SUPER_ADMIN',
       isAdmin: dbUser.role === 'ADMIN' || dbUser.role === 'SUPER_ADMIN',
     }

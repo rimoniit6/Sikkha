@@ -3,7 +3,7 @@ import { verifyAuth } from '@/lib/auth'
 import { NextResponse } from 'next/server'
 import { checkContentAccess } from '@/lib/access-control'
 import { apiError, withCsrf } from '@/lib/api-utils'
-import { $Enums } from '@prisma/client'
+
 
 function transformMCQ(mcq: {
   id: string
@@ -12,7 +12,7 @@ function transformMCQ(mcq: {
   optionB: string
   optionC: string
   optionD: string
-  correctAnswer: $Enums.MCQAnswer
+  correctAnswer: string
   explanation: string | null
   questionImage?: string | null
   optionAImage?: string | null

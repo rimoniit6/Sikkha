@@ -31,7 +31,7 @@ import { CQExamSetRecord,CQExamSubmissionRecord } from '../../types'
 
 const cqStatusInfo: Record<string, { label: string; className: string }> = {
   'not-started': { label: 'শুরু করেনি', className: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400' },
-  'in-progress': { label: 'চলমান', className: 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300' },
+  'in_progress': { label: 'চলমান', className: 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300' },
   'submitted': { label: 'জমা দিয়েছে', className: 'bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300' },
   'graded': { label: 'মূল্যায়িত', className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300' },
   'published': { label: 'প্রকাশিত', className: 'bg-sky-100 text-sky-700 dark:bg-sky-900 dark:text-sky-300' },
@@ -71,7 +71,7 @@ export function CQSubmissions({
 
   const filteredSubmissions = useMemo(() => {
     return submissions.filter((sub) => {
-      if (statusFilter !== 'all' && sub.status !== statusFilter) return false
+      if (statusFilter !== 'all' && sub.status?.toLowerCase() !== statusFilter) return false
       if (studentSearch) {
         const query = studentSearch.toLowerCase()
         const name = (sub.user?.name || '').toLowerCase()
@@ -82,8 +82,8 @@ export function CQSubmissions({
     })
   }, [submissions, statusFilter, studentSearch])
 
-  const gradedCount = submissions.filter(s => s.status === 'graded' || s.status === 'published').length
-  const pendingCount = submissions.filter(s => s.status === 'submitted').length
+  const gradedCount = submissions.filter(s => s.status?.toLowerCase() === 'graded' || s.status?.toLowerCase() === 'published').length
+  const pendingCount = submissions.filter(s => s.status?.toLowerCase() === 'submitted').length
   const totalMarks = currentSet?.totalMarks || 0
 
   // Count answer stats per submission
@@ -144,7 +144,7 @@ export function CQSubmissions({
                   <p className="text-xs text-muted-foreground">মূল্যায়ন বাকি</p>
                 </div>
                 <div className="text-center">
-                  <p className="text-2xl font-bold text-sky-600">{submissions.filter(s => s.status === 'published').length}</p>
+                  <p className="text-2xl font-bold text-sky-600">{submissions.filter(s => s.status?.toLowerCase() === 'published').length}</p>
                   <p className="text-xs text-muted-foreground">প্রকাশিত</p>
                 </div>
               </div>
@@ -172,7 +172,7 @@ export function CQSubmissions({
                   <SelectItem value="submitted">জমা দিয়েছে</SelectItem>
                   <SelectItem value="graded">মূল্যায়িত</SelectItem>
                   <SelectItem value="published">প্রকাশিত</SelectItem>
-                  <SelectItem value="in-progress">চলমান</SelectItem>
+                  <SelectItem value="in_progress">চলমান</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -227,7 +227,7 @@ export function CQSubmissions({
                   </TableRow>
                 ) : (
                   filteredSubmissions.map((sub, _idx) => {
-                    const statusInfo = cqStatusInfo[sub.status] || cqStatusInfo['not-started']
+                    const statusInfo = cqStatusInfo[sub.status?.toLowerCase()] || cqStatusInfo['not-started']
                     const stats = getAnswerStats(sub)
                     return (
                       <TableRow
@@ -270,75 +270,79 @@ export function CQSubmissions({
                         </TableCell>
                         <TableCell className="text-right" onClick={e => e.stopPropagation()}>
                           <div className="flex items-center justify-end gap-1.5">
-                            {sub.status === 'submitted' && (
-                              <Button
-                                size="sm"
-                                className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-xs"
-                                onClick={() => onStartGrading(sub)}
-                              >
-                                <GraduationCap className="h-3.5 w-3.5" /> গ্রেডিং
-                              </Button>
-                            )}
-                            {sub.status === 'graded' && (
-                              <>
-                                {onReopenGrading && (
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="gap-1 text-xs border-amber-300 text-amber-700 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-400"
-                                    onClick={() => onReopenGrading(sub.id)}
-                                    disabled={saving}
-                                  >
-                                    <RefreshCw className="h-3 w-3" />
-                                    পুনরায় গ্রেডিং
-                                  </Button>
-                                )}
-                                {onAllowRetake && (
-                                  <Button
-                                    size="sm"
-                                    variant={sub.canRetake ? 'default' : 'outline'}
-                                    className={cn(
-                                      'gap-1 text-xs',
-                                      sub.canRetake
-                                        ? 'bg-amber-500 hover:bg-amber-600 text-white'
-                                        : 'text-amber-600 border-amber-300 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-400'
-                                    )}
-                                    onClick={() => onAllowRetake(sub.id)}
-                                    disabled={saving}
-                                  >
-                                    <RefreshCw className="h-3 w-3" />
-                                    {sub.canRetake ? 'রিটেক দেওয়া' : 'রিটেক দিন'}
-                                  </Button>
-                                )}
-                                {!onReopenGrading && !onAllowRetake && (
-                                  <span className="text-xs text-emerald-600 font-medium">মূল্যায়িত</span>
-                                )}
-                              </>
-                            )}
-                            {sub.status === 'published' && (
-                              <>
-                                {onAllowRetake && (
-                                  <Button
-                                    size="sm"
-                                    variant={sub.canRetake ? 'default' : 'outline'}
-                                    className={cn(
-                                      'gap-1 text-xs',
-                                      sub.canRetake
-                                        ? 'bg-amber-500 hover:bg-amber-600 text-white'
-                                        : 'text-amber-600 border-amber-300 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-400'
-                                    )}
-                                    onClick={() => onAllowRetake(sub.id)}
-                                    disabled={saving}
-                                  >
-                                    <RefreshCw className="h-3 w-3" />
-                                    {sub.canRetake ? 'রিটেক দেওয়া' : 'রিটেক দিন'}
-                                  </Button>
-                                )}
-                                {!onAllowRetake && (
-                                  <span className="text-xs text-sky-600 font-medium">প্রকাশিত</span>
-                                )}
-                              </>
-                            )}
+                            {(() => {
+                              const st = sub.status?.toLowerCase()
+                              if (st === 'submitted') return (
+                                <Button
+                                  size="sm"
+                                  className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-xs"
+                                  onClick={() => onStartGrading(sub)}
+                                >
+                                  <GraduationCap className="h-3.5 w-3.5" /> গ্রেডিং
+                                </Button>
+                              )
+                              if (st === 'graded') return (
+                                <>
+                                  {onReopenGrading && (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="gap-1 text-xs border-amber-300 text-amber-700 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-400"
+                                      onClick={() => onReopenGrading(sub.id)}
+                                      disabled={saving}
+                                    >
+                                      <RefreshCw className="h-3 w-3" />
+                                      পুনরায় গ্রেডিং
+                                    </Button>
+                                  )}
+                                  {onAllowRetake && (
+                                    <Button
+                                      size="sm"
+                                      variant={sub.canRetake ? 'default' : 'outline'}
+                                      className={cn(
+                                        'gap-1 text-xs',
+                                        sub.canRetake
+                                          ? 'bg-amber-500 hover:bg-amber-600 text-white'
+                                          : 'text-amber-600 border-amber-300 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-400'
+                                      )}
+                                      onClick={() => onAllowRetake(sub.id)}
+                                      disabled={saving}
+                                    >
+                                      <RefreshCw className="h-3 w-3" />
+                                      {sub.canRetake ? 'রিটেক দেওয়া' : 'রিটেক দিন'}
+                                    </Button>
+                                  )}
+                                  {!onReopenGrading && !onAllowRetake && (
+                                    <span className="text-xs text-emerald-600 font-medium">মূল্যায়িত</span>
+                                  )}
+                                </>
+                              )
+                              if (st === 'published') return (
+                                <>
+                                  {onAllowRetake && (
+                                    <Button
+                                      size="sm"
+                                      variant={sub.canRetake ? 'default' : 'outline'}
+                                      className={cn(
+                                        'gap-1 text-xs',
+                                        sub.canRetake
+                                          ? 'bg-amber-500 hover:bg-amber-600 text-white'
+                                          : 'text-amber-600 border-amber-300 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-400'
+                                      )}
+                                      onClick={() => onAllowRetake(sub.id)}
+                                      disabled={saving}
+                                    >
+                                      <RefreshCw className="h-3 w-3" />
+                                      {sub.canRetake ? 'রিটেক দেওয়া' : 'রিটেক দিন'}
+                                    </Button>
+                                  )}
+                                  {!onAllowRetake && (
+                                    <span className="text-xs text-sky-600 font-medium">প্রকাশিত</span>
+                                  )}
+                                </>
+                              )
+                              return null
+                            })()}
                           </div>
                         </TableCell>
                       </TableRow>
@@ -386,8 +390,8 @@ export function CQSubmissions({
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">স্ট্যাটাস</span>
-                  <Badge className={cn('text-xs', cqStatusInfo[selectedSubmission.status]?.className)}>
-                    {cqStatusInfo[selectedSubmission.status]?.label || selectedSubmission.status}
+                  <Badge className={cn('text-xs', cqStatusInfo[selectedSubmission.status?.toLowerCase()]?.className)}>
+                    {cqStatusInfo[selectedSubmission.status?.toLowerCase()]?.label || selectedSubmission.status}
                   </Badge>
                 </div>
                 <div className="flex justify-between">
@@ -446,7 +450,7 @@ export function CQSubmissions({
                 </>
               )}
 
-              {selectedSubmission.status === 'submitted' && (
+              {selectedSubmission.status?.toLowerCase() === 'submitted' && (
                 <Button
                   className="w-full gap-2 bg-emerald-600 hover:bg-emerald-700"
                   onClick={() => { setDetailOpen(false); onStartGrading(selectedSubmission) }}
@@ -454,7 +458,7 @@ export function CQSubmissions({
                   <GraduationCap className="h-4 w-4" /> গ্রেডিং করুন
                 </Button>
               )}
-              {(selectedSubmission.status === 'graded' || selectedSubmission.status === 'published') && onAllowRetake && (
+              {(selectedSubmission.status?.toLowerCase() === 'graded' || selectedSubmission.status?.toLowerCase() === 'published') && onAllowRetake && (
                 <Button
                   className={cn(
                     'w-full gap-2',

@@ -6,14 +6,8 @@
 import 'dotenv/config'
 import { PrismaClient } from '@prisma/client'
 import { PrismaLibSql } from '@prisma/adapter-libsql'
-import { createClient } from '@libsql/client'
-import { dirname, resolve } from 'path'
-import { fileURLToPath } from 'url'
 
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = dirname(__filename)
-const dbPath = resolve(__dirname, '..', 'dev.db')
-const dbUrl = `file:///${dbPath.replace(/\\/g, '/').replace(/ /g, '%20')}`
+const dbUrl = process.env.DATABASE_URL || 'file:./dev.db'
 
 const adapter = new PrismaLibSql({ url: dbUrl })
 const db = new PrismaClient({ adapter })
@@ -31,6 +25,119 @@ function randomDate(daysAgo: number): Date {
 
 function pick<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)]
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  0. TOPICS
+// ════════════════════════════════════════════════════════════════════
+
+async function seedTopics() {
+  console.log('🌱 Seeding topics...')
+
+  const topicSeeds: Record<string, Record<string, Record<string, Array<{ name: string; slug: string }>>>> = {
+    'class-6': {
+      'math': {
+        'natural-numbers': [
+          { name: 'প্রাকৃতিক সংখ্যার ধারণা', slug: 'natural-numbers-concept' },
+          { name: 'সংখ্যার তুলনা', slug: 'number-comparison' },
+          { name: 'প্রাইম ও যৌগিক সংখ্যা', slug: 'prime-composite' },
+        ],
+      },
+      'science': {
+        'matter-properties': [
+          { name: 'পদার্থের অবস্থা', slug: 'states-of-matter' },
+          { name: 'পদার্থের পরিবর্তন', slug: 'matter-change' },
+        ],
+      },
+    },
+    'class-7': {
+      'math': {
+        'integers': [
+          { name: 'পূর্ণসংখ্যার ধারণা', slug: 'integers-concept' },
+          { name: 'পূর্ণসংখ্যার যোগ ও বিয়োগ', slug: 'integer-addition-subtraction' },
+        ],
+      },
+      'science': {
+        'states-matter': [
+          { name: 'কঠিন, তরল ও গ্যাস', slug: 'solid-liquid-gas' },
+          { name: 'অবস্থার পরিবর্তন', slug: 'state-change' },
+        ],
+      },
+    },
+    'class-8': {
+      'math': {
+        'ratio-proportion': [
+          { name: 'অনুপাতের ধারণা', slug: 'ratio-concept' },
+          { name: 'সমানুপাত', slug: 'proportion' },
+        ],
+      },
+      'science': {
+        'atomic-structure': [
+          { name: 'পরমাণুর মডেল', slug: 'atomic-model' },
+          { name: 'ইলেকট্রন বিন্যাস', slug: 'electron-configuration' },
+        ],
+      },
+    },
+    'ssc': {
+      'physics': {
+        'physical-world-measurement': [
+          { name: 'ভৌত জগত ও এর শাখাসমূহ', slug: 'physical-world-branches' },
+          { name: 'পরিমাপ ও একক', slug: 'measurement-units' },
+          { name: 'মাত্রিক সমীকরণ', slug: 'dimensional-equation' },
+        ],
+        'motion': [
+          { name: 'স্থিরতা ও গতি', slug: 'rest-motion' },
+          { name: 'সমত্বরণ', slug: 'uniform-acceleration' },
+          { name: 'সমবেগ ও প্রাস', slug: 'uniform-velocity-projectile' },
+        ],
+      },
+      'chemistry': {
+        'intro-chemistry': [
+          { name: 'রসায়নের পরিধি', slug: 'chemistry-scope' },
+          { name: 'রসায়নের শাখা', slug: 'chemistry-branches' },
+        ],
+      },
+    },
+    'hsc': {
+      'physics': {
+        'physical-world': [
+          { name: 'পদার্থবিজ্ঞানের পরিধি', slug: 'physics-scope' },
+          { name: 'পরিমাপের সঠিকতা', slug: 'measurement-accuracy' },
+        ],
+      },
+    },
+  }
+
+  for (const [classSlug, subjectTopics] of Object.entries(topicSeeds)) {
+    const classCategory = await db.classCategory.findUnique({ where: { slug: classSlug } })
+    if (!classCategory) continue
+
+    for (const [subjectSlug, chapterTopics] of Object.entries(subjectTopics)) {
+      const subject = await db.subject.findFirst({ where: { slug: subjectSlug, classId: classCategory.id } })
+      if (!subject) continue
+
+      for (const [chapterSlug, topics] of Object.entries(chapterTopics)) {
+        const chapter = await db.chapter.findFirst({ where: { slug: chapterSlug, subjectId: subject.id } })
+        if (!chapter) continue
+
+        for (let i = 0; i < topics.length; i++) {
+          const topic = topics[i]
+          const existing = await db.topic.findFirst({ where: { slug: topic.slug, chapterId: chapter.id } })
+          if (!existing) {
+            await db.topic.create({
+              data: {
+                ...topic,
+                chapterId: chapter.id,
+                order: i + 1,
+                description: topic.name,
+              },
+            })
+          }
+        }
+      }
+    }
+  }
+  console.log('✅ Topics seeded')
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -115,7 +222,7 @@ async function seedExams() {
           score: Math.round(score * 0.7), // 70% accuracy
           totalMarks: exam.totalMarks,
           timeTaken: exam.duration * 60 * (0.6 + Math.random() * 0.3),
-          answers,
+          answers: JSON.stringify(answers),
           completedAt: randomDate(14),
         },
       })
@@ -419,7 +526,7 @@ async function seedMCQExamPackages() {
           data: {
             userId: student.id,
             setId: set.id,
-            answers: {},
+            answers: JSON.stringify({}),
             totalCorrect,
             totalWrong,
             totalSkipped: 0,
@@ -551,7 +658,7 @@ async function seedCQExamPackages() {
 
     for (let i = 0; i < Math.min(cqs.length, 3); i++) {
       await db.cQExamSetQuestion.create({
-        data: { setId: set1.id, cqId: cqs[i].id, marks: 15, order: i + 1, subMarks: [4, 4, 4, 3] },
+        data: { setId: set1.id, cqId: cqs[i].id, marks: 15, order: i + 1, subMarks: JSON.stringify([4, 4, 4, 3]) },
       })
     }
 
@@ -583,6 +690,16 @@ async function seedCQExamPackages() {
             maxMarks: q.marks,
           },
         })
+        const existingImg = await db.cQExamAnswerImage.findFirst({ where: { answerId: answer.id } })
+        if (!existingImg) {
+          await db.cQExamAnswerImage.create({
+            data: {
+              answerId: answer.id,
+              imageUrl: 'https://placehold.co/600x400/EEE/31343C?text=CQ+Answer',
+              order: 0,
+            },
+          })
+        }
       }
     }
 
@@ -607,6 +724,22 @@ async function seedCQExamPackages() {
     if (!existing) {
       await db.cQExamPackagePurchase.create({
         data: { userId: students[0].id, packageId: cqPkg.id, isActive: true },
+      })
+    }
+  }
+
+  // ── CQ Exam Retake Requests ──
+  const cqSets = await db.cQExamSet.findMany({ where: { status: 'PUBLISHED' }, take: 1 })
+  if (cqSets.length > 0 && students.length > 0) {
+    const existing = await db.cQExamRetakeRequest.findFirst({ where: { userId: students[0].id, setId: cqSets[0].id } })
+    if (!existing) {
+      await db.cQExamRetakeRequest.create({
+        data: {
+          userId: students[0].id,
+          setId: cqSets[0].id,
+          reason: 'ইন্টারনেট সমস্যায় পরীক্ষা শেষ হয়নি',
+          status: 'PENDING',
+        },
       })
     }
   }
@@ -795,6 +928,30 @@ async function seedCourses() {
         }
       }
     }
+
+    // ── Lesson Exams (deprecated — backward compat) ──
+    const mcqPackage = await db.mCQExamPackage.findFirst()
+    if (mcqPackage) {
+      for (const lesson of createdLessons.slice(0, 2)) {
+        const existing = await db.lessonExam.findFirst({ where: { lessonId: lesson.id, examType: 'MCQ', packageId: mcqPackage.id } })
+        if (!existing) {
+          await db.lessonExam.create({
+            data: { lessonId: lesson.id, examType: 'MCQ', packageId: mcqPackage.id, displayOrder: lesson.displayOrder },
+          })
+        }
+      }
+    }
+    const cqPackage = await db.cQExamPackage.findFirst()
+    if (cqPackage) {
+      for (const lesson of createdLessons.slice(2, 4)) {
+        const existing = await db.lessonExam.findFirst({ where: { lessonId: lesson.id, examType: 'CQ', packageId: cqPackage.id } })
+        if (!existing) {
+          await db.lessonExam.create({
+            data: { lessonId: lesson.id, examType: 'CQ', packageId: cqPackage.id, displayOrder: lesson.displayOrder },
+          })
+        }
+      }
+    }
   }
   console.log('✅ Courses seeded')
 }
@@ -913,12 +1070,35 @@ async function seedAnalytics() {
 }
 
 // ════════════════════════════════════════════════════════════════════
+//  9. CQ EXAM ANSWER IMAGES
+// ════════════════════════════════════════════════════════════════════
+
+async function seedAnswerImages() {
+  console.log('🌱 Seeding CQ answer images...')
+  const answersWithoutImages = await db.cQExamAnswer.findMany({
+    where: { images: { none: {} } },
+    take: 20,
+  })
+  for (const answer of answersWithoutImages) {
+    await db.cQExamAnswerImage.create({
+      data: {
+        answerId: answer.id,
+        imageUrl: 'https://placehold.co/600x400/EEE/31343C?text=CQ+Answer',
+        order: 0,
+      },
+    })
+  }
+  console.log('✅ CQ answer images seeded')
+}
+
+// ════════════════════════════════════════════════════════════════════
 //  RUN ALL
 // ════════════════════════════════════════════════════════════════════
 
 async function main() {
   console.log('🌱 Starting missing seed data...\n')
 
+  await seedTopics()
   await seedExams()
   await seedUserActivity()
   await seedFeedback()
@@ -927,6 +1107,7 @@ async function main() {
   await seedCQExamPackages()
   await seedCourses()
   await seedAnalytics()
+  await seedAnswerImages()
 
   console.log('\n🎉 All missing seed data complete!')
 }

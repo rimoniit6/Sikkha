@@ -815,7 +815,7 @@ export function useCQExamPackages() {
             endTime: '23:59',
             duration: parseInt(bulkCreateDlg.bulkDuration) || 30,
             order: i,
-            status: 'draft',
+            status: 'DRAFT',
           }),
         })
       }

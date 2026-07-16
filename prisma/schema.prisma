@@ -69,8 +69,10 @@ model User {
   auditLogs             AuditLog[]
   coursePurchases       CoursePurchase[]
   courseEnrollments     CourseEnrollment[]
+  certificates          Certificate[]
   assignmentSubmissions AssignmentSubmission[]
   createdExams          Exam[]
+  examSessions          ExamSession[]
 
   @@index([role])
   @@index([classLevel, board])
@@ -316,31 +318,33 @@ model CQ {
 // ============ EXAM SYSTEM ============
 
 model Exam {
-  id            String     @id @default(cuid())
-  title         String
-  description   String?
-  classLevel    String
-  subjectId     String?
-  chapterIds    String? // comma separated
-  type          String // mcq, cq, mixed
-  duration      Int // minutes
-  totalMarks    Int        @default(0)
-  marksPerMcq   Float    @default(1)
-  negativeMarks Float    @default(0)
-  isPremium     Boolean    @default(false)
-  price         Float    @default(0)
-  isActive      Boolean    @default(true)
-  status        String     @default("DRAFT") // draft, published, archived
-  instructions  String? // exam instructions for students
-  startsAt      DateTime?
-  endsAt        DateTime?
-  creatorId     String? // user who created this exam (custom exam builder)
-  creator       User?      @relation(fields: [creatorId], references: [id], onDelete: SetNull)
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
+  id                String     @id @default(cuid())
+  title             String
+  description       String?
+  classLevel        String
+  subjectId         String?
+  chapterIds        String? // comma separated
+  type              String // mcq, cq, mixed
+  duration          Int // minutes
+  totalMarks        Int        @default(0)
+  marksPerMcq       Float    @default(1)
+  negativeMarks     Float    @default(0)
+  passingPercentage Float?   // pass threshold percentage (e.g. 40 means 40% to pass)
+  isPremium         Boolean    @default(false)
+  price             Float    @default(0)
+  isActive          Boolean    @default(true)
+  status            String     @default("DRAFT") // draft, published, archived
+  instructions      String? // exam instructions for students
+  startsAt          DateTime?
+  endsAt            DateTime?
+  creatorId         String? // user who created this exam (custom exam builder)
+  creator           User?      @relation(fields: [creatorId], references: [id], onDelete: SetNull)
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
 
   questions ExamQuestion[]
   results   ExamResult[]
+  sessions  ExamSession[]
 
   @@index([classLevel, isActive])
   @@index([subjectId])
@@ -367,24 +371,53 @@ model ExamQuestion {
 }
 
 model ExamResult {
-  id             String   @id @default(cuid())
-  userId         String
-  examId         String
-  score          Float  @default(0)
-  totalMarks     Float  @default(0)
-  timeTaken      Int      @default(0) // seconds
-  answers        String // JSON object: {questionId: "A"}
-  idempotencyKey String?  @unique // Client-generated UUID to prevent duplicate submission
-  createdAt      DateTime @default(now())
-  completedAt    DateTime @default(now())
-  deletedAt      DateTime?
+  id               String   @id @default(cuid())
+  userId           String
+  examId           String
+  attemptNumber    Int      @default(1)
+  score            Float  @default(0)
+  totalMarks       Float  @default(0)
+  percentage       Float  @default(0)
+  isPassed         Boolean?
+  correct          Int      @default(0)
+  wrong            Int      @default(0)
+  skipped          Int      @default(0)
+  timeTaken        Int      @default(0) // seconds
+  answers          String // JSON object: {questionId: "A"}
+  idempotencyKey   String?  @unique // Client-generated UUID to prevent duplicate submission
+  createdAt        DateTime @default(now())
+  completedAt      DateTime @default(now())
+  deletedAt        DateTime?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   exam Exam @relation(fields: [examId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, examId])
+  @@unique([userId, examId, attemptNumber])
   @@index([userId])
   @@index([examId])
+  @@index([userId, examId])
+}
+
+model ExamSession {
+  id                 String   @id @default(cuid())
+  userId             String
+  examId             String
+  startedAt          DateTime @default(now())
+  expiresAt          DateTime
+  status             String   @default("IN_PROGRESS") // IN_PROGRESS, SUBMITTED, EXPIRED
+  currentQuestionIndex Int    @default(0)
+  answers            String   @default("{}") // JSON: {questionId: "A"}
+  lastActivityAt     DateTime @default(now())
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exam Exam @relation(fields: [examId], references: [id], onDelete: Cascade)
+
+  @@index([userId, examId, status])
+  @@index([userId])
+  @@index([examId])
+  @@index([status])
 }
 
 // ============ PROGRESS & BOOKMARKS ============
@@ -1233,6 +1266,9 @@ model Course {
   // Enrollments
   enrollments CourseEnrollment[]
 
+  // Certificates
+  certificates Certificate[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -1431,12 +1467,32 @@ model CourseEnrollment {
   type        String           @default("FREE") // FREE, PAID, GRANTED
   enrolledAt  DateTime         @default(now())
   completedAt DateTime?
+  completionPercent Int         @default(0)
   deletedAt   DateTime?
+  certificate Certificate?
 
   @@unique([userId, courseId])
   @@index([userId])
   @@index([courseId])
   @@index([status])
+}
+
+model Certificate {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  courseId      String
+  course        Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  enrollmentId  String   @unique
+  enrollment    CourseEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  serial        String   @unique
+  issuedAt      DateTime @default(now())
+  downloadCount Int      @default(0)
+  deletedAt     DateTime?
+
+  @@index([userId])
+  @@index([courseId])
+  @@index([serial])
 }
 
 model CoursePurchase {

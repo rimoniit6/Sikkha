@@ -1,7 +1,15 @@
 import { db } from '@/lib/db'
-import { apiResponse, apiError, withAdmin } from '@/lib/api-utils'
+import { z } from 'zod'
+import { apiResponse, apiError, withAdmin, withCsrf } from '@/lib/api-utils'
 import { handleApiError } from '@/lib/errors'
 import { NextResponse } from 'next/server'
+
+const assignmentAdminSchema = z.object({
+  lessonId: z.string().min(1).optional(),
+  id: z.string().min(1).optional(),
+  assignmentId: z.string().min(1).optional(),
+  submissionId: z.string().min(1).optional(),
+}).passthrough()
 
 export async function GET(request: Request) {
   const auth = await withAdmin(request)
@@ -139,8 +147,15 @@ export async function POST(request: Request) {
   const auth = await withAdmin(request)
   if (auth instanceof NextResponse) return auth
 
+  const csrf = await withCsrf(request)
+  if (csrf instanceof NextResponse) return csrf
+
   try {
     const body = await request.json()
+    const parsed = assignmentAdminSchema.safeParse(body)
+    if (!parsed.success) {
+      return apiError(parsed.error.issues[0]?.message || 'Invalid request', 400)
+    }
     const { action } = body
 
     switch (action) {

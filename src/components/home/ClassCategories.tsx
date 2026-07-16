@@ -40,7 +40,7 @@ export default function ClassCategories() {
   const error = queryError?.message ?? null
 
   return (
-    <section id="class-categories" className="py-16 sm:py-20 bg-background">
+    <section className="py-16 sm:py-20 bg-background">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Section Header */}
         <div className="text-center mb-10 sm:mb-12 animate-fade-in-up">

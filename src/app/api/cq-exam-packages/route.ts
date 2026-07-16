@@ -101,9 +101,9 @@ export async function GET(request: Request) {
         }
       }
 
-      // Get user's submissions for this package
+      // Get user's submissions for this package (purchased OR free packages)
       let submissions: unknown[] = []
-      if (userId && hasPurchased) {
+      if (userId && (hasPurchased || !pkg.isPremium)) {
         submissions = await db.cQExamSubmission.findMany({
           where: {
             userId,
@@ -358,8 +358,8 @@ export async function POST(request: Request) {
 
       // Helper to create answer slots per question based on type
       const createAnswersForQuestions = (questions: typeof set.questions) => questions.flatMap((q) => {
-        const qType = q.type || 'cq'
-        if (qType === 'CQ' || qType === 'typed') {
+        const qType = (q.type || 'cq').toLowerCase()
+        if (qType === 'cq' || qType === 'typed') {
           let subMarks: number[] = []
           if (q.subMarks && Array.isArray(q.subMarks)) {
             subMarks = q.subMarks as number[]
@@ -454,6 +454,11 @@ export async function POST(request: Request) {
         return NextResponse.json({ success: true, data: { submission, status: 'SUBMITTED' } })
       }
 
+      // Graded/published — reject unless retake granted
+      if (existing && (existing.status === 'GRADED' || existing.status === 'PUBLISHED')) {
+        return apiError('আপনার পরীক্ষা মূল্যায়ন সম্পন্ন হয়েছে। পুনরায় পরীক্ষা দিতে "রিটেক অনুরোধ" করুন।', 400, 'ALREADY_GRADED')
+      }
+
       // Create submission with type-appropriate answer slots
       const submission = await db.cQExamSubmission.create({
         data: {
@@ -475,10 +480,24 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true, data: { submission, status: 'new' } }, { status: 201 })
     }
 
+    // Helper: verify submission is still in progress
+    async function assertSubmissionInProgress(answerId: string): Promise<string> {
+      const ans = await db.cQExamAnswer.findUnique({
+        where: { id: answerId },
+        select: { submissionId: true, submission: { select: { status: true } } },
+      })
+      if (!ans) throw new Error('Answer not found')
+      if (ans.submission.status !== 'IN_PROGRESS') {
+        throw new Error('পরীক্ষা ইতিমধ্যে জমা দেওয়া হয়েছে — উত্তর পরিবর্তন করা যাবে না')
+      }
+      return ans.submissionId
+    }
+
     // Submit answer text
     if (action === 'save-answer') {
       const { answerId, answerText } = body
       if (!answerId) return apiError('Answer ID required', 400)
+      await assertSubmissionInProgress(answerId)
 
       const answer = await db.cQExamAnswer.update({
         where: { id: answerId },
@@ -492,6 +511,7 @@ export async function POST(request: Request) {
     if (action === 'add-image') {
       const { answerId, imageUrl } = body
       if (!answerId || !imageUrl) return apiError('Answer ID and image URL required', 400)
+      await assertSubmissionInProgress(answerId)
 
       // Get the current max order for this answer
       const existingImages = await db.cQExamAnswerImage.findMany({
@@ -516,6 +536,16 @@ export async function POST(request: Request) {
     if (action === 'remove-image') {
       const { imageId } = body
       if (!imageId) return apiError('Image ID required', 400)
+
+      // Look up the answer to check submission status
+      const img = await db.cQExamAnswerImage.findUnique({
+        where: { id: imageId },
+        select: { answer: { select: { submissionId: true, submission: { select: { status: true } } } } },
+      })
+      if (!img) return apiError('Image not found', 404)
+      if (img.answer.submission.status !== 'IN_PROGRESS') {
+        return apiError('পরীক্ষা ইতিমধ্যে জমা দেওয়া হয়েছে — ছবি পরিবর্তন করা যাবে না', 400)
+      }
 
       await db.cQExamAnswerImage.delete({
         where: { id: imageId },
@@ -564,6 +594,15 @@ export async function POST(request: Request) {
     if (action === 'submit-exam') {
       const { submissionId, timeTaken } = body
       if (!submissionId) return apiError('Submission ID required', 400)
+
+      const existing = await db.cQExamSubmission.findUnique({
+        where: { id: submissionId },
+        select: { status: true },
+      })
+      if (!existing) return apiError('Submission not found', 404)
+      if (existing.status !== 'IN_PROGRESS') {
+        return apiError('পরীক্ষা ইতিমধ্যে জমা দেওয়া হয়েছে', 400)
+      }
 
       const submission = await db.cQExamSubmission.update({
         where: { id: submissionId },

@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { useShallow } from 'zustand/react/shallow'
-import type { Role } from '@prisma/client'
+import type { Role } from '@/lib/auth'
 
 export interface User {
   id: string

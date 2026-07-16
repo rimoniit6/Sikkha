@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { AdminAlertProvider } from '@/contexts/AdminAlertContext'
 
 export const metadata: Metadata = {
   robots: { index: false, follow: false },
@@ -7,5 +8,5 @@ export const metadata: Metadata = {
 }
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  return children
+  return <AdminAlertProvider>{children}</AdminAlertProvider>
 }

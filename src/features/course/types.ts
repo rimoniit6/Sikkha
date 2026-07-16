@@ -4,8 +4,8 @@ export interface CourseOverviewData {
   description: string
   thumbnail: string
   teacherName: string
-  classId: string
-  subjectId: string
+  classId: string | null
+  subjectId: string | null
   isPremium: boolean
   price: number
   originalPrice?: number
@@ -17,6 +17,8 @@ export interface CourseOverviewData {
   duration: number | null
   language: string
   difficulty: string
+  metaTitle?: string
+  metaDescription?: string
 }
 
 export interface CourseLessonRecord {
@@ -109,6 +111,8 @@ export interface CourseDetailRecord {
   duration: number | null
   language: string | null
   difficulty: string | null
+  metaTitle?: string | null
+  metaDescription?: string | null
   classId: string | null
   subjectId: string | null
   classCategory?: { id: string; name: string; slug: string } | null

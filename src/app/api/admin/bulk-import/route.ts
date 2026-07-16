@@ -52,7 +52,7 @@ export async function POST(request: Request) {
     let success = 0
 
     const isBoard = type.startsWith('board-')
-    const actualType = isBoard ? type.replace('board-', '') : type
+    const actualType = (isBoard ? type.replace('board-', '') : type).toUpperCase()
 
     // For board questions, board and year are required
     if (isBoard) {

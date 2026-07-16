@@ -22,6 +22,8 @@ PlayCircle,
 Search,
 } from 'lucide-react'
 import { useCallback,useMemo,useState } from 'react'
+import { useCountUp } from '@/hooks/use-count-up'
+import { Reveal } from '@/components/shared/Reveal'
 
 interface SubjectData {
   id: string
@@ -59,6 +61,28 @@ interface StatDef {
   label: string
   count: number
   gradient: string
+}
+
+function StatCard({ stat, index }: { stat: StatDef; index: number }) {
+  const Icon = stat.icon
+  const { ref, value } = useCountUp(stat.count)
+  return (
+    <Reveal delay={index * 60}>
+      <Card className="border-border/50 card-lift cursor-default">
+        <CardContent className="p-3 sm:p-4 flex items-center gap-3">
+          <div className={cn('p-2.5 rounded-xl bg-gradient-to-br', stat.gradient, 'shadow-sm shrink-0')}>
+            <Icon className="h-4 w-4 text-white" />
+          </div>
+          <div className="min-w-0">
+            <p ref={ref as React.Ref<HTMLParagraphElement>} className="text-lg sm:text-xl font-bold tabular-nums">
+              {toBengaliNumerals(value)}
+            </p>
+            <p className="text-[10px] text-muted-foreground truncate">{stat.label}</p>
+          </div>
+        </CardContent>
+      </Card>
+    </Reveal>
+  )
 }
 
 const CLASS_THEMES: Record<string, { gradient: string; accent: string }> = {
@@ -175,31 +199,10 @@ export default function ClassHubPage() {
 
       {/* Stats */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 -mt-6 relative z-20">
-        <div
-          className="grid grid-cols-2 sm:grid-cols-4 gap-3 animate-fade-in-up delay-200"
-        >
-          {stats.map((stat, i) => {
-            const Icon = stat.icon
-            return (
-              <div
-                key={stat.label}
-                className="animate-fade-in-up"
-                style={{ animationDelay: `${0.05 * i}s` }}
-              >
-                <Card className="border-border/50 hover:shadow-md transition-shadow duration-300">
-                  <CardContent className="p-3 sm:p-4 flex items-center gap-3">
-                    <div className={cn('p-2.5 rounded-xl bg-gradient-to-br', stat.gradient, 'shadow-sm shrink-0')}>
-                      <Icon className="h-4 w-4 text-white" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-lg sm:text-xl font-bold">{toBengaliNumerals(stat.count)}</p>
-                      <p className="text-[10px] text-muted-foreground truncate">{stat.label}</p>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            )
-          })}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {stats.map((stat, i) => (
+            <StatCard key={stat.label} stat={stat} index={i} />
+          ))}
         </div>
       </div>
 
@@ -253,7 +256,7 @@ export default function ClassHubPage() {
             </div>
           ) : (
             filteredSubjects.map((subject, index) => (
-              <div key={subject.id} className="animate-fade-in-up" style={{ animationDelay: `${0.06 * index}s` }}>
+              <Reveal key={subject.id} delay={(index % 6) * 60} className="h-full">
                 <Card
                   onClick={() => goToSubject(subject.id, subject.slug)}
                   onKeyDown={(e) => {
@@ -264,7 +267,7 @@ export default function ClassHubPage() {
                   }}
                   role="button"
                   tabIndex={0}
-                  className="border-border/50 hover:border-primary/30 hover:shadow-lg transition-all duration-300 group h-full overflow-hidden cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-xl"
+                  className="border-border/50 hover:border-primary/30 card-lift hover-shine group h-full overflow-hidden cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-xl"
                 >
                   <CardContent className="p-0">
                     {/* Subject header */}
@@ -327,7 +330,7 @@ export default function ClassHubPage() {
                     </div>
                   </CardContent>
                 </Card>
-              </div>
+              </Reveal>
             ))
           )}
         </div>

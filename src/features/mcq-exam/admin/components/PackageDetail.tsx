@@ -71,7 +71,7 @@ export function PackageDetail({
               </div>
               <div className="space-y-1">
                 <p className="text-xs text-muted-foreground">স্ট্যাটাস</p>
-                <Badge className={cn('text-xs', statusColors[currentPackage.status] || statusColors['draft'])}>
+                <Badge className={cn('text-xs', statusColors[currentPackage.status] || statusColors['DRAFT'])}>
                   {statusLabels[currentPackage.status] || currentPackage.status}
                 </Badge>
               </div>
@@ -121,7 +121,7 @@ export function PackageDetail({
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
                       <h4 className="font-semibold text-sm">{set.title}</h4>
-                      <Badge className={cn('text-xs', statusColors[set.status] || statusColors['draft'])}>
+                      <Badge className={cn('text-xs', statusColors[set.status] || statusColors['DRAFT'])}>
                         {statusLabels[set.status] || set.status}
                       </Badge>
                     </div>

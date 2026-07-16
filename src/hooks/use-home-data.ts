@@ -94,8 +94,8 @@ export function useClassList() {
   return useQuery({
     queryKey: queryKeys.classes,
     queryFn: async () => {
-      const json = await fetchJSON<{ classes?: ClassListItem[] }>('/api/classes')
-      return json.classes || []
+      const json = await fetchJSON<{ data?: { classes?: ClassListItem[] } }>('/api/classes')
+      return json.data?.classes || []
     },
     select: (data) => data,
   })

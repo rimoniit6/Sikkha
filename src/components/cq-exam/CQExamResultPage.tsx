@@ -289,13 +289,13 @@ export default function CQExamResultPage() {
         const json = await res.json()
         const requests = json.data?.requests || []
         const hasPending = requests.some(
-          (r: any) => r.setId === submission.setId && r.status === 'pending'
+          (r: any) => r.setId === submission.setId && r.status?.toLowerCase() === 'pending'
         )
         setRetakeRequested(hasPending)
       } catch { /* */ }
     }
     // Only check for submitted/graded/published status — not in-progress
-    if (['submitted', 'graded', 'published'].includes(submission.status)) {
+    if (['submitted', 'graded', 'published'].includes(submission.status?.toLowerCase())) {
       checkRetakeRequest()
     }
   }, [submission, packageId])
@@ -362,8 +362,8 @@ export default function CQExamResultPage() {
   }
 
   const statusBadge = getStatusBadge(submission.status)
-  const isPending = submission.status === 'submitted'
-  const isGraded = submission.status === 'graded' || submission.status === 'published'
+  const isPending = submission.status?.toLowerCase() === 'submitted'
+  const isGraded = submission.status?.toLowerCase() === 'graded' || submission.status?.toLowerCase() === 'published'
   const percentage = submission.totalMarks > 0
     ? (submission.obtainedMarks / submission.totalMarks) * 100
     : 0
@@ -499,7 +499,7 @@ export default function CQExamResultPage() {
 
           <div className="space-y-6">
             {submission.questions.map((q, qi) => {
-                const questionType = q.type || 'cq'
+                const questionType = (q.type || 'cq').toLowerCase()
 
                 // Non-CQ question types
                 if (questionType !== 'cq' && questionType !== 'typed') {

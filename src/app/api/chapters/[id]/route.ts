@@ -55,19 +55,19 @@ export async function GET(
       }>
     >(
       `SELECT
-        (SELECT COUNT(*)::int FROM "MCQ" WHERE "chapterId" = $1 AND "isActive" = true AND "board" IS NOT NULL AND "year" IS NOT NULL) as "boardMcqCount",
-        (SELECT COUNT(*)::int FROM "CQ" WHERE "chapterId" = $1 AND "isActive" = true AND "board" IS NOT NULL AND "year" IS NOT NULL) as "boardCqCount",
-        (SELECT COUNT(*)::int FROM "Suggestion" WHERE "chapterId" = $1 AND "isActive" = true) as "suggestionCount",
-        (SELECT COUNT(*)::int FROM "Exam" WHERE "isActive" = true AND "status" = 'published' AND "chapterIds" LIKE '%' || $1 || '%') as "examCount",
-        (SELECT COUNT(*)::int FROM "KnowledgeQuestion" WHERE "chapterId" = $1 AND "isActive" = true) as "shortQuestionCount",
-        (SELECT COUNT(*)::int FROM "KnowledgeQuestion" WHERE "chapterId" = $1 AND "isActive" = true AND "isPremium" = false) as "freeShortQuestionCount",
-        (SELECT COUNT(*)::int FROM "Lecture" WHERE "chapterId" = $1 AND "isActive" = true AND "isPremium" = false) as "freeLectureCount",
-        (SELECT COUNT(*)::int FROM "MCQ" WHERE "chapterId" = $1 AND "isActive" = true AND "isPremium" = false) as "freeMcqCount",
-        (SELECT COUNT(*)::int FROM "CQ" WHERE "chapterId" = $1 AND "isActive" = true AND "isPremium" = false) as "freeCqCount",
-        (SELECT COUNT(*)::int FROM "MCQ" WHERE "chapterId" = $1 AND "isActive" = true AND "isPremium" = false AND "board" IS NOT NULL AND "year" IS NOT NULL) as "freeBoardMcqCount",
-        (SELECT COUNT(*)::int FROM "CQ" WHERE "chapterId" = $1 AND "isActive" = true AND "isPremium" = false AND "board" IS NOT NULL AND "year" IS NOT NULL) as "freeBoardCqCount",
-        (SELECT COUNT(*)::int FROM "Suggestion" WHERE "chapterId" = $1 AND "isActive" = true AND "isPremium" = false) as "freeSuggestionCount",
-        (SELECT COUNT(*)::int FROM "Exam" WHERE "isActive" = true AND "status" = 'published' AND "isPremium" = false AND "chapterIds" LIKE '%' || $1 || '%') as "freeExamCount"`,
+        (SELECT COUNT(*) FROM "MCQ" WHERE "chapterId" = $1 AND "isActive" = true AND "board" IS NOT NULL AND "year" IS NOT NULL) as "boardMcqCount",
+        (SELECT COUNT(*) FROM "CQ" WHERE "chapterId" = $1 AND "isActive" = true AND "board" IS NOT NULL AND "year" IS NOT NULL) as "boardCqCount",
+        (SELECT COUNT(*) FROM "Suggestion" WHERE "chapterId" = $1 AND "isActive" = true) as "suggestionCount",
+        (SELECT COUNT(*) FROM "Exam" WHERE "isActive" = true AND "status" = 'published' AND "chapterIds" LIKE '%' || $1 || '%') as "examCount",
+        (SELECT COUNT(*) FROM "KnowledgeQuestion" WHERE "chapterId" = $1 AND "isActive" = true) as "shortQuestionCount",
+        (SELECT COUNT(*) FROM "KnowledgeQuestion" WHERE "chapterId" = $1 AND "isActive" = true AND "isPremium" = false) as "freeShortQuestionCount",
+        (SELECT COUNT(*) FROM "Lecture" WHERE "chapterId" = $1 AND "isActive" = true AND "isPremium" = false) as "freeLectureCount",
+        (SELECT COUNT(*) FROM "MCQ" WHERE "chapterId" = $1 AND "isActive" = true AND "isPremium" = false) as "freeMcqCount",
+        (SELECT COUNT(*) FROM "CQ" WHERE "chapterId" = $1 AND "isActive" = true AND "isPremium" = false) as "freeCqCount",
+        (SELECT COUNT(*) FROM "MCQ" WHERE "chapterId" = $1 AND "isActive" = true AND "isPremium" = false AND "board" IS NOT NULL AND "year" IS NOT NULL) as "freeBoardMcqCount",
+        (SELECT COUNT(*) FROM "CQ" WHERE "chapterId" = $1 AND "isActive" = true AND "isPremium" = false AND "board" IS NOT NULL AND "year" IS NOT NULL) as "freeBoardCqCount",
+        (SELECT COUNT(*) FROM "Suggestion" WHERE "chapterId" = $1 AND "isActive" = true AND "isPremium" = false) as "freeSuggestionCount",
+        (SELECT COUNT(*) FROM "Exam" WHERE "isActive" = true AND "status" = 'published' AND "isPremium" = false AND "chapterIds" LIKE '%' || $1 || '%') as "freeExamCount"`,
       id
     )
 

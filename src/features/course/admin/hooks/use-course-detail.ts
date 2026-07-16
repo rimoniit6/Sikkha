@@ -4,8 +4,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { courseAdminService } from '@/services/api/course-admin.service'
 import type { CourseDetailRecord, CourseOverviewData } from '@/features/course/types'
 import { createRaceGuard } from '@/features/common/admin-utils'
+import { useToast } from '@/hooks/use-toast'
 
-export type TabId = 'overview' | 'lessons' | 'syllabus' | 'exams' | 'assignments' | 'students' | 'analytics' | 'settings'
+export type TabId = 'overview' | 'lessons' | 'content' | 'exams-assignments' | 'syllabus' | 'exams' | 'assignments' | 'students' | 'analytics' | 'settings'
 
 export function useCourseDetail(courseId: string | null) {
   const [activeTab, setActiveTab] = useState<TabId>('overview')
@@ -13,6 +14,7 @@ export function useCourseDetail(courseId: string | null) {
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const raceRef = useRef(createRaceGuard())
+  const { toast } = useToast()
 
   // Abort in-flight requests on unmount
   useEffect(() => () => raceRef.current.dispose(), [])
@@ -64,12 +66,14 @@ export function useCourseDetail(courseId: string | null) {
     try {
       const result = await operation()
       await fetchDetail(true)
+      toast({ title: 'সংরক্ষণ করা হয়েছে' })
       return result
     } catch (err) {
       console.error(`[CourseDetail] Failed to ${label}:`, err)
+      toast({ title: 'ত্রুটি', description: 'সংরক্ষণ করতে সমস্যা হয়েছে', variant: 'destructive' })
       return undefined
     }
-  }, [fetchDetail])
+  }, [fetchDetail, toast])
 
   // Lesson CRUD
   const createLesson = useCallback(async (data: Record<string, unknown>) => {

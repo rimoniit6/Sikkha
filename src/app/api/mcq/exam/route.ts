@@ -3,7 +3,7 @@ import { withCsrf } from '@/lib/api-utils'
 import { verifyAuth } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
-import { $Enums } from '@prisma/client'
+
 
 // Transform raw MCQ Prisma object to frontend-expected format
 function transformMCQ(mcq: {
@@ -13,7 +13,7 @@ function transformMCQ(mcq: {
   optionB: string
   optionC: string
   optionD: string
-  correctAnswer: $Enums.MCQAnswer
+  correctAnswer: string
   explanation: string | null
   [key: string]: unknown
 }) {

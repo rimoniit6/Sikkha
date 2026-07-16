@@ -1,22 +1,17 @@
 import { db } from './seed-db'
 import { hashPassword } from '@/lib/password'
+import { ensureSuperAdmin } from '@/lib/seed-super-admin'
 
 // ────────────────────────────────────────────────────────────────────────────
 //  PART 1 — Users & Educational Hierarchy (from seed.ts)
 // ────────────────────────────────────────────────────────────────────────────
 
 async function seed() {
-  const superAdminEmail = process.env.SUPER_ADMIN_EMAIL || 'admin@localhost'
-  const superAdminPassword = process.env.SUPER_ADMIN_PASSWORD || 'ChangeMe123!'
-  const existingAdmin = await db.user.findUnique({ where: { email: superAdminEmail } })
-  const hashedPassword = hashPassword(superAdminPassword)
-  if (!existingAdmin) {
-    await db.user.create({ data: { email: superAdminEmail, name: 'Super Admin', password: hashedPassword, role: 'SUPER_ADMIN', isVerified: true, isPremium: true } })
-    console.log(`✅ Super Admin created (${superAdminEmail})`)
-  } else {
-    await db.user.update({ where: { id: existingAdmin.id }, data: { role: 'SUPER_ADMIN', password: hashedPassword, isVerified: true } })
-    console.log(`✅ Super Admin synced (${superAdminEmail})`)
-  }
+  await ensureSuperAdmin(db, {
+    email: process.env.SUPER_ADMIN_EMAIL || 'admin@localhost',
+    password: process.env.SUPER_ADMIN_PASSWORD || 'ChangeMe123!',
+    name: 'Super Admin',
+  })
 
   const adminEmail = process.env.ADMIN_EMAIL || 'moderator@shikhabangla.com'
   const existingMod = await db.user.findUnique({ where: { email: adminEmail } })

@@ -370,7 +370,7 @@ export async function POST(request: Request) {
             title,
             description: description || null,
             classId,
-            subjectIds: subjectIds || [],
+            subjectIds: subjectIds ? JSON.stringify(subjectIds) : '[]',
             price: price ?? 0,
             originalPrice: originalPrice ?? 0,
             isPremium: isPremium ?? true,
@@ -608,7 +608,12 @@ export async function PUT(request: Request) {
           if (updateData[field] !== undefined) data[field] = updateData[field]
         }
 
-        if (updateData.subjectIds !== undefined)       data.subjectIds = updateData.subjectIds
+        if (updateData.status && typeof updateData.status === 'string') {
+          updateData.status = updateData.status.toUpperCase()
+          data.status = updateData.status
+        }
+
+        if (updateData.subjectIds !== undefined)       data.subjectIds = JSON.stringify(updateData.subjectIds)
 
         const updated = await db.mCQExamPackage.update({
           where: { id },
@@ -637,6 +642,11 @@ export async function PUT(request: Request) {
 
         for (const field of allowedFields) {
           if (updateData[field] !== undefined) data[field] = updateData[field]
+        }
+
+        if (updateData.status && typeof updateData.status === 'string') {
+          updateData.status = updateData.status.toUpperCase()
+          data.status = updateData.status
         }
 
         if (updateData.scheduledDate !== undefined) data.scheduledDate = new Date(updateData.scheduledDate)

@@ -3,6 +3,39 @@ import { apiResponse, apiError, withAdmin, withCsrf } from '@/lib/api-utils'
 import { handleApiError } from '@/lib/errors'
 import { NextResponse } from 'next/server'
 import { toDecimal } from '@/lib/decimal'
+import { z } from 'zod'
+
+const COURSE_STATUSES = ['DRAFT', 'PUBLISHED'] as const
+
+const courseSchema = z
+  .object({
+    title: z.string().min(1, 'Title is required').max(200),
+    slug: z.string().min(1).max(200).optional(),
+    description: z.string().optional(),
+    status: z.string().optional(),
+    classId: z.string().optional(),
+    subjectId: z.string().optional(),
+    isPremium: z.boolean().optional(),
+    price: z.number().min(0).optional(),
+    originalPrice: z.number().min(0).optional(),
+    thumbnail: z.string().optional(),
+    teacherName: z.string().optional(),
+    features: z.string().optional(),
+    requirements: z.string().optional(),
+    targetStudents: z.string().optional(),
+    hasCertificate: z.boolean().optional(),
+    duration: z.number().int().min(0).optional(),
+    language: z.string().optional(),
+    difficulty: z.string().optional(),
+    metaTitle: z.string().optional(),
+    metaDescription: z.string().optional(),
+  })
+  .passthrough()
+
+function normalizeStatus(raw?: string): string {
+  const s = (raw || 'DRAFT').toUpperCase()
+  return COURSE_STATUSES.includes(s as any) ? s : 'DRAFT'
+}
 
 export async function GET(request: Request) {
   const auth = await withAdmin(request)
@@ -22,7 +55,7 @@ export async function GET(request: Request) {
 
         const where: Record<string, unknown> = {}
         if (search) where.OR = [{ title: { contains: search } }, { description: { contains: search } }]
-        if (status) where.status = status
+        if (status) where.status = status.toUpperCase()
         if (classId) where.classId = classId
 
         const [courses, total] = await Promise.all([
@@ -62,7 +95,7 @@ export async function GET(request: Request) {
                 resources: { orderBy: { displayOrder: 'asc' } },
               },
             },
-            _count: { select: { purchases: true, lessons: true } },
+            _count: { select: { purchases: true, lessons: true, certificates: true } },
           },
         })
 
@@ -346,17 +379,49 @@ export async function POST(request: Request) {
 
     switch (action) {
       case 'create': {
-        const { title, slug, description, thumbnail, isPremium, price, status, classId, subjectId } = body
-        if (!title || !slug) return apiError('Title and slug required', 400)
+        const parsed = courseSchema.safeParse(body)
+        if (!parsed.success) {
+          return apiError(parsed.error.issues[0]?.message || 'Invalid course data', 400)
+        }
+        const b = parsed.data
 
-        const existing = await db.course.findUnique({ where: { slug } })
-        if (existing) return apiError('Slug already exists', 409)
+        if (b.classId) {
+          const cls = await db.classCategory.findUnique({ where: { id: b.classId } })
+          if (!cls) return apiError('Invalid classId: class category not found', 400, 'INVALID_FOREIGN_KEY')
+        }
+        if (b.subjectId) {
+          const subj = await db.subject.findUnique({ where: { id: b.subjectId } })
+          if (!subj) return apiError('Invalid subjectId: subject not found', 400, 'INVALID_FOREIGN_KEY')
+        }
+
+        const baseSlug = (b.slug || b.title)
+          .toLowerCase()
+          .replace(/[^\w\s-]/g, '')
+          .replace(/\s+/g, '-')
+          .replace(/-+/g, '-')
+          .trim()
+        const slug = await ensureUniqueSlug(db, baseSlug)
 
         const course = await db.course.create({
           data: {
-            title, slug, description, thumbnail, isPremium: isPremium || false,
-            price: price || 0, status: (status && typeof status === 'string' ? status.toUpperCase() : 'DRAFT'),
-            classId, subjectId,
+            title: b.title,
+            slug,
+            description: b.description || null,
+            status: normalizeStatus(b.status),
+            isPremium: b.isPremium ?? false,
+            price: b.price ?? 0,
+            originalPrice: b.originalPrice ?? 0,
+            thumbnail: b.thumbnail || null,
+            teacherName: b.teacherName || null,
+            features: b.features || null,
+            requirements: b.requirements || null,
+            targetStudents: b.targetStudents || null,
+            hasCertificate: b.hasCertificate ?? false,
+            duration: b.duration ?? null,
+            language: b.language || null,
+            difficulty: b.difficulty || null,
+            classId: b.classId || null,
+            subjectId: b.subjectId || null,
           },
         })
         return apiResponse({ course }, 201)
@@ -370,13 +435,23 @@ export async function POST(request: Request) {
         if (!existing) return apiError('Course not found', 404)
 
         const updateData: Record<string, unknown> = {}
+        const FK_FIELDS = ['classId', 'subjectId'] as const
         const fields = [
           'title', 'slug', 'description', 'thumbnail', 'teacherName',
           'isPremium', 'price', 'originalPrice', 'status', 'classId', 'subjectId',
           'features', 'requirements', 'targetStudents', 'hasCertificate',
           'duration', 'language', 'difficulty',
         ]
-        for (const f of fields) { if (data[f] !== undefined) updateData[f] = data[f] }
+        for (const f of fields) {
+          if (data[f] === undefined) continue
+          if ((FK_FIELDS as readonly string[]).includes(f)) {
+            // Empty string or null ⇒ clear the relation. Never persist "" into a FK column.
+            if (data[f] === '' || data[f] === null) { updateData[f] = null; continue }
+            updateData[f] = data[f]
+            continue
+          }
+          updateData[f] = data[f]
+        }
         if (updateData.status && typeof updateData.status === 'string') {
           updateData.status = updateData.status.toUpperCase()
         }
@@ -386,6 +461,17 @@ export async function POST(request: Request) {
           if (slugExists) return apiError('Slug already exists', 409)
         }
 
+        // Validate foreign keys. Empty strings were already coerced to null above,
+        // so any remaining non-null value must reference an existing row.
+        if (updateData.classId) {
+          const cls = await db.classCategory.findUnique({ where: { id: updateData.classId as string } })
+          if (!cls) return apiError('Invalid class', 400, 'INVALID_FOREIGN_KEY')
+        }
+        if (updateData.subjectId) {
+          const sub = await db.subject.findUnique({ where: { id: updateData.subjectId as string } })
+          if (!sub) return apiError('Invalid subject', 400, 'INVALID_FOREIGN_KEY')
+        }
+
         const course = await db.course.update({ where: { id }, data: updateData })
         return apiResponse({ course })
       }
@@ -393,6 +479,7 @@ export async function POST(request: Request) {
       case 'delete': {
         const { id } = body
         if (!id) return apiError('Course ID required', 400)
+        await db.lessonProgress.deleteMany({ where: { courseId: id } })
         await db.coursePurchase.deleteMany({ where: { courseId: id } })
         await db.courseLesson.deleteMany({ where: { courseId: id } })
         await db.courseExamSchedule.deleteMany({ where: { courseId: id } })
@@ -473,5 +560,17 @@ export async function POST(request: Request) {
     }
   } catch (error) {
     return handleApiError(error, 'Admin Course POST')
+  }
+}
+
+async function ensureUniqueSlug(db: typeof import('@/lib/db').db, base: string): Promise<string> {
+  let slug = base || 'course'
+  let n = 2
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    const existing = await db.course.findUnique({ where: { slug } })
+    if (!existing) return slug
+    slug = `${base}-${n}`
+    n++
   }
 }

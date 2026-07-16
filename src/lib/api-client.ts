@@ -444,16 +444,25 @@ export class ApiClient {
           throw err
         }
 
-        // Handle AbortError / TimeoutError
+        // Handle AbortError (cancellation) vs TimeoutError
         if (err instanceof DOMException && err.name === 'AbortError') {
-          const timeoutMsg = err.message === 'Request timeout'
-            ? `অনুরোধ সময়সীমা অতিক্রম করেছে (${timeoutMs}ms)`
-            : 'অনুরোধ বাতিল করা হয়েছে'
-          const apiError = new ApiError(timeoutMsg, 0, {
-            code: 'REQUEST_TIMEOUT',
-            endpoint: fullUrl,
-            method,
-          })
+          // A cancelled request (race-guard supersede, component unmount, navigation)
+          // is NOT a user-visible failure. Re-throw silently so callers that check
+          // `err.name === 'AbortError'` can ignore it without a network-error pop-up.
+          if (err.message !== 'Request timeout') {
+            throw err
+          }
+
+          // Genuine client timeout — surface it.
+          const apiError = new ApiError(
+            `অনুরোধ সময়সীমা অতিক্রম করেছে (${timeoutMs}ms)`,
+            0,
+            {
+              code: 'REQUEST_TIMEOUT',
+              endpoint: fullUrl,
+              method,
+            }
+          )
 
           if (shouldRetry(apiError, attempt, maxRetries)) {
             const delay = calculateBackoff(attempt, interceptorConfig.retryDelay ?? 1000)

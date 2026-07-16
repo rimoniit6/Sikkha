@@ -1,9 +1,29 @@
-import { db } from '@/lib/db'
 import { verifyAuth } from '@/lib/auth'
 import { NextResponse } from 'next/server'
 import { apiError, applyRateLimit } from '@/lib/api-utils'
 import { apiLimiter } from '@/lib/rate-limit'
-import { toDecimal } from '@/lib/decimal'
+import { submitExam, getUserResults, ExamError } from '@/services/exam-service'
+
+export const dynamic = 'force-dynamic'
+
+export async function GET(request: Request) {
+  try {
+    const auth = await verifyAuth(request)
+    if (!auth?.user?.id) {
+      return apiError('অনুগ্রহ করে লগইন করুন', 401)
+    }
+
+    const { searchParams } = new URL(request.url)
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10))
+    const limit = Math.min(50, Math.max(1, parseInt(searchParams.get('limit') || '20', 10)))
+
+    const data = await getUserResults(auth.user.id, page, limit)
+    return NextResponse.json({ success: true, ...data })
+  } catch (error) {
+    console.error('Get user results error:', error)
+    return apiError('ফলাফল আনতে সমস্যা হয়েছে', 500)
+  }
+}
 
 export async function POST(request: Request) {
   try {
@@ -16,99 +36,34 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json()
-    const { examId, timeTaken, answers, idempotencyKey } = body
+    const { examId, sessionId, timeTaken, answers, idempotencyKey } = body
 
     if (!examId) {
       return apiError('পরীক্ষার ID আবশ্যক', 400)
     }
 
-    const exam = await db.exam.findUnique({
-      where: { id: examId },
-    })
-
-    if (!exam) {
-      return apiError('পরীক্ষা খুঁজে পাওয়া যায়নি', 404)
+    if (!sessionId) {
+      return apiError('সেশন ID আবশ্যক', 400)
     }
 
-    if (!exam.isActive || exam.status !== 'PUBLISHED') {
-      return apiError('এই পরীক্ষাটি বর্তমানে উপলব্ধ নয়', 400)
+    if (!answers || typeof answers !== 'object') {
+      return apiError('উত্তর ডাটা আবশ্যক', 400)
     }
 
-    // ── Duplicate prevention ──
+    const result = await submitExam(
+      auth.user.id,
+      examId,
+      sessionId,
+      timeTaken ?? 0,
+      answers,
+      idempotencyKey
+    )
 
-    if (idempotencyKey) {
-      const existingByIdempotency = await db.examResult.findUnique({
-        where: { idempotencyKey },
-      })
-      if (existingByIdempotency) {
-        return NextResponse.json({
-          success: true,
-          data: { resultId: existingByIdempotency.id },
-          message: 'এই পরীক্ষাটি ইতিমধ্যে জমা দেওয়া হয়েছে',
-        })
-      }
-    }
-
-    const existingByUser = await db.examResult.findUnique({
-      where: { userId_examId: { userId: auth.user.id, examId } },
-    })
-    if (existingByUser) {
-      return NextResponse.json({
-        success: true,
-        data: { resultId: existingByUser.id },
-        message: 'আপনি ইতিমধ্যে এই পরীক্ষাটি জমা দিয়েছেন',
-      })
-    }
-
-    // ── Score calculation (server-side) ──
-    // Fetch all MCQ questions for this exam and compute correct/wrong counts
-    const examQuestions = await db.examQuestion.findMany({
-      where: { examId, questionType: 'mcq' },
-    })
-
-    const mcqIds = examQuestions.map(eq => eq.questionId)
-    const mcqs = mcqIds.length > 0
-      ? await db.mCQ.findMany({
-          where: { id: { in: mcqIds } },
-          select: { id: true, correctAnswer: true },
-        })
-      : []
-    const correctAnswerMap = new Map(mcqs.map(m => [m.id, m.correctAnswer]))
-
-    let correct = 0
-    let wrong = 0
-    const userAnswers = (answers as Record<string, string>) || {}
-
-    for (const eq of examQuestions) {
-      const ua = userAnswers[eq.questionId]
-      if (!ua) continue
-      if (ua === correctAnswerMap.get(eq.questionId)) correct++
-      else wrong++
-    }
-
-    const marksPerMcq = toDecimal(exam.marksPerMcq ?? 1)
-    const negativeMarks = toDecimal(exam.negativeMarks ?? 0)
-    const calculatedScore = correct * marksPerMcq - wrong * negativeMarks
-    const totalMarks = examQuestions.length * marksPerMcq
-
-    // ── Create the exam result ──
-    const result = await db.examResult.create({
-      data: {
-        userId: auth.user.id,
-        examId,
-        score: Math.max(0, calculatedScore),
-        totalMarks,
-        timeTaken: timeTaken ?? 0,
-        answers: answers ?? {},
-        idempotencyKey: idempotencyKey || undefined,
-      },
-    })
-
-    return NextResponse.json({
-      success: true,
-      data: { resultId: result.id },
-    }, { status: 201 })
+    return NextResponse.json({ success: true, data: result }, { status: 201 })
   } catch (error) {
+    if (error instanceof ExamError) {
+      return apiError(error.message, error.statusCode)
+    }
     console.error('Save Exam Result error:', error)
     if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
       return apiError('আপনি ইতিমধ্যে এই পরীক্ষাটি জমা দিয়েছেন', 409)

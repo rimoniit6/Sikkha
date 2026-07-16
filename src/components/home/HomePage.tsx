@@ -4,7 +4,6 @@ import ScrollProgress from './ScrollProgress'
 import HeroSection from './HeroSection'
 import QuickSearchSection from './QuickSearchSection'
 import AchievementBadgesSection from './AchievementBadgesSection'
-import ClassCategories from './ClassCategories'
 import SubjectExplorerSection from './SubjectExplorerSection'
 import RecentContentSection from './RecentContentSection'
 import NoticeBoardSection from './NoticeBoardSection'
@@ -27,7 +26,6 @@ export default function HomePage() {
       <HeroSection />
       <AchievementBadgesSection />
       <QuickSearchSection />
-      <ClassCategories />
       <SubjectExplorerSection />
       <RecentContentSection />
       <NoticeBoardSection />

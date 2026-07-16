@@ -130,7 +130,7 @@ export default function CourseDetailTabs({ courseId, courseTitle, onBack }: Prop
 
             <TabsContent value="settings">
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-                <SettingsTab courseId={courseId} />
+                <SettingsTab course={h.course} onSave={h.updateCourse} />
               </motion.div>
             </TabsContent>
           </div>

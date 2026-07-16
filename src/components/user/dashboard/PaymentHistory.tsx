@@ -40,7 +40,7 @@ export function PaymentHistory({
   }
 
   const getStatusIcon = (status: string) => {
-    switch (status) {
+    switch (status?.toLowerCase()) {
       case 'approved': return <CheckCircle2 className="size-3.5 text-emerald-500" />
       case 'pending': return <AlertCircle className="size-3.5 text-amber-500" />
       case 'rejected': return <XCircle className="size-3.5 text-red-500" />
@@ -49,7 +49,7 @@ export function PaymentHistory({
   }
 
   const getStatusLabel = (status: string) => {
-    switch (status) {
+    switch (status?.toLowerCase()) {
       case 'approved': return 'অনুমোদিত'
       case 'pending': return 'অপেক্ষমাণ'
       case 'rejected': return 'প্রত্যাখ্যাত'
@@ -58,7 +58,7 @@ export function PaymentHistory({
   }
 
   const getStatusBadgeClass = (status: string) => {
-    switch (status) {
+    switch (status?.toLowerCase()) {
       case 'approved': return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 border-emerald-200/50 dark:border-emerald-800/30'
       case 'pending': return 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 border-amber-200/50 dark:border-amber-800/30'
       case 'rejected': return 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300 border-red-200/50 dark:border-red-800/30'

@@ -69,8 +69,7 @@ export default function BottomNav() {
       navigate('login')
       return
     }
-    const params = route === 'class-list' ? { scrollTarget: 'class-categories' } : undefined
-    navigate(route as RoutePath, params)
+    navigate(route as RoutePath)
   }
 
   const activeIndex = getActiveIndex()

@@ -361,7 +361,7 @@ export async function POST(request: Request) {
             setId,
             cqId,
             marks: totalMarks,
-            subMarks: defaultSubMarks,
+            subMarks: JSON.stringify(defaultSubMarks),
             order: existingCount + cqIds.indexOf(cqId),
           }))
           await db.cQExamSetQuestion.createMany({ data })
@@ -394,7 +394,7 @@ export async function POST(request: Request) {
             marks: totalMarks,
             order: existingCount,
             type: 'typed',
-            subMarks: marksArr,
+            subMarks: JSON.stringify(marksArr),
             typedUddeepok: typedUddeepok || null,
             typedUddeepokImage: typedUddeepokImage || null,
             typedQuestion1,
@@ -464,6 +464,9 @@ export async function PUT(request: Request) {
           if (data[key] !== undefined) updateData[key] = data[key]
         }
 
+        if (updateData.status && typeof updateData.status === 'string') {
+          updateData.status = (updateData.status as string).toUpperCase()
+        }
 
         const pkg = await db.cQExamPackage.update({ where: { id }, data: updateData as never })
         return apiResponse({ package: pkg })
@@ -479,6 +482,11 @@ export async function PUT(request: Request) {
         for (const key of allowed) {
           if (body[key] !== undefined) updateData[key] = body[key]
         }
+
+        if (updateData.status && typeof updateData.status === 'string') {
+          updateData.status = (updateData.status as string).toUpperCase()
+        }
+
         if (updateData.scheduledDate) updateData.scheduledDate = new Date(updateData.scheduledDate as string)
         if (updateData.gradingDeadline) updateData.gradingDeadline = new Date(updateData.gradingDeadline as string)
         if (updateData.gradingDeadline === null) updateData.gradingDeadline = null
@@ -1000,7 +1008,7 @@ export async function PUT(request: Request) {
           where: { id: questionId },
           data: {
             marks: totalMarks,
-            subMarks: marksArr,
+            subMarks: JSON.stringify(marksArr),
             typedUddeepok: typedUddeepok || null,
             typedUddeepokImage: typedUddeepokImage || null,
             typedQuestion1,

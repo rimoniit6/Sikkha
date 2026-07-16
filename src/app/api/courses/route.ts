@@ -11,14 +11,35 @@ export async function GET(request: Request) {
 
     switch (action) {
       case 'list': {
-        const page = parseInt(searchParams.get('page') || '1')
-        const limit = parseInt(searchParams.get('limit') || '20')
+        const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10))
+        const limit = Math.min(parseInt(searchParams.get('limit') || '20', 10), 50)
         const classId = searchParams.get('classId') || ''
         const subjectId = searchParams.get('subjectId') || ''
+        const q = (searchParams.get('q') || '').trim()
+        const price = searchParams.get('price') || '' // free | paid | ''
+        const difficulty = searchParams.get('difficulty') || '' // beginner | intermediate | advanced
+        const sort = searchParams.get('sort') || 'newest'
+        const idsParam = searchParams.get('ids') || ''
 
-        const where: Record<string, unknown> = { status: 'PUBLISHED' }
+        const where: Record<string, unknown> = {}
+        if (idsParam) where.id = { in: idsParam.split(',').filter(Boolean) }
+        else where.status = 'PUBLISHED'
         if (classId) where.classId = classId
         if (subjectId) where.subjectId = subjectId
+        if (difficulty) where.difficulty = difficulty
+        if (price === 'free') where.isPremium = false
+        else if (price === 'paid') where.isPremium = true
+        if (q) {
+          where.OR = [
+            { title: { contains: q } },
+            { description: { contains: q } },
+          ]
+        }
+
+        let orderBy: Record<string, unknown> = { createdAt: 'desc' }
+        if (sort === 'popular') orderBy = { purchases: { _count: 'desc' } }
+        else if (sort === 'price_asc') orderBy = { price: 'asc' }
+        else if (sort === 'price_desc') orderBy = { price: 'desc' }
 
         const [courses, total] = await Promise.all([
           db.course.findMany({
@@ -28,7 +49,7 @@ export async function GET(request: Request) {
               subject: { select: { id: true, name: true, slug: true, color: true, icon: true } },
               _count: { select: { lessons: true, purchases: true } },
             },
-            orderBy: { createdAt: 'desc' },
+            orderBy,
             skip: (page - 1) * limit,
             take: limit,
           }),
@@ -36,6 +57,85 @@ export async function GET(request: Request) {
         ])
 
         return apiResponse({ courses, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } })
+      }
+
+      case 'related': {
+        const courseId = searchParams.get('courseId')
+        if (!courseId) return apiError('courseId required', 400)
+
+        const base = await db.course.findUnique({
+          where: { id: courseId },
+          select: { subjectId: true, classId: true },
+        })
+        if (!base) return apiError('Course not found', 404)
+
+        const orConditions: Record<string, unknown>[] = []
+        if (base.subjectId) orConditions.push({ subjectId: base.subjectId })
+        if (base.classId) orConditions.push({ classId: base.classId })
+
+        const related = await db.course.findMany({
+          where: {
+            status: 'PUBLISHED',
+            id: { not: courseId },
+            OR: orConditions.length ? orConditions : [{ id: courseId }],
+          },
+          include: {
+            classCategory: { select: { id: true, name: true, slug: true } },
+            subject: { select: { id: true, name: true, slug: true, color: true, icon: true } },
+            _count: { select: { lessons: true, purchases: true } },
+          },
+          take: 4,
+          orderBy: { createdAt: 'desc' },
+        })
+
+        return apiResponse({ courses: related })
+      }
+
+      case 'enrollments': {
+        const auth = await withAuth(request)
+        if (auth instanceof NextResponse) return auth
+
+        const enrollments = await db.courseEnrollment.findMany({
+          where: { userId: auth.user.id },
+          orderBy: { enrolledAt: 'desc' },
+          include: {
+            course: {
+              include: {
+                classCategory: { select: { id: true, name: true, slug: true } },
+                subject: { select: { id: true, name: true, slug: true, color: true, icon: true } },
+                _count: { select: { lessons: true, purchases: true } },
+                certificates: {
+                  where: { userId: auth.user.id, deletedAt: null },
+                  select: { id: true, serial: true },
+                },
+              },
+            },
+          },
+        })
+
+        const courseIds = enrollments.map((e) => e.courseId)
+        const progressAgg = courseIds.length
+          ? await db.lessonProgress.groupBy({
+              by: ['courseId'],
+              where: { userId: auth.user.id, courseId: { in: courseIds }, completed: true },
+              _count: { _all: true },
+            })
+          : []
+        const completedMap = new Map(progressAgg.map((p) => [p.courseId, p._count._all]))
+
+        const items = enrollments.map((e) => {
+          const total = e.course._count.lessons || 0
+          const completed = completedMap.get(e.courseId) || 0
+          const percent = total > 0 ? Math.round((completed / total) * 100) : e.status === 'COMPLETED' ? 100 : 0
+          return {
+            enrollment: { id: e.id, status: e.status, type: e.type, enrolledAt: e.enrolledAt, completedAt: e.completedAt },
+            course: e.course,
+            progress: { total, completed, percent },
+            certificate: e.course.certificates[0] || null,
+          }
+        })
+
+        return apiResponse({ enrollments: items })
       }
 
       case 'detail': {

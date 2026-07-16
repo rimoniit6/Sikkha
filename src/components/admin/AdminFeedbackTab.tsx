@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useAdminAlerts } from '@/contexts/AdminAlertContext'
 import {
   MessageSquareText, Send, Loader2, ChevronRight, ArrowLeft,
   Clock, CheckCircle2, XCircle, Search, RefreshCw,
@@ -76,6 +77,8 @@ const statusIcons: Record<string, React.ElementType> = {
 
 export default function AdminFeedbackTab() {
   const { toast } = useToast()
+  const { acknowledgeFeedback } = useAdminAlerts()
+  useEffect(() => { acknowledgeFeedback() }, [acknowledgeFeedback])
   const [feedbacks, setFeedbacks] = useState<FeedbackItem[]>([])
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState<string>('')

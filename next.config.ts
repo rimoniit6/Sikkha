@@ -9,7 +9,10 @@ const nextConfig: NextConfig = {
   compress: true,
   poweredByHeader: false,
   images: {
-    remotePatterns: [],
+    remotePatterns: [
+      { protocol: 'http', hostname: 'localhost' },
+      { protocol: 'https', hostname: 'localhost' },
+    ],
     formats: ["image/avif", "image/webp"],
     deviceSizes: [480, 640, 768, 1024, 1280, 1536],
     imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
@@ -17,7 +20,6 @@ const nextConfig: NextConfig = {
   },
   experimental: {
     optimizePackageImports: [
-      'lucide-react',
       'recharts',
       'framer-motion',
       '@radix-ui/react-dialog',

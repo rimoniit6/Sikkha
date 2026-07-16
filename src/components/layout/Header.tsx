@@ -49,8 +49,7 @@ export default function Header() {
   }, [])
 
   const handleNavClick = useCallback((route: string) => {
-    const params = route === 'class-list' ? { scrollTarget: 'class-categories' } : undefined
-    navigate(route as RoutePath, params)
+    navigate(route as RoutePath)
   }, [navigate])
 
   const handleLogout = useCallback(() => { logout(); navigate('home') }, [logout, navigate])

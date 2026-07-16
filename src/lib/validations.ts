@@ -4,7 +4,7 @@ import { z } from 'zod'
 
 export const createPaymentSchema = z.object({
   amount: z.coerce.number().min(0, 'পরিমাণ ০ বা তার বেশি হতে হবে'),
-  method: z.enum(['BKASH', 'NAGAD', 'ROCKET'] as const, { message: 'অবৈধ পেমেন্ট মেথড' }),
+  method: z.enum(['bkash', 'nagad', 'rocket'] as const, { message: 'অবৈধ পেমেন্ট মেথড' }),
   transactionId: z.string().min(1, 'ট্রানজেকশন আইডি প্রয়োজন').max(100),
   paymentNumber: z.string().min(1, 'পেমেন্ট নম্বর প্রয়োজন').max(20),
   screenshot: z.string().optional(),
@@ -17,7 +17,7 @@ export const createPaymentSchema = z.object({
 
 export const reviewPaymentSchema = z.object({
   id: z.string().min(1, 'পেমেন্ট ID আবশ্যক'),
-  status: z.enum(['APPROVED', 'REJECTED'] as const, { message: 'স্ট্যাটাস APPROVED বা REJECTED হতে হবে' }),
+  status: z.enum(['approved', 'rejected'] as const, { message: 'স্ট্যাটাস approved বা rejected হতে হবে' }),
   adminNote: z.string().optional(),
 })
 
@@ -66,13 +66,13 @@ export const cqSchema = z.object({
 
 export const registerSchema = z.object({
   email: z
-    .string({ required_error: 'ইমেইল প্রয়োজন' })
+    .string()
     .min(1, 'ইমেইল দিন')
-    .email('বৈধ ইমেইল ঠিকানা দিন')
+    .regex(/^[^\s@]+@([^\s@]+\.[^\s@]+|localhost)$/i, 'বৈধ ইমেইল ঠিকানা দিন')
     .max(255, 'ইমেইল ২৫৫ অক্ষরের বেশি হতে পারবে না')
     .transform((e) => e.toLowerCase().trim()),
   password: z
-    .string({ required_error: 'পাসওয়ার্ড প্রয়োজন' })
+    .string()
     .min(1, 'পাসওয়ার্ড দিন')
     .min(6, 'পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে')
     .max(128, 'পাসওয়ার্ড ১২৮ অক্ষরের বেশি হতে পারবে না'),
@@ -86,12 +86,12 @@ export const registerSchema = z.object({
 
 export const loginSchema = z.object({
   email: z
-    .string({ required_error: 'ইমেইল প্রয়োজন' })
+    .string()
     .min(1, 'ইমেইল দিন')
-    .email('বৈধ ইমেইল ঠিকানা দিন')
+    .regex(/^[^\s@]+@([^\s@]+\.[^\s@]+|localhost)$/i, 'বৈধ ইমেইল ঠিকানা দিন')
     .transform((e) => e.toLowerCase().trim()),
   password: z
-    .string({ required_error: 'পাসওয়ার্ড প্রয়োজন' })
+    .string()
     .min(1, 'পাসওয়ার্ড দিন'),
 })
 

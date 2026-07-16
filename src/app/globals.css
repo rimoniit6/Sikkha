@@ -806,3 +806,54 @@ html {
 .animate-badge-pulse {
   animation: badge-pulse 2s ease-in-out infinite;
 }
+
+/* ─── Interactive card: lift on hover, settle on press ─── */
+.card-lift {
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.card-lift:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px -8px oklch(0 0 0 / 12%), 0 4px 8px -4px oklch(0 0 0 / 8%);
+}
+.card-lift:active {
+  transform: translateY(-1px);
+  transition-duration: 0.1s;
+}
+.dark .card-lift:hover {
+  box-shadow: 0 12px 24px -8px oklch(0 0 0 / 40%), 0 0 0 1px oklch(1 0 0 / 6%);
+}
+
+/* ─── Shine sweep across a card/button on hover ─── */
+.hover-shine {
+  position: relative;
+  overflow: hidden;
+}
+.hover-shine::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(105deg, transparent 40%, oklch(1 0 0 / 12%) 50%, transparent 60%);
+  transform: translateX(-100%);
+  pointer-events: none;
+}
+.hover-shine:hover::after {
+  transform: translateX(100%);
+  transition: transform 0.7s ease;
+}
+
+/* ─── Icon nudge inside a group link/button ─── */
+.group:hover .icon-nudge {
+  transform: translateX(3px);
+}
+.icon-nudge {
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ─── Gentle infinite float for decorative elements ─── */
+@keyframes float-gentle {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+.animate-float-gentle {
+  animation: float-gentle 5s ease-in-out infinite;
+}

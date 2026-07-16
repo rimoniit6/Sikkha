@@ -18,6 +18,7 @@ const PUBLIC_API_ROUTES = [
   '/api/auth/logout',
   '/api/auth/me',
   '/api/classes',
+  '/api/subjects',
 
   '/api/chapters',
   '/api/lectures',
@@ -33,6 +34,8 @@ const PUBLIC_API_ROUTES = [
   '/api/boards',
   '/api/years',
   '/api/courses',
+  '/api/premium',
+  '/api/knowledge-questions',
   '/api/faqs',
   '/api/testimonials',
   '/api/plans',
@@ -53,6 +56,7 @@ const PUBLIC_API_ROUTES = [
   '/api/content-types',
   '/api/content-types/seed',
   '/api/uploadthing',
+  '/api/local-upload',
   '/api/csrf-token',
   '/api/health',
   '/api/navigation',
@@ -211,6 +215,6 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.png$|.*\\.jpg$|.*\\.svg$|.*\\.ico$|.*\\.webp$|public).*)',
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.png$|.*\\.jpe?g$|.*\\.svg$|.*\\.ico$|.*\\.webp$|public).*)',
   ],
 }

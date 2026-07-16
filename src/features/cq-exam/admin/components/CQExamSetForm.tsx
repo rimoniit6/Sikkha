@@ -161,8 +161,8 @@ export function CQExamSetForm({
               <Select value={setStatus} onValueChange={setSetStatus}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="draft">ড্রাফট</SelectItem>
-                  <SelectItem value="published">প্রকাশিত</SelectItem>
+                  <SelectItem value="DRAFT">ড্রাফট</SelectItem>
+                  <SelectItem value="PUBLISHED">প্রকাশিত</SelectItem>
                 </SelectContent>
               </Select>
             </div>

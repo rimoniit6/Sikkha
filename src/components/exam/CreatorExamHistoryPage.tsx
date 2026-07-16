@@ -24,6 +24,7 @@ import {
   FileQuestion,
   BarChart3,
   Eye,
+  Trash2,
 } from 'lucide-react'
 
 interface ExamItem {
@@ -93,6 +94,26 @@ export default function CreatorExamHistoryPage() {
 
   const handleViewResults = (examId: string) => {
     navigate('exam-result', { resultId: examId })
+  }
+
+  const handleDeleteExam = async (examId: string) => {
+    if (!confirm('আপনি কি নিশ্চিতভাবে এই পরীক্ষাটি মুছতে চান?')) return
+    try {
+      const token = await fetch('/api/csrf-token').then(r => r.json()).then(d => d.token).catch(() => '')
+      const res = await fetch(`/api/exams/${examId}/delete`, {
+        method: 'DELETE',
+        headers: { 'x-csrf-token': token },
+      })
+      if (res.ok) {
+        toast({ title: 'সফল', description: 'পরীক্ষা মুছে ফেলা হয়েছে' })
+        fetchExams(page, searchQuery)
+      } else {
+        const data = await res.json().catch(() => ({}))
+        toast({ title: 'ত্রুটি', description: data.error || 'মুছতে সমস্যা হয়েছে', variant: 'destructive' })
+      }
+    } catch {
+      toast({ title: 'ত্রুটি', description: 'মুছতে সমস্যা হয়েছে', variant: 'destructive' })
+    }
   }
 
   const formatDate = (d: string) => {
@@ -256,9 +277,12 @@ export default function CreatorExamHistoryPage() {
                       <Eye className="size-3" />
                       ফলাফল দেখুন
                     </Button>
-                    <Button size="sm" variant="ghost" className="gap-1.5 text-xs" onClick={() => navigate('exam-session', { examId: exam.id })}>
+                    <Button size="sm" variant="ghost" className="gap-1.5 text-xs" onClick={() => navigate('exam-session', { examId: exam.id, source: 'custom' })}>
                       <BookOpen className="size-3" />
                       পুনরায় চেষ্টা
+                    </Button>
+                    <Button size="sm" variant="ghost" className="gap-1.5 text-xs text-destructive hover:text-destructive" onClick={() => handleDeleteExam(exam.id)}>
+                      <Trash2 className="size-3" />
                     </Button>
                   </div>
                 </CardContent>

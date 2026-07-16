@@ -32,10 +32,16 @@ import { useHierarchyMetadata } from '@/hooks/use-hierarchy-metadata'
 // ─── Constants ──────────────────────────────────────────────────
 
 const typeBadgeConfig: Record<
-  NoticeRecord['type'],
+  string,
   { label: string; color: string; bgColor: string; borderColor: string }
 > = {
   text: {
+    label: 'টেক্সট',
+    color: 'text-emerald-700 dark:text-emerald-300',
+    bgColor: 'bg-emerald-100 dark:bg-emerald-900/60',
+    borderColor: 'border-l-emerald-500',
+  },
+  TEXT: {
     label: 'টেক্সট',
     color: 'text-emerald-700 dark:text-emerald-300',
     bgColor: 'bg-emerald-100 dark:bg-emerald-900/60',
@@ -47,7 +53,19 @@ const typeBadgeConfig: Record<
     bgColor: 'bg-orange-100 dark:bg-orange-900/60',
     borderColor: 'border-l-orange-500',
   },
+  PDF: {
+    label: 'পিডিএফ',
+    color: 'text-orange-700 dark:text-orange-300',
+    bgColor: 'bg-orange-100 dark:bg-orange-900/60',
+    borderColor: 'border-l-orange-500',
+  },
   link: {
+    label: 'লিংক',
+    color: 'text-cyan-700 dark:text-cyan-300',
+    bgColor: 'bg-cyan-100 dark:bg-cyan-900/60',
+    borderColor: 'border-l-cyan-500',
+  },
+  LINK: {
     label: 'লিংক',
     color: 'text-cyan-700 dark:text-cyan-300',
     bgColor: 'bg-cyan-100 dark:bg-cyan-900/60',
@@ -252,7 +270,7 @@ export default function NoticesPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <AnimatePresence mode="popLayout">
               {sortedNotices.map((notice, idx) => {
-                const badgeConfig = typeBadgeConfig[notice.type]
+                const badgeConfig = typeBadgeConfig[notice.type] || typeBadgeConfig.text
                 return (
                   <motion.div
                     key={notice.id}

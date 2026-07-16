@@ -57,8 +57,8 @@ export async function GET(
 
     // ── Aggregated batch queries (3 total vs N×5 previously) ──
     const [lectureRows, mcqRows, cqRows] = await Promise.all([
-      db.$queryRaw<Array<{ subject_id: string; count: bigint }>>(Prisma.sql`
-        SELECT ch."subjectId" AS subject_id, COUNT(l.id)::bigint AS count
+      db.$queryRaw<Array<{ subject_id: string; count: number }>>(Prisma.sql`
+        SELECT ch."subjectId" AS subject_id, COUNT(l.id) AS count
         FROM "Lecture" l
         INNER JOIN "Chapter" ch ON ch.id = l."chapterId"
         WHERE ch."subjectId" IN (${Prisma.join(subjectIds)})
@@ -66,18 +66,18 @@ export async function GET(
           AND ch."isActive" = true
         GROUP BY ch."subjectId"
       `),
-      db.$queryRaw<Array<{ subject_id: string; total: bigint; board: bigint }>>(Prisma.sql`
+      db.$queryRaw<Array<{ subject_id: string; total: number; board: number }>>(Prisma.sql`
         SELECT "subjectId" AS subject_id,
-               COUNT(*)::bigint AS total,
-               COUNT(*) FILTER (WHERE "board" IS NOT NULL AND "year" IS NOT NULL)::bigint AS board
+               COUNT(*) AS total,
+               COUNT(*) FILTER (WHERE "board" IS NOT NULL AND "year" IS NOT NULL) AS board
         FROM "MCQ"
         WHERE "subjectId" IN (${Prisma.join(subjectIds)}) AND "isActive" = true
         GROUP BY "subjectId"
       `),
-      db.$queryRaw<Array<{ subject_id: string; total: bigint; board: bigint }>>(Prisma.sql`
+      db.$queryRaw<Array<{ subject_id: string; total: number; board: number }>>(Prisma.sql`
         SELECT "subjectId" AS subject_id,
-               COUNT(*)::bigint AS total,
-               COUNT(*) FILTER (WHERE "board" IS NOT NULL AND "year" IS NOT NULL)::bigint AS board
+               COUNT(*) AS total,
+               COUNT(*) FILTER (WHERE "board" IS NOT NULL AND "year" IS NOT NULL) AS board
         FROM "CQ"
         WHERE "subjectId" IN (${Prisma.join(subjectIds)}) AND "isActive" = true
         GROUP BY "subjectId"

@@ -45,7 +45,10 @@ interface ResultData {
     id: string
     score: number
     totalMarks: number
+    percentage: number
+    isPassed: boolean | null
     timeTaken: number
+    attemptNumber: number
     completedAt: string
   }
   exam: {
@@ -56,6 +59,7 @@ interface ResultData {
     totalMarks: number
     marksPerMcq: number
     negativeMarks: number
+    passingPercentage: number | null
   }
   questions: QuestionReview[]
 }
@@ -160,6 +164,17 @@ export default function CreatorExamResultReviewPage() {
             <Trophy className="size-12 mx-auto mb-3" />
             <h1 className="text-2xl font-bold mb-1">{data.exam.title}</h1>
             <p className="text-emerald-100">পরীক্ষার ফলাফল পর্যালোচনা</p>
+            {data.result.attemptNumber > 1 && (
+              <Badge className="mt-2 bg-white/20 text-white border-white/30">
+                চেষ্টা #{toBengaliNumerals(data.result.attemptNumber)}
+              </Badge>
+            )}
+            {data.result.isPassed === true && (
+              <Badge className="mt-2 ml-2 bg-emerald-400 text-emerald-900">পাস</Badge>
+            )}
+            {data.result.isPassed === false && (
+              <Badge className="mt-2 ml-2 bg-red-400 text-red-900">ফেল</Badge>
+            )}
           </div>
           <CardContent className="p-6">
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">

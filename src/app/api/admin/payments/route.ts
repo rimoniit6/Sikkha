@@ -20,7 +20,7 @@ export async function GET(request: Request) {
 
     const where: Record<string, unknown> = {}
 
-    if (status) where.status = status
+    if (status) where.status = status.toUpperCase()
     if (method) where.method = method
     if (contentType) where.contentType = contentType
     if (q) {
@@ -168,7 +168,8 @@ export async function PATCH(request: Request) {
     const body = await request.json()
     const validation = validateBody(reviewPaymentSchema, body)
     if ('error' in validation) return validation.error
-    const { id, status, adminNote } = validation.data
+    const { id, status: lowerStatus, adminNote } = validation.data
+    const status = lowerStatus.toUpperCase()
 
     if (status === 'REJECTED' && !adminNote?.trim()) {
       return apiError('প্রত্যাখ্যানের কারণ লিখুন', 400)

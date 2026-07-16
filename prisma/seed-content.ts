@@ -196,7 +196,7 @@ async function seedContent() {
               marks: 5,
               order: q + 1,
               type: 'CQ',
-              subMarks: [1, 1, 1.5, 1.5],
+              subMarks: JSON.stringify([1, 1, 1.5, 1.5]),
             },
           })
         }
@@ -312,7 +312,7 @@ async function seedContent() {
               marks: 10,
               order: q + 1,
               type: 'CQ',
-              subMarks: [2, 2, 3, 3],
+              subMarks: JSON.stringify([2, 2, 3, 3]),
             },
           })
         }

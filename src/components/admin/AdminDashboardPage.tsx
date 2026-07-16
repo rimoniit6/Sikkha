@@ -23,13 +23,16 @@ import {
   CreditCard,
   DollarSign,
   FileQuestion,
+  MessageSquareText,
   UserPlus,
   Users,
 } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import dynamic from 'next/dynamic'
 import { useMemo } from 'react'
 
 import { useDashboardStats } from '@/hooks/admin/use-dashboard'
+import { useAdminAlerts } from '@/contexts/AdminAlertContext'
 
 const AdminDashboardCharts = dynamic(() => import('./AdminDashboardCharts'), {
   ssr: false,
@@ -57,6 +60,7 @@ export default function AdminDashboardPage() {
   const user = useAuthStore((s) => s.user)
   const navigate = useRouterStore((s) => s.navigate)
   const { stats, isLoading, isError, error, refetch } = useDashboardStats()
+  const { isNewPayment, isNewFeedback, feedback } = useAdminAlerts()
 
   const statCards = useMemo(() => [
     {
@@ -100,8 +104,17 @@ export default function AdminDashboardPage() {
       icon: Clock,
       color: 'text-orange-600 dark:text-orange-400',
       bg: 'bg-orange-50 dark:bg-orange-950/30',
+      pulse: isNewPayment,
     },
-  ], [stats])
+    {
+      title: 'ফিডব্যাক অপেক্ষমান',
+      value: feedback.pending,
+      icon: MessageSquareText,
+      color: 'text-amber-600 dark:text-amber-400',
+      bg: 'bg-amber-50 dark:bg-amber-950/30',
+      pulse: isNewFeedback,
+    },
+  ], [stats, isNewPayment, isNewFeedback, feedback.pending])
 
   if (isLoading) {
     return (
@@ -142,7 +155,7 @@ export default function AdminDashboardPage() {
           const Icon = stat.icon
           return (
             <div key={stat.title} className="animate-fade-in-up">
-              <Card className="hover:shadow-md transition-shadow">
+              <Card className={cn('hover:shadow-md transition-shadow', (stat as any).pulse && 'ring-2 ring-orange-400/50')}>
                 <CardContent className="p-4 md:p-6">
                   <div className="flex items-start justify-between">
                     <div className="space-y-1">
@@ -199,21 +212,21 @@ export default function AdminDashboardPage() {
                       <TableCell>
                         <Badge
                           variant={
-                            payment.status === 'approved'
+                            payment.status?.toLowerCase() === 'approved'
                               ? 'default'
-                              : payment.status === 'pending'
+                              : payment.status?.toLowerCase() === 'pending'
                                 ? 'secondary'
                                 : 'destructive'
                           }
                           className={
-                            payment.status === 'approved'
+                            payment.status?.toLowerCase() === 'approved'
                               ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300'
-                              : payment.status === 'pending'
+                              : payment.status?.toLowerCase() === 'pending'
                                 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300'
                                 : ''
                           }
                         >
-                          {STATUS_LABELS[payment.status] || payment.status}
+                          {STATUS_LABELS[payment.status?.toLowerCase() || ''] || payment.status}
                         </Badge>
                       </TableCell>
                     </TableRow>

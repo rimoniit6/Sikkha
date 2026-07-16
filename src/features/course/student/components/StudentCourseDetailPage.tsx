@@ -1,26 +1,27 @@
 'use client'
 
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   BookOpen, Crown, Clock, User, GraduationCap, BarChart3, Check, Loader2, Play,
   Award, FileQuestion, AlignLeft, StickyNote, Radio, Video, Target, ListChecks,
   Calendar, ChevronDown, ChevronUp, ExternalLink, Upload, FileText, Lock, Eye,
   MessageSquare, Star, PenSquare, CheckCircle, AlertCircle, FileUp, X, Paperclip,
-  Layers, Menu, RefreshCw, FileImage,
+  Layers, RefreshCw, Bookmark, RotateCcw,
 } from 'lucide-react'
 import SafeImage from '@/components/ui/safe-image'
+import { sanitizeHtml } from '@/lib/sanitize'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
-import { Input } from '@/components/ui/input'
 import { Progress } from '@/components/ui/progress'
 import { useToast } from '@/hooks/use-toast'
 import { useUploadThing } from '@/lib/upload/client'
-import { useStudentCourseDetail, type StudentTabId } from '../hooks/use-student-course-detail'
+import { useStudentCourseDetail } from '../hooks/use-student-course-detail'
 import { courseService } from '@/services/api/course.service'
+import { useRouterStore } from '@/store/router'
 import StudentSyllabusTab from './StudentSyllabusTab'
 import StudentExamsTab from './StudentExamsTab'
 
@@ -30,22 +31,51 @@ interface Props {
 
 const DAYS = ['রবি', 'সোম', 'মঙ্গল', 'বুধ', 'বৃহস্পতি', 'শুক্র', 'শনি']
 
+const SAFE_URL_RE = /^(https?:|mailto:|tel:)/i
+
+function safeOpenUrl(url?: string | null) {
+  if (!url) return
+  const trimmed = url.trim()
+  if (!SAFE_URL_RE.test(trimmed)) return
+  window.open(trimmed, '_blank', 'noopener,noreferrer')
+}
+
+function isSafeUrl(url?: string | null): boolean {
+  if (!url) return false
+  return SAFE_URL_RE.test(url.trim())
+}
+
 export default function StudentCourseDetailPage({ slug }: Props) {
   const { toast } = useToast()
   const h = useStudentCourseDetail(slug)
+  const c = h.course
+  const navigate = useRouterStore((s) => s.navigate)
+  const contents = (c?.contents || []).sort((a: any, b: any) => a.displayOrder - b.displayOrder)
+
+  const safeFeatures = useMemo(() => sanitizeHtml(c?.features || ''), [c?.features])
+  const safeRequirements = useMemo(() => sanitizeHtml(c?.requirements || ''), [c?.requirements])
+  const safeTargetStudents = useMemo(() => sanitizeHtml(c?.targetStudents || ''), [c?.targetStudents])
+
   const [purchasing, setPurchasing] = useState(false)
   const [enrolling, setEnrolling] = useState(false)
   const [activeSection, setActiveSection] = useState('curriculum')
   const [expandedLessons, setExpandedLessons] = useState<Set<string>>(new Set())
   const [submittingFor, setSubmittingFor] = useState<string | null>(null)
   const [submitContent, setSubmitContent] = useState('')
-  const [submitFiles, setSubmitFiles] = useState<string>('')
   const [submitLoading, setSubmitLoading] = useState(false)
   const [uploadedFiles, setUploadedFiles] = useState<Array<{ url: string; name: string; type: string }>>([])
   const [uploadingFile, setUploadingFile] = useState(false)
   const [liveNow, setLiveNow] = useState<Set<string>>(new Set())
   const [timeLockedMap, setTimeLockedMap] = useState<Set<string>>(new Set())
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const [bookmarked, setBookmarked] = useState(false)
+  const [bookmarkLoading, setBookmarkLoading] = useState(false)
+  const [relatedCourses, setRelatedCourses] = useState<any[]>([])
+  const [relatedLoading, setRelatedLoading] = useState(false)
+  const [userNote, setUserNote] = useState('')
+  const [noteLoading, setNoteLoading] = useState(false)
+  const [noteSaving, setNoteSaving] = useState(false)
 
   useEffect(() => {
     function updateTimestamps() {
@@ -128,9 +158,72 @@ export default function StudentCourseDetailPage({ slug }: Props) {
   const resetSubmission = useCallback(() => {
     setSubmittingFor(null)
     setSubmitContent('')
-    setSubmitFiles('')
     setUploadedFiles([])
   }, [])
+
+  // Load bookmark status, related courses, and the user's personal note
+  useEffect(() => {
+    if (!c?.id) return
+    let cancelled = false
+    courseService.checkBookmark(c.id)
+      .then((r) => { if (!cancelled) setBookmarked(!!r.data?.isBookmarked) })
+      .catch(() => {})
+
+    setRelatedLoading(true)
+    courseService.related(c.id)
+      .then((r) => { if (!cancelled) setRelatedCourses(r.courses || []) })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setRelatedLoading(false) })
+
+    if (h.isEnrolled) {
+      setNoteLoading(true)
+      courseService.myNotes(c.id)
+        .then((r) => { if (!cancelled) setUserNote(r.data?.[0]?.content || '') })
+        .catch(() => {})
+        .finally(() => { if (!cancelled) setNoteLoading(false) })
+    }
+    return () => { cancelled = true }
+  }, [c?.id, h.isEnrolled])
+
+  async function toggleBookmark() {
+    if (!c) return
+    setBookmarkLoading(true)
+    try {
+      if (bookmarked) {
+        await courseService.removeBookmark(c.id)
+        setBookmarked(false)
+        toast({ title: 'বুকমার্ক সরানো হয়েছে' })
+      } else {
+        await courseService.addBookmark(c.id)
+        setBookmarked(true)
+        toast({ title: 'বুকমার্ক করা হয়েছে' })
+      }
+    } catch {
+      toast({ title: 'ত্রুটি', description: 'বুকমার্ক করা যায়নি', variant: 'destructive' })
+    } finally {
+      setBookmarkLoading(false)
+    }
+  }
+
+  async function saveNote() {
+    if (!c) return
+    setNoteSaving(true)
+    try {
+      await courseService.saveNote(c.id, userNote)
+      toast({ title: 'নোট সংরক্ষিত' })
+    } catch {
+      toast({ title: 'ত্রুটি', description: 'নোট সংরক্ষণ করা যায়নি', variant: 'destructive' })
+    } finally {
+      setNoteSaving(false)
+    }
+  }
+
+  const firstIncomplete = contents.find((item: any) => !h.progress[item.id])
+  function handleResume() {
+    if (!firstIncomplete) return
+    sectionRefs.current['curriculum']?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    setExpandedLessons((prev) => new Set(prev).add(firstIncomplete.id))
+  }
 
   function getUnlockLabel(item: any): string {
     if (!item.releaseAt) return ''
@@ -184,6 +277,22 @@ export default function StudentCourseDetailPage({ slug }: Props) {
     })
   }
 
+  const isCompleted = h.enrollment?.status === 'COMPLETED'
+
+  const [cert, setCert] = useState<{ serial: string } | null>(null)
+  const [certLoading, setCertLoading] = useState(false)
+  useEffect(() => {
+    if (!isCompleted || !c?.hasCertificate) { setCert(null); return }
+    let cancelled = false
+    setCertLoading(true)
+    fetch(`/api/courses/certificate?courseId=${c.id}`, { credentials: 'include' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (!cancelled && d?.course) setCert(d) })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setCertLoading(false) })
+    return () => { cancelled = true }
+  }, [isCompleted, c?.hasCertificate, c?.id])
+
   if (h.loading) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-background to-muted/30">
@@ -217,10 +326,6 @@ export default function StudentCourseDetailPage({ slug }: Props) {
     )
   }
 
-  const c = h.course
-  const contents = (c.contents || []).sort((a: any, b: any) => a.displayOrder - b.displayOrder)
-  const isCompleted = h.enrollment?.status === 'COMPLETED'
-
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/30">
 
@@ -249,6 +354,21 @@ export default function StudentCourseDetailPage({ slug }: Props) {
                     <Check className="mr-1 h-3 w-3" />এনরোলড
                   </Badge>
                 )}
+                {isCompleted && (
+                  <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 text-xs">
+                    <Award className="mr-1 h-3 w-3" />সম্পন্ন
+                  </Badge>
+                )}
+                <Button
+                  variant={bookmarked ? 'default' : 'outline'}
+                  size="icon"
+                  className="h-7 w-7"
+                  disabled={bookmarkLoading}
+                  onClick={toggleBookmark}
+                  title={bookmarked ? 'বুকমার্ক সরান' : 'বুকমার্ক করুন'}
+                >
+                  {bookmarked ? <Bookmark className="h-3.5 w-3.5 fill-current" /> : <Bookmark className="h-3.5 w-3.5" />}
+                </Button>
               </div>
 
               <h1 className="text-3xl font-bold tracking-tight sm:text-4xl lg:text-5xl">{c.title}</h1>
@@ -301,6 +421,7 @@ export default function StudentCourseDetailPage({ slug }: Props) {
                   { id: 'syllabus', label: 'সিলেবাস', icon: Layers },
                   { id: 'exams', label: 'পরীক্ষা', icon: FileQuestion },
                   { id: 'assignments', label: 'অ্যাসাইনমেন্ট', icon: PenSquare },
+                  { id: 'notes', label: 'আমার নোট', icon: StickyNote },
                   { id: 'overview', label: 'ওভারভিউ', icon: FileText },
                 ].map(s => (
                   <button
@@ -332,15 +453,27 @@ export default function StudentCourseDetailPage({ slug }: Props) {
                 </div>
               </div>
 
-              {h.overallProgress.total > 0 && (
-                <div className="mb-6 space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">সামগ্রিক অগ্রগতি</span>
-                    <span className="font-medium">{h.overallProgress.completed}/{h.overallProgress.total} ({h.overallProgress.percent}%)</span>
-                  </div>
-                  <Progress value={h.overallProgress.percent} className="h-2.5" />
-                </div>
-              )}
+               {h.overallProgress.total > 0 && (
+                 <div className="mb-6 space-y-2">
+                   <div className="flex items-center justify-between text-sm">
+                     <span className="text-muted-foreground">সামগ্রিক অগ্রগতি</span>
+                     <span className="font-medium">{h.overallProgress.completed}/{h.overallProgress.total} ({h.overallProgress.percent}%)</span>
+                   </div>
+                   <Progress value={h.overallProgress.percent} className="h-2.5" />
+                 </div>
+               )}
+
+               {h.isEnrolled && !isCompleted && firstIncomplete && (
+                 <div className="mb-6 flex items-center justify-between rounded-xl border border-primary/20 bg-primary/5 p-4">
+                   <div>
+                     <p className="text-sm font-medium">আপনার শেখা বাকি</p>
+                     <p className="text-xs text-muted-foreground line-clamp-1">পরবর্তী: {firstIncomplete.title || 'ক্লাস'}</p>
+                   </div>
+                   <Button size="sm" className="gap-1.5" onClick={handleResume}>
+                     <RotateCcw className="h-4 w-4" />আবার শুরু করুন
+                   </Button>
+                 </div>
+               )}
 
               {contents.length === 0 ? (
                 <Card>
@@ -455,7 +588,7 @@ export default function StudentCourseDetailPage({ slug }: Props) {
                                     className="h-8 w-8"
                                     onClick={(e) => {
                                       e.stopPropagation()
-                                      if (item.meetingLink) window.open(item.meetingLink, '_blank')
+                                      safeOpenUrl(item.meetingLink)
                                     }}
                                     title={item.platform ? `${item.platform}-এ যোগ দিন` : 'যোগ দিন'}
                                   >
@@ -468,8 +601,7 @@ export default function StudentCourseDetailPage({ slug }: Props) {
                                     className="h-8 w-8"
                                     onClick={(e) => {
                                       e.stopPropagation()
-                                      const url = item.previewVideo || item.videoUrl
-                                      if (url) window.open(url, '_blank')
+                                      safeOpenUrl(item.previewVideo || item.videoUrl)
                                     }}
                                   >
                                     <Play className="h-4 w-4" />
@@ -544,13 +676,13 @@ export default function StudentCourseDetailPage({ slug }: Props) {
                                     <Video className="h-4 w-4" />
                                     <span>লাইভ ক্লাসের তথ্য</span>
                                   </div>
-                                  {item.meetingLink && (
-                                    <div className="flex items-center justify-between">
-                                      <span className="text-muted-foreground">লিংক</span>
-                                      <a href={item.meetingLink} target="_blank" rel="noopener noreferrer"
-                                        className="text-primary hover:underline flex items-center gap-1 truncate max-w-[250px]"
-                                      >
-                                        {item.meetingLink} <ExternalLink className="h-3 w-3 shrink-0" />
+                                   {item.meetingLink && isSafeUrl(item.meetingLink) && (
+                                     <div className="flex items-center justify-between">
+                                       <span className="text-muted-foreground">লিংক</span>
+                                       <a href={item.meetingLink} target="_blank" rel="noopener noreferrer"
+                                         className="text-primary hover:underline flex items-center gap-1 truncate max-w-[250px]"
+                                       >
+                                         {item.meetingLink} <ExternalLink className="h-3 w-3 shrink-0" />
                                       </a>
                                     </div>
                                   )}
@@ -576,7 +708,7 @@ export default function StudentCourseDetailPage({ slug }: Props) {
                                     <Button
                                       size="sm"
                                       className="w-full mt-1"
-                                      onClick={(e) => { e.stopPropagation(); window.open(item.meetingLink!, '_blank') }}
+                                       onClick={(e) => { e.stopPropagation(); safeOpenUrl(item.meetingLink) }}
                                     >
                                       <ExternalLink className="h-4 w-4 mr-1" /> যোগ দিন
                                     </Button>
@@ -769,7 +901,7 @@ export default function StudentCourseDetailPage({ slug }: Props) {
                   <Card>
                     <CardContent className="p-5">
                       <h3 className="flex items-center gap-2 font-semibold mb-3"><ListChecks className="h-4 w-4 text-primary" />কোর্স ফিচার</h3>
-                      <div className="prose prose-sm max-w-none dark:prose-invert" dangerouslySetInnerHTML={{ __html: c.features }} />
+                      <div className="prose prose-sm max-w-none dark:prose-invert" dangerouslySetInnerHTML={{ __html: safeFeatures }} />
                     </CardContent>
                   </Card>
                 )}
@@ -777,7 +909,7 @@ export default function StudentCourseDetailPage({ slug }: Props) {
                   <Card>
                     <CardContent className="p-5">
                       <h3 className="flex items-center gap-2 font-semibold mb-3"><Target className="h-4 w-4 text-primary" />প্রয়োজনীয়তা</h3>
-                      <div className="prose prose-sm max-w-none dark:prose-invert" dangerouslySetInnerHTML={{ __html: c.requirements }} />
+                      <div className="prose prose-sm max-w-none dark:prose-invert" dangerouslySetInnerHTML={{ __html: safeRequirements }} />
                     </CardContent>
                   </Card>
                 )}
@@ -787,14 +919,100 @@ export default function StudentCourseDetailPage({ slug }: Props) {
                 <Card className="mt-4">
                   <CardContent className="p-5">
                     <h3 className="flex items-center gap-2 font-semibold mb-3"><User className="h-4 w-4 text-primary" />উদ্দেশ্য ছাত্র-ছাত্রী</h3>
-                    <div className="prose prose-sm max-w-none dark:prose-invert" dangerouslySetInnerHTML={{ __html: c.targetStudents }} />
+                    <div className="prose prose-sm max-w-none dark:prose-invert" dangerouslySetInnerHTML={{ __html: safeTargetStudents }} />
                   </CardContent>
                 </Card>
               )}
-            </section>
-          </div>
+             </section>
 
-          {/* ===== SIDEBAR ===== */}
+             {/* ===== SECTION: My Notes (user-generated) ===== */}
+             <section ref={el => { sectionRefs.current['notes'] = el }} id="section-notes">
+               <div className="flex items-center gap-3 mb-5">
+                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                   <StickyNote className="h-5 w-5" />
+                 </div>
+                 <div>
+                   <h2 className="text-xl font-bold">আমার নোট</h2>
+                   <p className="text-sm text-muted-foreground">এই কোর্সের জন্য আপনার ব্যক্তিগত নোট</p>
+                 </div>
+               </div>
+
+               {!h.isEnrolled ? (
+                 <Card>
+                   <CardContent className="py-10 text-center text-muted-foreground">
+                     <Lock className="mx-auto mb-2 h-8 w-8" />
+                     <p>নোট লিখতে কোর্সে এনরোল করুন</p>
+                   </CardContent>
+                 </Card>
+               ) : noteLoading ? (
+                 <Skeleton className="h-40 rounded-xl" />
+               ) : (
+                 <Card>
+                   <CardContent className="p-5 space-y-3">
+                     <Textarea
+                       value={userNote}
+                       onChange={(e) => setUserNote(e.target.value)}
+                       placeholder="আপনার নোট এখানে লিখুন..."
+                       className="min-h-[140px]"
+                     />
+                     <div className="flex justify-end">
+                       <Button size="sm" onClick={saveNote} disabled={noteSaving}>
+                         {noteSaving && <Loader2 className="h-4 w-4 animate-spin mr-1.5" />}
+                         <PenSquare className="h-4 w-4 mr-1.5" />সংরক্ষণ করুন
+                       </Button>
+                     </div>
+                   </CardContent>
+                 </Card>
+               )}
+             </section>
+
+             {/* ===== SECTION: Related Courses ===== */}
+             <section ref={el => { sectionRefs.current['related'] = el }} id="section-related">
+               <div className="flex items-center gap-3 mb-5">
+                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                   <Layers className="h-5 w-5" />
+                 </div>
+                 <h2 className="text-xl font-bold">সম্পর্কিত কোর্স</h2>
+               </div>
+
+               {relatedLoading ? (
+                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                   {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-40 rounded-xl" />)}
+                 </div>
+               ) : relatedCourses.length === 0 ? (
+                 <Card>
+                   <CardContent className="py-8 text-center text-muted-foreground">
+                     <p>কোনো সম্পর্কিত কোর্স নেই</p>
+                   </CardContent>
+                 </Card>
+               ) : (
+                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                   {relatedCourses.map((rc: any) => (
+                     <Card key={rc.id} className="cursor-pointer overflow-hidden transition-all hover:shadow-md" onClick={() => navigate('course-detail', { courseSlug: rc.slug })}>
+                       {rc.thumbnail && (
+                         <div className="h-32 overflow-hidden">
+                           <SafeImage src={rc.thumbnail} alt={rc.title} width={480} height={240} className="h-full w-full object-cover" />
+                         </div>
+                       )}
+                       <CardContent className="p-4">
+                         <h3 className="font-semibold line-clamp-2">{rc.title}</h3>
+                         <div className="mt-2 flex items-center justify-between">
+                           {rc.isPremium ? (
+                             <span className="text-sm font-bold text-amber-600">৳{rc.price}</span>
+                           ) : (
+                             <Badge variant="secondary" className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 text-xs">ফ্রি</Badge>
+                           )}
+                           <Button size="sm" variant="ghost">বিস্তারিত →</Button>
+                         </div>
+                       </CardContent>
+                     </Card>
+                   ))}
+                 </div>
+               )}
+             </section>
+           </div>
+
+           {/* ===== SIDEBAR ===== */}
           <div className="space-y-6">
             <div className="sticky top-20 space-y-6">
               {/* CTA Card */}
@@ -835,6 +1053,31 @@ export default function StudentCourseDetailPage({ slug }: Props) {
                           </div>
                           <Progress value={h.overallProgress.percent} className="h-3" />
                           <p className="text-xs text-muted-foreground text-center">{h.overallProgress.percent}% সম্পন্ন</p>
+                        </div>
+                      )}
+                      {c.hasCertificate && (
+                        <div className="rounded-xl border border-amber-200 bg-amber-50 dark:bg-amber-950/20 p-4 text-center space-y-2">
+                          <div className="flex items-center justify-center gap-2 text-amber-700 dark:text-amber-400">
+                            <Award className="h-5 w-5" />
+                            <span className="font-semibold">আপনার সার্টিফিকেট</span>
+                          </div>
+                          {certLoading ? (
+                            <p className="text-xs text-muted-foreground">লোড হচ্ছে...</p>
+                          ) : cert ? (
+                            <>
+                              <p className="text-xs text-muted-foreground">সিরিয়াল: {cert.serial}</p>
+                              <a
+                                href={`/api/courses/certificate?download=1&courseId=${c.id}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700"
+                              >
+                                <Award className="h-4 w-4" />ডাউনলোড সার্টিফিকেট
+                              </a>
+                            </>
+                          ) : (
+                            <p className="text-xs text-muted-foreground">সার্টিফিকেট এখনও তৈরি হয়নি</p>
+                          )}
                         </div>
                       )}
                     </div>
@@ -996,12 +1239,12 @@ export default function StudentCourseDetailPage({ slug }: Props) {
                       {uploadedFiles.map((file, idx) => (
                         <div key={idx} className="group relative rounded-lg border bg-muted/30 overflow-hidden">
                           {isImageFile(file.type) ? (
-                            <div className="aspect-video relative">
-                              <img
-                                src={file.url}
-                                alt={file.name}
-                                className="w-full h-full object-cover"
-                              />
+                             <div className="aspect-video relative">
+                               <SafeImage
+                                 src={file.url}
+                                 alt={file.name}
+                                 className="w-full h-full object-cover"
+                               />
                             </div>
                           ) : (
                             <div className="aspect-video flex items-center justify-center bg-blue-50 dark:bg-blue-950/20">

@@ -142,7 +142,8 @@ function getSetStatusBadge(
   score?: string
 } {
   if (submission) {
-    switch (submission.status) {
+    const s = submission.status?.toLowerCase()
+    switch (s) {
       case 'published':
       case 'graded':
         return {
@@ -161,7 +162,7 @@ function getSetStatusBadge(
           textColor: 'text-amber-700 dark:text-amber-400',
           icon: <Clock className="size-3" />,
         }
-      case 'in-progress':
+      case 'in_progress':
         return {
           label: 'চলমান',
           color: 'bg-sky-500',
@@ -265,7 +266,7 @@ export default function CQExamPackageDetailPage() {
   }
 
   const handleResumeExam = (submission: SubmissionBrief) => {
-    if (submission.status === 'submitted') {
+    if (submission.status?.toLowerCase() === 'submitted') {
       navigate('cq-exam-result', { packageId, resultId: submission.id })
     } else {
       navigate('cq-exam-viewer', { examId: submission.setId, packageId })
@@ -490,9 +491,10 @@ export default function CQExamPackageDetailPage() {
               {pkgDetail.examSets.map((set, _idx) => {
                 const submission = getSubmissionForSet(set.id)
                 const badge = getSetStatusBadge(set, submission)
-                const isGraded = submission?.status === 'graded' || submission?.status === 'published'
-                const isInProgress = submission?.status === 'in-progress'
-                const isSubmitted = submission?.status === 'submitted'
+                const subStatus = submission?.status?.toLowerCase()
+                const isGraded = subStatus === 'graded' || subStatus === 'published'
+                const isInProgress = subStatus === 'in_progress'
+                const isSubmitted = subStatus === 'submitted'
 
                 return (
                   <div

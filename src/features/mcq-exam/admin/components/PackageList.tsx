@@ -132,7 +132,7 @@ export function PackageList({
                             <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{pkg.description}</p>
                           )}
                         </div>
-                        <Badge className={cn('text-xs shrink-0', statusColors[pkg.status] || statusColors['draft'])}>
+                        <Badge className={cn('text-xs shrink-0', statusColors[pkg.status] || statusColors['DRAFT'])}>
                           {statusLabels[pkg.status] || pkg.status}
                         </Badge>
                       </div>

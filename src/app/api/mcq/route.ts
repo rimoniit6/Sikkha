@@ -4,7 +4,7 @@ import { verifyAuth } from '@/lib/auth'
 import { apiError, withCsrf, applyRateLimit } from '@/lib/api-utils'
 import { handleApiError } from '@/lib/errors'
 import { apiLimiter } from '@/lib/rate-limit'
-import { $Enums } from '@prisma/client'
+
 
 // Transform raw MCQ Prisma object to frontend-expected format
 function transformMCQ(mcq: {
@@ -14,7 +14,7 @@ function transformMCQ(mcq: {
   optionB: string
   optionC: string
   optionD: string
-  correctAnswer: $Enums.MCQAnswer
+  correctAnswer: string
   explanation: string | null
   questionImage?: string | null
   optionAImage?: string | null
@@ -27,7 +27,7 @@ function transformMCQ(mcq: {
   subjectId: string
   isPremium: boolean
   price: number
-  difficulty: $Enums.Difficulty
+  difficulty: string
   board?: string | null
   year?: string | null
   chapter?: { id: string; name: string; slug: string } | null

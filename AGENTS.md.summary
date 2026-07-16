@@ -1,0 +1,43 @@
+## Objective
+- User is debugging why user-side (public) content and the navbar are not showing. Three prior complaints: (1) bulk-import not uploading, (2) subjects/content missing on user side, (3) "nothing showing up on the user side via the navbar." The navbar issue is now ROOT-CAUSED and FIXED.
+
+## Important Details
+- Workspace: `E:\Sikkhs` — Next.js 16 + Prisma 7.8.0 (libSQL/SQLite adapter, `DATABASE_URL=file:./db/custom.db`). Dev server on port 3000 (`next dev --turbopack -p 3000`), healthy.
+- Content hierarchy hub: `/api/hierarchy/metadata` → `useHierarchyMetadata()` hook (client). Many user pages fetch their own `/api/...` endpoints.
+- MIDDLEWARE GATE (`src/proxy.ts`): all `/api/*` NOT in `PUBLIC_API_ROUTES` (lines 14-59) require auth cookie → 401. `isPublicApiRoute` matches exact OR `route + '/'` prefix, so e.g. `/api/classes` also covers `/api/classes/[slug]`.
+- CSRF: disabled locally via `ENABLE_CSRF=false` in `.env` + `CSRF_ENABLED` flag in `src/lib/csrf.ts` (prior task).
+- DB engine mismatch (THE root cause of navbar blanks): several raw-SQL routes were written with **PostgreSQL-only syntax** (`::int`/`::bigint` casts, `= ANY($1::text[])`) but the app runs on **SQLite/libSQL**, which rejects `::` (`unrecognized token: ":"`) and `ANY(...)`. Confirmed via direct `tsx` repro. Note: `FILTER (WHERE …)` and `$1` placeholders DO work on libSQL.
+
+## Work State
+### Completed (this session)
+- **Bulk-import type case fix** (`src/app/api/admin/bulk-import/route.ts:55`): `actualType` uppercased so client `type` (knowledge/mcq/cq) matches branch literals. (prior)
+- **CSRF disabled locally** — `src/lib/csrf.ts`, `src/app/api/csrf-token/route.ts`, `.env ENABLE_CSRF=false`. (prior)
+- **SubjectExplorerSection slug→id fix** (`src/components/home/SubjectExplorerSection.tsx`): built `classSlugToId` map; filters by resolved UUID. (prior)
+- **Navbar 500/401 root cause found & fixed** — raw SQL Postgres syntax on SQLite:
+  - `src/app/api/classes/[slug]/route.ts`: removed 5× `::bigint` casts (lecture/mcq/cq counts); FILTER kept; generics `bigint`→`number`.
+  - `src/app/api/board-questions/route.ts`: removed 8× `::int` casts (analytics queries).
+  - `src/app/api/chapters/[id]/route.ts`: removed 13× `COUNT(*)::int`.
+  - `src/app/api/subjects/[id]/route.ts`: removed 19× `COUNT(*)::int`; rewrote `perChapterRows` `= ANY($1::text[])` → `IN (?,?,…)` with spread `chapterIds` (6×).
+  - `src/proxy.ts`: added `'/api/subjects'` to `PUBLIC_API_ROUTES` so public subject-detail GET (`SubjectHubPage.tsx:106`) is no longer 401'd. (No admin-only `/api/subjects` list route exists — only `[id]` — so widening is safe.)
+- **Verified**: all anon navbar-destination endpoints now return 200 — `classes`, `classes/class-6` (was 500), `subjects/[id]` (was 401), `chapters/[id]` (was 500), `board-questions` (was 500), `courses?action=list`, `suggestions`, `notices`, `content-types`. `courses` needs `?action=list` (that was a 400 false-alarm from my test). `exam-center`/`premium` 401 = intended auth-gated.
+- Lint clean on all changed files; tsc clean for changed files. Diagnostic file `diag-raw.mts` removed.
+
+### Active
+- None outstanding for the reported navbar bug. Could optionally verify the rendered navbar pages (not just APIs) end-to-end in a browser.
+
+### Blocked
+- (none)
+
+## Next Move
+- If user reports specific navbar pages still blank, check the page component's specific fetch (e.g., exam-center/premium need login by design). Otherwise the navbar content issue is resolved.
+
+## Relevant Files
+- `src/proxy.ts:14-59` — `PUBLIC_API_ROUTES` whitelist (added `/api/subjects`).
+- `src/app/api/classes/[slug]/route.ts` — fixed `::bigint` + FILTER (FILTER valid on libSQL).
+- `src/app/api/board-questions/route.ts` — fixed `::int` in analytics queries.
+- `src/app/api/chapters/[id]/route.ts` — fixed `COUNT(*)::int`.
+- `src/app/api/subjects/[id]/route.ts` — fixed `COUNT(*)::int` + array `IN` rewrite.
+- `src/components/subject-hub/SubjectHubPage.tsx:106` — fetches `/api/subjects/${subjectId}` (now public).
+- `src/components/home/SubjectExplorerSection.tsx` — slug→id fix (prior).
+- `src/lib/csrf.ts`, `src/app/api/csrf-token/route.ts`, `.env` — CSRF disabled locally (prior).
+- `src/app/api/admin/bulk-import/route.ts:55` — bulk-import type case fix (prior).

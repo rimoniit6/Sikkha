@@ -1,7 +1,13 @@
 import { db } from '@/lib/db'
-import { apiResponse, apiError, withAuth } from '@/lib/api-utils'
+import { z } from 'zod'
+import { apiResponse, apiError, withAuth, withCsrf } from '@/lib/api-utils'
 import { handleApiError } from '@/lib/errors'
 import { NextResponse } from 'next/server'
+
+const assignmentPostSchema = z.object({
+  action: z.string().optional(),
+  assignmentId: z.string().min(1).optional(),
+}).passthrough()
 
 export async function GET(request: Request) {
   try {
@@ -65,7 +71,14 @@ export async function POST(request: Request) {
 
     const auth = await withAuth(request)
     if (auth instanceof NextResponse) return auth
+    const csrf = await withCsrf(request)
+    if (csrf instanceof NextResponse) return csrf
     const userId = auth.user.id
+
+    const parsed = assignmentPostSchema.safeParse(body)
+    if (!parsed.success) {
+      return apiError(parsed.error.issues[0]?.message || 'Invalid request', 400)
+    }
 
     switch (action) {
       case 'submit': {

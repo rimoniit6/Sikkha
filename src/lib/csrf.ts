@@ -1,6 +1,23 @@
 import { SignJWT, jwtVerify } from 'jose'
 import { cookies } from 'next/headers'
 
+/**
+ * Master switch for the CSRF protection system.
+ *
+ * Disabled for local development so the app runs without a CSRF token.
+ * Re-enable in any environment by setting ENABLE_CSRF=true.
+ *
+ * Resolution order:
+ *   - ENABLE_CSRF set  -> explicit true/false wins
+ *   - otherwise          -> enabled everywhere EXCEPT NODE_ENV==='development'
+ */
+const CSRF_ENABLED =
+  process.env.ENABLE_CSRF !== undefined
+    ? process.env.ENABLE_CSRF === 'true'
+    : process.env.NODE_ENV !== 'development'
+
+export const isCsrfEnabled = (): boolean => CSRF_ENABLED
+
 function getCsrfSecret(): Uint8Array {
   const secret = process.env.CSRF_SECRET
   if (!secret || secret.length < 32) {
@@ -26,6 +43,7 @@ const CSRF_COOKIE_NAME = 'csrf_token'
 const CSRF_HEADER_NAME = 'x-csrf-token'
 
 export async function generateCsrfToken(): Promise<string> {
+  if (!CSRF_ENABLED) return ''
   const token = await new SignJWT({})
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
@@ -35,6 +53,7 @@ export async function generateCsrfToken(): Promise<string> {
 }
 
 export async function setCsrfCookie(token: string) {
+  if (!CSRF_ENABLED) return
   const cookieStore = await cookies()
   cookieStore.set(CSRF_COOKIE_NAME, token, {
     httpOnly: true,
@@ -51,6 +70,7 @@ export async function getCsrfToken(): Promise<string | null> {
 }
 
 export async function validateCsrfToken(token: string): Promise<boolean> {
+  if (!CSRF_ENABLED) return true
   try {
     await jwtVerify(token, getCsrfSecretCached())
     return true
@@ -60,6 +80,7 @@ export async function validateCsrfToken(token: string): Promise<boolean> {
 }
 
 export async function verifyCsrfFromRequest(request: Request): Promise<boolean> {
+  if (!CSRF_ENABLED) return true
   // Check header first
   const headerToken = request.headers.get(CSRF_HEADER_NAME)
   if (headerToken && await validateCsrfToken(headerToken)) {
@@ -85,6 +106,7 @@ export async function verifyCsrfFromRequest(request: Request): Promise<boolean> 
 }
 
 export async function csrfMiddleware(request: Request): Promise<{ valid: boolean; token?: string }> {
+  if (!CSRF_ENABLED) return { valid: true }
   const isValid = await verifyCsrfFromRequest(request)
   // Ensure cookie exists for subsequent requests
   const existingToken = await getCsrfToken()

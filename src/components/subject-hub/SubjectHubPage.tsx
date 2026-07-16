@@ -1,7 +1,7 @@
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
-import { useCallback,useMemo,useState } from 'react'
+import React, { useCallback,useMemo,useState } from 'react'
 
 import { Badge } from '@/components/ui/badge'
 import {
@@ -16,6 +16,8 @@ import { useHierarchyMetadata } from '@/hooks/use-hierarchy-metadata'
 import { fetchJSON } from '@/lib/fetch-json'
 import { cn,toBengaliNumerals } from '@/lib/utils'
 import { useRouterStore, useRouteParams } from '@/store/router'
+import { useCountUp } from '@/hooks/use-count-up'
+import { Reveal } from '@/components/shared/Reveal'
 import {
 ArrowRight,
 Award,
@@ -47,6 +49,29 @@ interface SubjectResponse {
   chapters: ChapterData[]
   contentCounts: Record<string, number>
   freeContentCounts: Record<string, number>
+}
+
+// Animated stat card with count-up
+function StatCard({ stat, count, index }: { stat: StatDef; count: number; index: number }) {
+  const Icon = stat.icon
+  const { ref, value } = useCountUp(count)
+  return (
+    <Reveal delay={index * 60}>
+      <Card className="border-border/50 card-lift cursor-default">
+        <CardContent className="p-3 sm:p-4 flex items-center gap-3">
+          <div className={cn('p-2.5 rounded-xl bg-gradient-to-br', stat.gradient, 'shadow-sm shrink-0')}>
+            <Icon className="h-4 w-4 text-white" />
+          </div>
+          <div className="min-w-0">
+            <p ref={ref as React.Ref<HTMLParagraphElement>} className="text-lg sm:text-xl font-bold tabular-nums">
+              {toBengaliNumerals(value)}
+            </p>
+            <p className="text-[10px] text-muted-foreground truncate">{stat.label}</p>
+          </div>
+        </CardContent>
+      </Card>
+    </Reveal>
+  )
 }
 
 // ─── Stat item type ───
@@ -195,24 +220,10 @@ export default function SubjectHubPage() {
       </div>
 
       {/* Stats bar */}
-      <div className="animate-fade-in-up delay-100 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3 mt-6">
-        {STATS.map((stat, _i) => {
-          const Icon = stat.icon
-          const count = data.contentCounts[stat.key] || 0
-          return (
-            <Card key={stat.key} className="border-border/50 hover:shadow-md transition-shadow duration-300">
-              <CardContent className="p-3 sm:p-4 flex items-center gap-3">
-                <div className={cn('p-2.5 rounded-xl bg-gradient-to-br', stat.gradient, 'shadow-sm shrink-0')}>
-                  <Icon className="h-4 w-4 text-white" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-lg sm:text-xl font-bold">{toBengaliNumerals(count)}</p>
-                  <p className="text-[10px] text-muted-foreground truncate">{stat.label}</p>
-                </div>
-              </CardContent>
-            </Card>
-          )
-        })}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3 mt-6">
+        {STATS.map((stat, i) => (
+          <StatCard key={stat.key} stat={stat} count={data.contentCounts[stat.key] || 0} index={i} />
+        ))}
       </div>
 
       {/* Search */}
@@ -237,15 +248,15 @@ export default function SubjectHubPage() {
             </p>
           </div>
         ) : (
-          filteredChapters.map((chapter, _i) => (
-            <Card
-              key={chapter.id}
-              onClick={() => goToChapter(chapter.id, chapter.slug)}
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); goToChapter(chapter.id, chapter.slug) } }}
-              role="button"
-              tabIndex={0}
-              className="border-border/50 hover:border-primary/30 hover:shadow-lg transition-all duration-300 group h-full cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-xl"
-            >
+          filteredChapters.map((chapter, i) => (
+            <Reveal key={chapter.id} delay={(i % 6) * 60} className="h-full">
+              <Card
+                onClick={() => goToChapter(chapter.id, chapter.slug)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); goToChapter(chapter.id, chapter.slug) } }}
+                role="button"
+                tabIndex={0}
+                className="border-border/50 hover:border-primary/30 card-lift hover-shine group h-full cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-xl"
+              >
               <CardContent className="p-5 sm:p-6 flex flex-col h-full">
                 {/* Chapter number + name */}
                 <div className="flex items-start gap-3 mb-3">
@@ -334,6 +345,7 @@ export default function SubjectHubPage() {
                 </div>
               </CardContent>
             </Card>
+            </Reveal>
           ))
         )}
       </div>

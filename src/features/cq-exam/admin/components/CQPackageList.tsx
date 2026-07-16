@@ -21,22 +21,22 @@ interface ClassCategory {
 }
 
 const statusLabels: Record<string, string> = {
-  'draft': 'ড্রাফট',
-  'published': 'প্রকাশিত',
-  'archived': 'আর্কাইভ',
+  'DRAFT': 'ড্রাফট',
+  'PUBLISHED': 'প্রকাশিত',
+  'ARCHIVED': 'আর্কাইভ',
 }
 
 const statusColors: Record<string, string> = {
-  'draft': 'bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300',
-  'published': 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300',
-  'archived': 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400',
+  'DRAFT': 'bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300',
+  'PUBLISHED': 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300',
+  'ARCHIVED': 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400',
 }
 
 const statusOptions = [
   { value: '', label: 'সকল স্ট্যাটাস' },
-  { value: 'draft', label: 'ড্রাফট' },
-  { value: 'published', label: 'প্রকাশিত' },
-  { value: 'archived', label: 'আর্কাইভ' },
+  { value: 'DRAFT', label: 'ড্রাফট' },
+  { value: 'PUBLISHED', label: 'প্রকাশিত' },
+  { value: 'ARCHIVED', label: 'আর্কাইভ' },
 ] as const
 
 interface CQPackageListProps {
@@ -188,7 +188,7 @@ export function CQPackageList({
                             <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{pkg.description}</p>
                           )}
                         </div>
-                        <Badge className={cn('text-xs shrink-0', statusColors[pkg.status] || statusColors['draft'])}>
+                        <Badge className={cn('text-xs shrink-0', statusColors[pkg.status] || statusColors['DRAFT'])}>
                           {statusLabels[pkg.status] || pkg.status}
                         </Badge>
                       </div>

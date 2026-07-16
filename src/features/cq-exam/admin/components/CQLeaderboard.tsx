@@ -12,7 +12,7 @@ import { CQExamSubmissionRecord } from '../../types'
 
 const cqStatusLabels: Record<string, string> = {
   'not-started': 'শুরু করেনি',
-  'in-progress': 'চলমান',
+  'in_progress': 'চলমান',
   'submitted': 'জমা দিয়েছে',
   'graded': 'মূল্যায়িত',
   'published': 'প্রকাশিত',

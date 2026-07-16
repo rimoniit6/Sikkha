@@ -46,8 +46,8 @@ export async function POST(request: Request) {
         type,
         format: format || 'xlsx',
         schedule: schedule || null,
-        recipients: recipients || [],
-        config: { sections: [type] },
+        recipients: recipients ? JSON.stringify(recipients) : null,
+        config: JSON.stringify({ sections: [type] }),
       },
     })
 

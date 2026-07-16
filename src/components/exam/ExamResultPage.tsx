@@ -84,19 +84,72 @@ export default function ExamResultPage() {
   const [expandedQuestion, setExpandedQuestion] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [resultStatusFilter, setResultStatusFilter] = useState<string>('all')
+  const [examIdForRetry, setExamIdForRetry] = useState<string>('')
 
   useEffect(() => {
     const fetchData = async () => {
       const { answers: storeAnswers, questionIds: storeQuestionIds } = useExamStore.getState()
       setLoading(true)
       try {
-        const examIdParam = params.resultId || ''
+        const resultIdParam = params.resultId || ''
+        const examIdParam = params.examId || ''
+
+        // If we have a resultId, fetch from result detail API to get exam data + exam ID
+        // The result detail API always includes correctAnswer and computed isCorrect,
+        // regardless of admin status. The fallback path with examId only returns
+        // correctAnswer for admins, causing all answers to appear incorrect.
+        if (resultIdParam) {
+          try {
+            const detailRes = await fetch(`/api/exams/results/detail?resultId=${encodeURIComponent(resultIdParam)}`)
+            if (detailRes.ok) {
+              const detailData = await detailRes.json()
+              if (detailData.success && detailData.data) {
+                const { exam: examData, questions: resultQuestions } = detailData.data
+                setExamIdForRetry(examData.id)
+
+                // Map result questions to QuestionResult format
+                const mapped: QuestionResult[] = resultQuestions.map((q: {
+                  id: string
+                  questionText: string
+                  questionImage?: string | null
+                  options: { key: string; text: string; image?: string | null }[]
+                  correctAnswer: string
+                  userAnswer: string | null
+                  explanation: string
+                  explanationImage?: string | null
+                  isCorrect: boolean
+                  isSkipped: boolean
+                }) => ({
+                  id: q.id,
+                  text: q.questionText,
+                  questionImage: q.questionImage,
+                  options: q.options,
+                  correctAnswer: q.correctAnswer,
+                  userAnswer: q.userAnswer || undefined,
+                  explanation: q.explanation,
+                  explanationImage: q.explanationImage,
+                  isCorrect: q.isCorrect,
+                  isSkipped: q.isSkipped,
+                }))
+                setQuestions(mapped)
+                setLoading(false)
+                return
+              }
+            }
+          } catch {
+            // Fall through to legacy fetch
+          }
+        }
+
+        // Fallback: use examId directly if provided
+        const effectiveExamId = examIdParam || resultIdParam
+        setExamIdForRetry(effectiveExamId)
 
         let rawQuestions: { id: string; text: string; options: { key: string; text: string }[]; correctAnswer: string; explanation: string; questionImage?: string | null; explanationImage?: string | null; isPremium?: boolean }[] = []
 
-        if (examIdParam) {
+        if (effectiveExamId) {
           try {
-            const examRes = await fetch(`/api/exams/${examIdParam}?showAnswers=true`)
+            const examRes = await fetch(`/api/exams/${effectiveExamId}?showAnswers=true`)
             if (examRes.ok) {
               const examData = await examRes.json()
               const examObj = examData.data?.exam || examData.exam
@@ -214,6 +267,20 @@ export default function ExamResultPage() {
                     <span className="text-lg text-muted-foreground">—</span>
                     <span className="text-lg font-medium">{gradeInfo.label}</span>
                   </div>
+
+                  {/* Pass/Fail Badge */}
+                  {percentage >= 60 && (
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <CheckCircle2 className="size-4 text-emerald-500" />
+                      <span className="text-sm font-medium text-emerald-600">পাস</span>
+                    </div>
+                  )}
+                  {percentage > 0 && percentage < 40 && (
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <XCircle className="size-4 text-destructive" />
+                      <span className="text-sm font-medium text-destructive">ফেল</span>
+                    </div>
+                  )}
 
                   <div className="grid grid-cols-3 gap-4 mt-4">
                     <div className="text-center">
@@ -450,7 +517,7 @@ export default function ExamResultPage() {
             onClick={() => {
               resetExam()
               navigate('exam-session', {
-                examId: params.resultId || undefined,
+                examId: examIdForRetry || params.resultId || undefined,
               })
             }}
           >

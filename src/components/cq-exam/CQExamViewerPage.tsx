@@ -118,6 +118,7 @@ function NonCQQuestionBlock({
   onAddImage,
   onRemoveImage,
   maxImagesPerAnswer: _maxImagesPerAnswer = 5,
+  answerMode = 'flexible',
 }: {
   question: CQQuestionData
   index: number
@@ -129,8 +130,9 @@ function NonCQQuestionBlock({
   onAddImage: (answerId: string, questionId: string, subIndex: number) => void
   onRemoveImage: (imageId: string, questionId: string, subIndex: number) => void
   maxImagesPerAnswer?: number
+  answerMode?: AnswerMode
 }) {
-  const qType = question.type || 'mcq-single'
+  const qType = (question.type || 'mcq-single').toLowerCase()
   let config: any = {}
   config = question.config || {}
 
@@ -304,7 +306,7 @@ function NonCQQuestionBlock({
                 )
               })()}
 
-              {qType === 'written' && (() => {
+              {qType === 'written' && answerMode !== 'image-only' && (() => {
                 const key = `${question.id}-0`
                 const ans = answers[key] || { answerText: '', images: [] }
                 return (
@@ -320,7 +322,7 @@ function NonCQQuestionBlock({
                 )
               })()}
 
-              {qType === 'written' && (() => {
+              {qType === 'written' && answerMode !== 'text-only' && (() => {
                 const imgKey = `${question.id}-1`
                 const imgAns = answers[imgKey] || { answerText: '', images: [] }
                 const imgAnswerId = answerIdMap[question.id]?.[1]
@@ -396,7 +398,7 @@ function CQBlock({
   answerMode?: AnswerMode
   maxImagesPerAnswer?: number
 }) {
-  const questionType = question.type || 'cq'
+  const questionType = (question.type || 'cq').toLowerCase()
   if (questionType !== 'cq' && questionType !== 'typed') {
     return (
       <NonCQQuestionBlock
@@ -410,6 +412,7 @@ function CQBlock({
         onAddImage={onAddImage}
         onRemoveImage={onRemoveImage}
         maxImagesPerAnswer={maxImagesPerAnswer}
+        answerMode={answerMode}
       />
     )
   }
@@ -774,7 +777,7 @@ export default function CQExamViewerPage() {
       }
 
       // If already submitted, redirect to result page
-      if (json.data?.status === 'submitted') {
+      if (json.data?.status?.toLowerCase() === 'submitted') {
         navigate('cq-exam-result', { packageId, examId: setId, resultId: submission.id })
         return
       }
@@ -1108,7 +1111,7 @@ export default function CQExamViewerPage() {
   const questions = setData.questions || []
 
   const countAnswersForQuestion = (q: CQQuestionData): number => {
-    const qt = q.type || 'cq'
+    const qt = (q.type || 'cq').toLowerCase()
     if (qt === 'cq' || qt === 'typed') {
       if (answerMode === 'complete-image-only') {
         const gk = `${q.id}-4`
@@ -1144,7 +1147,7 @@ export default function CQExamViewerPage() {
   }
 
   const subQuestionCountForQuestion = (q: CQQuestionData): number => {
-    const qt = q.type || 'cq'
+    const qt = (q.type || 'cq').toLowerCase()
     if (qt === 'cq' || qt === 'typed') return 4
     if (qt === 'fill-blanks') {
       let blanks: any[] = []

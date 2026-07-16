@@ -43,12 +43,6 @@ export default function CourseAdminContainer() {
             />
           </motion.div>
         )}
-
-        {h.viewMode === 'form' && (
-          <motion.div key="form" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }}>
-            <div>Form</div>
-          </motion.div>
-        )}
       </AnimatePresence>
 
       {h.showCreate && (

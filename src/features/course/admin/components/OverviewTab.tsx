@@ -9,6 +9,7 @@ import { Switch } from '@/components/ui/switch'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Loader2 } from 'lucide-react'
+import { toast } from '@/hooks/use-toast'
 import { useHierarchyMetadata } from '@/hooks/use-hierarchy-metadata'
 import type { CourseDetailRecord, CourseOverviewData } from '@/features/course/types'
 
@@ -53,7 +54,7 @@ export default function OverviewTab({ course, onSave, saving }: Props) {
     setIsPremium(course.isPremium)
     setPrice(course.price || 0)
     setOriginalPrice(course.originalPrice || 0)
-    setStatus(course.status)
+    setStatus((course.status || 'draft').toLowerCase())
     setFeatures(course.features || '')
     setRequirements(course.requirements || '')
     setTargetStudents(course.targetStudents || '')
@@ -65,17 +66,43 @@ export default function OverviewTab({ course, onSave, saving }: Props) {
 
   const filteredSubjects = classId ? subjects.filter((s: any) => s.classId === classId) : subjects
 
-  const handleSave = () => {
-    onSave({
-      title, slug, description, thumbnail, teacherName, classId, subjectId,
+  const handleSave = async () => {
+    const ok = await onSave({
+      title, slug, description, thumbnail, teacherName,
+      classId: classId || null,
+      subjectId: subjectId || null,
       isPremium, price: Number(price), status: status as 'draft' | 'published',
       originalPrice: Number(originalPrice),
       features, requirements, targetStudents, hasCertificate,
       duration, language, difficulty,
     })
+    if (ok) {
+      toast({ title: 'সংরক্ষণ করা হয়েছে', description: 'কোর্সের পরিবর্তন সফলভাবে সংরক্ষণ করা হয়েছে।' })
+    } else {
+      toast({ title: 'ত্রুটি', description: 'সংরক্ষণ করতে সমস্যা হয়েছে।', variant: 'destructive' })
+    }
   }
 
-  const hasChanges = title !== course.title || status !== course.status || isPremium !== course.isPremium
+  const norm = (v: unknown, fallback: unknown = '') => (v === null || v === undefined ? String(fallback) : String(v))
+  const hasChanges =
+    title !== norm(course.title) ||
+    slug !== norm(course.slug) ||
+    description !== norm(course.description) ||
+    thumbnail !== norm(course.thumbnail) ||
+    teacherName !== norm(course.teacherName) ||
+    (classId || '') !== norm(course.classId) ||
+    (subjectId || '') !== norm(course.subjectId) ||
+    isPremium !== course.isPremium ||
+    Number(price) !== Number(norm(course.price, 0)) ||
+    Number(originalPrice) !== Number(norm(course.originalPrice, 0)) ||
+    status !== norm(course.status, 'draft').toLowerCase() ||
+    features !== norm(course.features) ||
+    requirements !== norm(course.requirements) ||
+    targetStudents !== norm(course.targetStudents) ||
+    hasCertificate !== course.hasCertificate ||
+    duration !== course.duration ||
+    language !== norm(course.language, 'bangla') ||
+    difficulty !== norm(course.difficulty, 'intermediate')
 
   return (
     <div className="space-y-6">

@@ -138,9 +138,9 @@ export function PackageForm({
             <Select value={pkgStatus} onValueChange={setPkgStatus}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="draft">ড্রাফট</SelectItem>
-                <SelectItem value="published">প্রকাশিত</SelectItem>
-                <SelectItem value="archived">আর্কাইভ</SelectItem>
+                <SelectItem value="DRAFT">ড্রাফট</SelectItem>
+                <SelectItem value="PUBLISHED">প্রকাশিত</SelectItem>
+                <SelectItem value="ARCHIVED">আর্কাইভ</SelectItem>
               </SelectContent>
             </Select>
           </div>

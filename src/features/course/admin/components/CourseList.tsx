@@ -84,8 +84,8 @@ export default function CourseList({
                         <p className="text-xs text-muted-foreground">/{c.slug}</p>
                       </div>
                       <div className="flex shrink-0 items-center gap-2">
-                         <Badge variant={c.status === 'published' ? 'default' : 'outline'}>
-                          {c.status === 'published' ? 'পাবলিশড' : 'ড্রাফট'}
+                         <Badge variant={c.status?.toLowerCase() === 'published' ? 'default' : 'outline'}>
+                          {c.status?.toLowerCase() === 'published' ? 'পাবলিশড' : 'ড্রাফট'}
                         </Badge>
                         {c.isPremium && (
                           <Badge variant="secondary" className="bg-amber-100 text-amber-700">

@@ -63,6 +63,7 @@ export default function CreateExamPage() {
   const [enableNegativeMarking, setEnableNegativeMarking] = useState(false)
   const [negativeMarks, setNegativeMarks] = useState(0.5)
   const [timeLimit, setTimeLimit] = useState(30)
+  const [difficulty, setDifficulty] = useState<'EASY' | 'MEDIUM' | 'HARD' | 'MIXED'>('MIXED')
 
   const [subscriptionStatus, setSubscriptionStatus] = useState<{
     loading: boolean
@@ -164,6 +165,7 @@ export default function CreateExamPage() {
           negativeMarks: enableNegativeMarking ? negativeMarks : 0,
           title: examTitle || undefined,
           freeOnly,
+          difficulty: difficulty !== 'MIXED' ? difficulty : undefined,
         }),
       })
       const json = await res.json()
@@ -410,6 +412,34 @@ export default function CreateExamPage() {
                   onChange={e => setTimeLimit(Number(e.target.value))}
                   className="mt-1"
                 />
+              </div>
+            </div>
+
+            <Separator />
+
+            <div>
+              <Label>কঠিনতা স্তর</Label>
+              <p className="text-xs text-muted-foreground mb-2">প্রশ্নের কঠিনতা নির্বাচন করুন</p>
+              <div className="grid grid-cols-4 gap-2">
+                {([
+                  { value: 'MIXED' as const, label: 'মিশ্রিত' },
+                  { value: 'EASY' as const, label: 'সহজ' },
+                  { value: 'MEDIUM' as const, label: 'মাঝারি' },
+                  { value: 'HARD' as const, label: 'কঠিন' },
+                ]).map((opt) => (
+                  <button
+                    key={opt.value}
+                    className={cn(
+                      'p-2 rounded-lg border-2 text-xs font-medium transition-all text-center',
+                      difficulty === opt.value
+                        ? 'border-primary bg-primary/5'
+                        : 'border-border hover:border-primary/50'
+                    )}
+                    onClick={() => setDifficulty(opt.value)}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
               </div>
             </div>
 

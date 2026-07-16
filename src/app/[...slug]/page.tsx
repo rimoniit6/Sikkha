@@ -42,6 +42,9 @@ const CQExamResultPage = dynamic(() => import('@/components/cq-exam/CQExamResult
 const KnowledgeQuestionsPage = dynamic(() => import('@/components/knowledge/KnowledgeQuestionsPage'))
 const CourseListPage = dynamic(() => import('@/components/course/CourseListPage'))
 const StudentCourseDetailPage = dynamic(() => import('@/features/course/student/components/StudentCourseDetailPage'))
+const LearningDashboardPage = dynamic(() => import('@/components/course/LearningDashboardPage'))
+const CertificatesPage = dynamic(() => import('@/components/course/CertificatesPage'))
+const BookmarksPage = dynamic(() => import('@/components/course/BookmarksPage'))
 const ExamResultPage = dynamic(() => import('@/components/exam/ExamResultPage'))
 const AdminLayout = dynamic(() => import('@/components/admin/AdminLayout'), { ssr: false })
 
@@ -99,6 +102,9 @@ function RouteRenderer() {
     'course-list': <CourseListPage />,
     'course-detail': <StudentCourseDetailWrapper />,
     'course-viewer': <StudentCourseDetailWrapper />,
+    'my-courses': <LearningDashboardPage />,
+    'certificates': <CertificatesPage />,
+    'bookmarks': <BookmarksPage />,
     'exam-session': <ExamSessionPage />,
     'create-exam': <CreateExamPage />,
     'exam-creator-history': <CreatorExamHistoryPage />,

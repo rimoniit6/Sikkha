@@ -1,9 +1,9 @@
 import "server-only"
+import { join } from 'path'
 
 import { PrismaClient } from '@prisma/client'
 import { PrismaLibSql } from '@prisma/adapter-libsql'
 import { sanitizeForStorage } from './sanitize'
-import { join } from 'path'
 
 type ExtendedPrismaClient = ReturnType<typeof createPrismaClient>
 
@@ -38,8 +38,7 @@ const isProduction = process.env.NODE_ENV === 'production'
 
 // Create libSQL adapter for SQLite - PrismaLibSql is a factory in v7
 const projectRoot = process.cwd()
-const dbPath = join(projectRoot, 'dev.db')
-const dbUrl = `file:${dbPath}`
+const dbUrl = process.env.DATABASE_URL || `file:${join(projectRoot, 'dev.db')}`
 
 function createPrismaClient() {
   const adapter = new PrismaLibSql({ url: dbUrl })

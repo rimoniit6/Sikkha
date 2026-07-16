@@ -102,19 +102,19 @@ export async function GET(
       }>
     >(
       `SELECT
-        (SELECT COUNT(*)::int FROM "Suggestion" WHERE "subjectId" = $1 AND "isActive" = true) as "suggestionCount",
-        (SELECT COUNT(*)::int FROM "Exam" WHERE "subjectId" = $1 AND "isActive" = true AND "status" = 'published') as "examCount",
-        (SELECT COUNT(*)::int FROM "MCQ" WHERE "subjectId" = $1 AND "isActive" = true AND "board" IS NOT NULL AND "year" IS NOT NULL) as "boardMcqCount",
-        (SELECT COUNT(*)::int FROM "CQ" WHERE "subjectId" = $1 AND "isActive" = true AND "board" IS NOT NULL AND "year" IS NOT NULL) as "boardCqCount",
-        (SELECT COUNT(*)::int FROM "Lecture" l INNER JOIN "Chapter" ch ON l."chapterId" = ch."id" WHERE ch."subjectId" = $1 AND l."isActive" = true AND l."isPremium" = false) as "freeLectureCount",
-        (SELECT COUNT(*)::int FROM "MCQ" WHERE "subjectId" = $1 AND "isActive" = true AND "isPremium" = false) as "freeMcqCount",
-        (SELECT COUNT(*)::int FROM "CQ" WHERE "subjectId" = $1 AND "isActive" = true AND "isPremium" = false) as "freeCqCount",
-        (SELECT COUNT(*)::int FROM "MCQ" WHERE "subjectId" = $1 AND "isActive" = true AND "isPremium" = false AND "board" IS NOT NULL AND "year" IS NOT NULL) as "freeBoardMcqCount",
-        (SELECT COUNT(*)::int FROM "CQ" WHERE "subjectId" = $1 AND "isActive" = true AND "isPremium" = false AND "board" IS NOT NULL AND "year" IS NOT NULL) as "freeBoardCqCount",
-        (SELECT COUNT(*)::int FROM "KnowledgeQuestion" kq INNER JOIN "Chapter" ch ON kq."chapterId" = ch."id" WHERE ch."subjectId" = $1 AND kq."isActive" = true) as "shortQuestionCount",
-        (SELECT COUNT(*)::int FROM "KnowledgeQuestion" kq INNER JOIN "Chapter" ch ON kq."chapterId" = ch."id" WHERE ch."subjectId" = $1 AND kq."isActive" = true AND kq."isPremium" = false) as "freeShortQuestionCount",
-        (SELECT COUNT(*)::int FROM "Suggestion" WHERE "subjectId" = $1 AND "isActive" = true AND "isPremium" = false) as "freeSuggestionCount",
-        (SELECT COUNT(*)::int FROM "Exam" WHERE "subjectId" = $1 AND "isActive" = true AND "status" = 'published' AND "isPremium" = false) as "freeExamCount"`,
+        (SELECT COUNT(*) FROM "Suggestion" WHERE "subjectId" = $1 AND "isActive" = true) as "suggestionCount",
+        (SELECT COUNT(*) FROM "Exam" WHERE "subjectId" = $1 AND "isActive" = true AND "status" = 'published') as "examCount",
+        (SELECT COUNT(*) FROM "MCQ" WHERE "subjectId" = $1 AND "isActive" = true AND "board" IS NOT NULL AND "year" IS NOT NULL) as "boardMcqCount",
+        (SELECT COUNT(*) FROM "CQ" WHERE "subjectId" = $1 AND "isActive" = true AND "board" IS NOT NULL AND "year" IS NOT NULL) as "boardCqCount",
+        (SELECT COUNT(*) FROM "Lecture" l INNER JOIN "Chapter" ch ON l."chapterId" = ch."id" WHERE ch."subjectId" = $1 AND l."isActive" = true AND l."isPremium" = false) as "freeLectureCount",
+        (SELECT COUNT(*) FROM "MCQ" WHERE "subjectId" = $1 AND "isActive" = true AND "isPremium" = false) as "freeMcqCount",
+        (SELECT COUNT(*) FROM "CQ" WHERE "subjectId" = $1 AND "isActive" = true AND "isPremium" = false) as "freeCqCount",
+        (SELECT COUNT(*) FROM "MCQ" WHERE "subjectId" = $1 AND "isActive" = true AND "isPremium" = false AND "board" IS NOT NULL AND "year" IS NOT NULL) as "freeBoardMcqCount",
+        (SELECT COUNT(*) FROM "CQ" WHERE "subjectId" = $1 AND "isActive" = true AND "isPremium" = false AND "board" IS NOT NULL AND "year" IS NOT NULL) as "freeBoardCqCount",
+        (SELECT COUNT(*) FROM "KnowledgeQuestion" kq INNER JOIN "Chapter" ch ON kq."chapterId" = ch."id" WHERE ch."subjectId" = $1 AND kq."isActive" = true) as "shortQuestionCount",
+        (SELECT COUNT(*) FROM "KnowledgeQuestion" kq INNER JOIN "Chapter" ch ON kq."chapterId" = ch."id" WHERE ch."subjectId" = $1 AND kq."isActive" = true AND kq."isPremium" = false) as "freeShortQuestionCount",
+        (SELECT COUNT(*) FROM "Suggestion" WHERE "subjectId" = $1 AND "isActive" = true AND "isPremium" = false) as "freeSuggestionCount",
+        (SELECT COUNT(*) FROM "Exam" WHERE "subjectId" = $1 AND "isActive" = true AND "status" = 'published' AND "isPremium" = false) as "freeExamCount"`,
       id
     )
     const sr = subjectCountRows[0]
@@ -134,36 +134,39 @@ export async function GET(
     const freeSuggestionCount = Number(sr.freeSuggestionCount)
     const freeExamCount = Number(sr.freeExamCount)
 
-    // Per-chapter free counts — single aggregated query
+    // Per-chapter free counts — single aggregated query (SQLite-compatible IN)
     const chapterIds = subject.chapters.map(ch => ch.id)
-    const perChapterRows = await db.$queryRawUnsafe<
-      Array<{ type: string; chapterId: string; count: number }>
-    >(
-      `SELECT 'lecture' as "type", "chapterId", COUNT(*)::int as "count"
-       FROM "Lecture" WHERE "chapterId" = ANY($1::text[]) AND "isActive" = true AND "isPremium" = false
-       GROUP BY "chapterId"
-       UNION ALL
-       SELECT 'mcq' as "type", "chapterId", COUNT(*)::int as "count"
-       FROM "MCQ" WHERE "chapterId" = ANY($1::text[]) AND "isActive" = true AND "isPremium" = false
-       GROUP BY "chapterId"
-       UNION ALL
-       SELECT 'cq' as "type", "chapterId", COUNT(*)::int as "count"
-       FROM "CQ" WHERE "chapterId" = ANY($1::text[]) AND "isActive" = true AND "isPremium" = false
-       GROUP BY "chapterId"
-       UNION ALL
-       SELECT 'suggestion' as "type", "chapterId", COUNT(*)::int as "count"
-       FROM "Suggestion" WHERE "chapterId" = ANY($1::text[]) AND "isActive" = true
-       GROUP BY "chapterId"
-       UNION ALL
-       SELECT 'knowledge_free' as "type", "chapterId", COUNT(*)::int as "count"
-       FROM "KnowledgeQuestion" WHERE "chapterId" = ANY($1::text[]) AND "isActive" = true AND "isPremium" = false
-       GROUP BY "chapterId"
-       UNION ALL
-       SELECT 'knowledge_total' as "type", "chapterId", COUNT(*)::int as "count"
-       FROM "KnowledgeQuestion" WHERE "chapterId" = ANY($1::text[]) AND "isActive" = true
-       GROUP BY "chapterId"`,
-      chapterIds
-    )
+    const chapterPlaceholders = chapterIds.map(() => '?').join(',')
+    const perChapterRows = chapterIds.length > 0
+      ? await db.$queryRawUnsafe<
+          Array<{ type: string; chapterId: string; count: number }>
+        >(
+          `SELECT 'lecture' as "type", "chapterId", COUNT(*) as "count"
+           FROM "Lecture" WHERE "chapterId" IN (${chapterPlaceholders}) AND "isActive" = true AND "isPremium" = false
+           GROUP BY "chapterId"
+           UNION ALL
+           SELECT 'mcq' as "type", "chapterId", COUNT(*) as "count"
+           FROM "MCQ" WHERE "chapterId" IN (${chapterPlaceholders}) AND "isActive" = true AND "isPremium" = false
+           GROUP BY "chapterId"
+           UNION ALL
+           SELECT 'cq' as "type", "chapterId", COUNT(*) as "count"
+           FROM "CQ" WHERE "chapterId" IN (${chapterPlaceholders}) AND "isActive" = true AND "isPremium" = false
+           GROUP BY "chapterId"
+           UNION ALL
+           SELECT 'suggestion' as "type", "chapterId", COUNT(*) as "count"
+           FROM "Suggestion" WHERE "chapterId" IN (${chapterPlaceholders}) AND "isActive" = true
+           GROUP BY "chapterId"
+           UNION ALL
+           SELECT 'knowledge_free' as "type", "chapterId", COUNT(*) as "count"
+           FROM "KnowledgeQuestion" WHERE "chapterId" IN (${chapterPlaceholders}) AND "isActive" = true AND "isPremium" = false
+           GROUP BY "chapterId"
+           UNION ALL
+           SELECT 'knowledge_total' as "type", "chapterId", COUNT(*) as "count"
+           FROM "KnowledgeQuestion" WHERE "chapterId" IN (${chapterPlaceholders}) AND "isActive" = true
+           GROUP BY "chapterId"`,
+          ...chapterIds, ...chapterIds, ...chapterIds, ...chapterIds, ...chapterIds, ...chapterIds
+        )
+      : []
 
     // Build per-chapter map from aggregated results
     const chapterFreeMap = new Map<

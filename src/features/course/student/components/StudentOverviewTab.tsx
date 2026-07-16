@@ -1,7 +1,9 @@
 'use client'
 
+import { useMemo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { BookOpen, Target, ListChecks, Users } from 'lucide-react'
+import { sanitizeHtml } from '@/lib/sanitize'
 
 interface Props {
   course: {
@@ -13,6 +15,9 @@ interface Props {
 }
 
 export default function StudentOverviewTab({ course }: Props) {
+  const safeFeatures = useMemo(() => sanitizeHtml(course.features || ''), [course.features])
+  const safeRequirements = useMemo(() => sanitizeHtml(course.requirements || ''), [course.requirements])
+  const safeTargetStudents = useMemo(() => sanitizeHtml(course.targetStudents || ''), [course.targetStudents])
   return (
     <div className="space-y-6">
       {course.description && (
@@ -26,14 +31,14 @@ export default function StudentOverviewTab({ course }: Props) {
         {course.features && (
           <Card>
             <CardHeader><CardTitle className="flex items-center gap-2 text-sm"><ListChecks className="h-4 w-4" />কোর্স ফিচার</CardTitle></CardHeader>
-            <CardContent><div className="prose prose-sm max-w-none dark:prose-invert" dangerouslySetInnerHTML={{ __html: course.features }} /></CardContent>
+            <CardContent><div className="prose prose-sm max-w-none dark:prose-invert" dangerouslySetInnerHTML={{ __html: safeFeatures }} /></CardContent>
           </Card>
         )}
 
         {course.requirements && (
           <Card>
             <CardHeader><CardTitle className="flex items-center gap-2 text-sm"><Target className="h-4 w-4" />প্রয়োজনীয়তা</CardTitle></CardHeader>
-            <CardContent><div className="prose prose-sm max-w-none dark:prose-invert" dangerouslySetInnerHTML={{ __html: course.requirements }} /></CardContent>
+            <CardContent><div className="prose prose-sm max-w-none dark:prose-invert" dangerouslySetInnerHTML={{ __html: safeRequirements }} /></CardContent>
           </Card>
         )}
       </div>
@@ -41,7 +46,7 @@ export default function StudentOverviewTab({ course }: Props) {
       {course.targetStudents && (
         <Card>
           <CardHeader><CardTitle className="flex items-center gap-2"><Users className="h-5 w-5" />উদ্দেশ্য ছাত্র-ছাত্রী</CardTitle></CardHeader>
-          <CardContent><div className="prose prose-sm max-w-none dark:prose-invert" dangerouslySetInnerHTML={{ __html: course.targetStudents }} /></CardContent>
+          <CardContent><div className="prose prose-sm max-w-none dark:prose-invert" dangerouslySetInnerHTML={{ __html: safeTargetStudents }} /></CardContent>
         </Card>
       )}
 

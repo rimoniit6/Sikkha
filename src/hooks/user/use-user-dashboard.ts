@@ -182,14 +182,14 @@ export function useUserDashboard() {
   }, [])
 
   const categorizedPayments = useMemo(() => {
-    const approved = payments.filter(p => p.status === 'approved')
+    const approved = payments.filter(p => p.status?.toLowerCase() === 'approved')
     return {
       approvedPayments: approved,
       subscriptionPayments: approved.filter(p => getPurchaseCategory(p.contentType) === 'subscription'),
       bundlePayments: approved.filter(p => getPurchaseCategory(p.contentType) === 'bundle'),
       individualPayments: approved.filter(p => getPurchaseCategory(p.contentType) === 'individual'),
-      pendingPayments: payments.filter(p => p.status === 'pending'),
-      rejectedPayments: payments.filter(p => p.status === 'rejected'),
+      pendingPayments: payments.filter(p => p.status?.toLowerCase() === 'pending'),
+      rejectedPayments: payments.filter(p => p.status?.toLowerCase() === 'rejected'),
     }
   }, [payments])
 

@@ -5,6 +5,20 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 
+const SAFE_URL_RE = /^(https?:|mailto:|tel:|\/)/i
+
+function safeOpenUrl(url?: string | null) {
+  if (!url) return
+  const trimmed = url.trim()
+  if (!SAFE_URL_RE.test(trimmed)) return
+  window.open(trimmed, '_blank', 'noopener,noreferrer')
+}
+
+function isSafeUrl(url?: string | null): boolean {
+  if (!url) return false
+  return SAFE_URL_RE.test(url.trim())
+}
+
 interface CourseNoteRecord {
   id: string; courseId: string; title: string; contentType: string
   content: string | null; fileUrl: string | null; description: string | null; displayOrder: number
@@ -42,7 +56,7 @@ export default function StudentNotesTab({ notes }: Props) {
                 {n.contentType === 'pdf' ? 'PDF' : n.contentType === 'html' ? 'HTML' : n.contentType === 'markdown' ? 'মার্কডাউন' : n.contentType}
               </Badge>
             </div>
-            {n.fileUrl && (
+            {n.fileUrl && isSafeUrl(n.fileUrl) && (
               <Button variant="outline" size="sm" asChild>
                 <a href={n.fileUrl} target="_blank" rel="noopener noreferrer">
                   <ExternalLink className="mr-1 h-3 w-3" /> খুলুন
@@ -50,7 +64,7 @@ export default function StudentNotesTab({ notes }: Props) {
               </Button>
             )}
             {n.content && !n.fileUrl && (
-              <Button variant="outline" size="sm" onClick={() => window.open(`/notes/${n.id}`, '_blank')}>
+              <Button variant="outline" size="sm" onClick={() => safeOpenUrl(`/notes/${n.id}`)}>
                 দেখুন
               </Button>
             )}
