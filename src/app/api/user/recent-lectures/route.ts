@@ -2,6 +2,7 @@ import { db } from '@/lib/db'
 import { apiError } from '@/lib/api-utils'
 import { NextResponse } from 'next/server'
 import { verifyAuth } from '@/lib/auth'
+import { getClassLevelForUserId } from '@/lib/class-filter'
 
 export async function GET(request: Request) {
   try {
@@ -12,6 +13,7 @@ export async function GET(request: Request) {
 
     const userId = auth.user.id
     const limit = 10
+    const classLevel = await getClassLevelForUserId(userId)
 
     const rawItems = await db.recentlyViewed.findMany({
       where: { userId, contentType: 'lecture' },
@@ -25,7 +27,7 @@ export async function GET(request: Request) {
         seen.add(item.contentId)
         recentItems.push(item)
       }
-      if (recentItems.length >= limit) break
+      if (recentItems.length >= limit * 2) break // overfetch for class filtering
     }
 
     if (recentItems.length === 0) {
@@ -35,7 +37,11 @@ export async function GET(request: Request) {
     const lectureIds = recentItems.map(item => item.contentId)
 
     const lectures = await db.lecture.findMany({
-      where: { id: { in: lectureIds }, isActive: true },
+      where: {
+        id: { in: lectureIds },
+        isActive: true,
+        ...(classLevel ? { chapter: { subject: { class: { slug: classLevel } } } } : {}),
+      },
       select: {
         id: true,
         title: true,
@@ -51,23 +57,26 @@ export async function GET(request: Request) {
     const lectureMap = new Map(lectures.map(l => [l.id, l]))
 
     const progressRecords = await db.progress.findMany({
-      where: { userId, contentType: 'lecture', contentId: { in: lectureIds } },
+      where: { userId, contentType: 'lecture', contentId: { in: lectures.map(l => l.id) } },
       select: { contentId: true, progress: true },
     })
 
     const progressMap = new Map(progressRecords.map(p => [p.contentId, p.progress]))
 
-    const result = recentItems.map(item => {
-      const lecture = lectureMap.get(item.contentId)
-      return {
-        id: item.contentId,
-        title: item.title || lecture?.title || 'অজানা লেকচার',
-        subject: lecture?.chapter?.subject?.name || '',
-        chapter: lecture?.chapter?.name || '',
-        progress: progressMap.get(item.contentId) ?? 0,
-        viewedAt: item.viewedAt,
-      }
-    })
+    const result = recentItems
+      .filter(item => lectureMap.has(item.contentId))
+      .slice(0, limit)
+      .map(item => {
+        const lecture = lectureMap.get(item.contentId)
+        return {
+          id: item.contentId,
+          title: item.title || lecture?.title || 'অজানা লেকচার',
+          subject: lecture?.chapter?.subject?.name || '',
+          chapter: lecture?.chapter?.name || '',
+          progress: progressMap.get(item.contentId) ?? 0,
+          viewedAt: item.viewedAt,
+        }
+      })
 
     return NextResponse.json({ success: true, data: result })
   } catch (error) {

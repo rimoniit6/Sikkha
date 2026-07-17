@@ -3,6 +3,7 @@ import { apiResponse, apiError, withAuth } from '@/lib/api-utils'
 import { handleApiError } from '@/lib/errors'
 import { NextResponse } from 'next/server'
 import { resolveCourseAccess, getUserCourseAccessMap } from '@/lib/course-access-resolver'
+import { verifyAuth } from '@/lib/auth'
 
 export async function GET(request: Request) {
   try {
@@ -13,7 +14,14 @@ export async function GET(request: Request) {
       case 'list': {
         const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10))
         const limit = Math.min(parseInt(searchParams.get('limit') || '20', 10), 50)
-        const classId = searchParams.get('classId') || ''
+        let classId = searchParams.get('classId') || ''
+        if (!classId) {
+          const auth = await verifyAuth(request)
+          if (auth?.user?.learningMode === 'CLASS_BASED' && auth?.user?.classLevel) {
+            const classCat = await db.classCategory.findUnique({ where: { slug: auth.user.classLevel }, select: { id: true } })
+            if (classCat) classId = classCat.id
+          }
+        }
         const subjectId = searchParams.get('subjectId') || ''
         const q = (searchParams.get('q') || '').trim()
         const price = searchParams.get('price') || '' // free | paid | ''

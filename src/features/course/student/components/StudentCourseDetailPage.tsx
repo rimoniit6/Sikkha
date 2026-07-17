@@ -48,7 +48,7 @@ function isSafeUrl(url?: string | null): boolean {
 export default function StudentCourseDetailPage({ slug }: Props) {
   const { toast } = useToast()
   const h = useStudentCourseDetail(slug)
-  const c = h.course
+  const c = h.course!
   const navigate = useRouterStore((s) => s.navigate)
   const contents = (c?.contents || []).sort((a: any, b: any) => a.displayOrder - b.displayOrder)
 

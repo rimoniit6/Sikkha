@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { handleApiError } from '@/lib/errors'
 import { NextResponse } from 'next/server'
 import { toDecimal } from '@/lib/decimal'
+import { guardDeleteDependencies } from '@/lib/delete-guard'
 
 async function checkGradingDeadline(setId: string): Promise<void> {
   const examSet = await db.cQExamSet.findUnique({
@@ -296,7 +297,7 @@ export async function POST(request: Request) {
         const pkg = await db.cQExamPackage.create({
           data: {
             title, description, classId,
-            subjectIds: subjectIds || [],
+            subjectIds: subjectIds ? JSON.stringify(subjectIds) : '[]',
             price: price || 0, originalPrice: originalPrice || 0,
             thumbnail: thumbnail || null,
             isPremium: isPremium ?? true,
@@ -466,6 +467,9 @@ export async function PUT(request: Request) {
 
         if (updateData.status && typeof updateData.status === 'string') {
           updateData.status = (updateData.status as string).toUpperCase()
+        }
+        if (updateData.subjectIds !== undefined) {
+          updateData.subjectIds = JSON.stringify(updateData.subjectIds)
         }
 
         const pkg = await db.cQExamPackage.update({ where: { id }, data: updateData as never })
@@ -1105,6 +1109,8 @@ export async function DELETE(request: Request) {
       case 'delete-package': {
         const id = searchParams.get('id')
         if (!id) return apiError('Package ID is required', 400)
+        const guard = await guardDeleteDependencies('cq-exam-packages', id)
+        if (!guard.ok) return guard.response
         await db.cQExamPackage.delete({ where: { id } })
         return apiResponse({ success: true })
       }

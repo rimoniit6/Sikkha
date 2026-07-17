@@ -2,6 +2,7 @@ import { applyRateLimit } from '@/lib/api-utils'
 import { db } from '@/lib/db'
 import { handleApiError } from '@/lib/errors'
 import { apiLimiter } from '@/lib/rate-limit'
+import { verifyAuth } from '@/lib/auth'
 import { NextResponse } from 'next/server'
 
 export async function GET(request: Request) {
@@ -9,7 +10,14 @@ export async function GET(request: Request) {
     const rateCheck = await applyRateLimit(apiLimiter, request)
     if ('error' in rateCheck) return rateCheck.error
     const { searchParams } = new URL(request.url)
-    const classId = searchParams.get('classId')
+    let classId = searchParams.get('classId')
+    if (!classId) {
+      const auth = await verifyAuth(request)
+      if (auth?.user?.learningMode === 'CLASS_BASED' && auth?.user?.classLevel) {
+        const classCat = await db.classCategory.findUnique({ where: { slug: auth.user.classLevel }, select: { id: true } })
+        if (classCat) classId = classCat.id
+      }
+    }
     const subjectId = searchParams.get('subjectId')
     const chapterId = searchParams.get('chapterId')
     const search = searchParams.get('search')

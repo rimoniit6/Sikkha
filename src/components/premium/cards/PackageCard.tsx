@@ -18,13 +18,6 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import RichContentRenderer from '@/components/ui/rich-content-renderer'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { useHierarchyMetadata } from '@/hooks/use-hierarchy-metadata'
 import { cn } from '@/lib/utils'
 import { toDecimal } from '@/lib/decimal'
@@ -32,9 +25,7 @@ import type { ContentPackage } from './types'
 
 interface PackageCardProps {
   pkg: ContentPackage
-  classLevelBuyOptions: { value: string; label: string }[]
-  selectedClass: string
-  onClassChange: (pkgId: string, value: string) => void
+  classLevel: string
   isPurchased: boolean
   isPending: boolean
   onBuy: (pkg: ContentPackage, selectedClass: string) => void
@@ -51,7 +42,7 @@ const getDurationStyle = (duration: number) => {
   return { bg: 'from-cyan-500 to-teal-600', icon: 'text-cyan-500 dark:text-cyan-400', ring: 'ring-cyan-200 dark:ring-cyan-800' }
 }
 
-function PackageCard({ pkg, classLevelBuyOptions, selectedClass, onClassChange, isPurchased, isPending, onBuy }: PackageCardProps) {
+function PackageCard({ pkg, classLevel, isPurchased, isPending, onBuy }: PackageCardProps) {
   const metadata = useHierarchyMetadata()
   const durStyle = getDurationStyle(pkg.duration)
   const discount = toDecimal(pkg.originalPrice) > toDecimal(pkg.price)
@@ -129,27 +120,10 @@ function PackageCard({ pkg, classLevelBuyOptions, selectedClass, onClassChange, 
             )}
           </div>
 
-          {!isPurchased && !isPending && (
-            <div className="mb-3">
-              <Select
-                value={selectedClass}
-                onValueChange={(v) => onClassChange(pkg.id, v)}
-              >
-                <SelectTrigger className={cn(
-                  "w-full h-9 text-xs bg-muted/30 border-border/50",
-                  !selectedClass && "border-dashed"
-                )}>
-                  <GraduationCap className="w-3.5 h-3.5 mr-1 text-muted-foreground" />
-                  <SelectValue placeholder="শ্রেণি নির্বাচন করুন" />
-                </SelectTrigger>
-                <SelectContent>
-                  {classLevelBuyOptions.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          {!isPurchased && !isPending && classLevel && (
+            <div className="mb-3 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-muted/30 text-xs font-medium text-muted-foreground">
+              <GraduationCap className="w-3.5 h-3.5" />
+              {metadata.classLevelLabels[classLevel] || classLevel}
             </div>
           )}
 
@@ -186,8 +160,8 @@ function PackageCard({ pkg, classLevelBuyOptions, selectedClass, onClassChange, 
               <Button
                 size="sm"
                 className="gap-1.5 bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-600 hover:to-cyan-600 text-white text-xs h-8"
-                disabled={!selectedClass}
-                onClick={() => onBuy(pkg, selectedClass)}
+                disabled={!classLevel}
+                onClick={() => onBuy(pkg, classLevel)}
               >
                 <ShoppingBag className="w-3.5 h-3.5" />
                 কিনুন

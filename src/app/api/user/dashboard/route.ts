@@ -3,6 +3,7 @@ import { apiError } from '@/lib/api-utils'
 import { NextResponse } from 'next/server'
 import { verifyAuth } from '@/lib/auth'
 import { toDecimal } from '@/lib/decimal'
+import { getClassLevelForUserId } from '@/lib/class-filter'
 
 export async function GET(request: Request) {
   try {
@@ -12,6 +13,14 @@ export async function GET(request: Request) {
     }
 
     const userId = auth.user.id
+    const classLevel = auth.user.classLevel && auth.user.learningMode === 'CLASS_BASED'
+      ? auth.user.classLevel
+      : await getClassLevelForUserId(userId)
+
+    const lectureCountWhere: Record<string, unknown> = { isActive: true }
+    if (classLevel) {
+      lectureCountWhere.chapter = { subject: { class: { slug: classLevel } } }
+    }
 
     const [
       user,
@@ -26,7 +35,7 @@ export async function GET(request: Request) {
         orderBy: { lastAccessed: 'desc' },
         take: 10,
       }),
-      db.lecture.count({ where: { isActive: true } }),
+      db.lecture.count({ where: lectureCountWhere }),
       db.examResult.findMany({
         where: { userId },
         orderBy: { completedAt: 'desc' },

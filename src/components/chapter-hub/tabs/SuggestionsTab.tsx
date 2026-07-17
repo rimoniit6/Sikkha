@@ -1,12 +1,12 @@
 'use client'
 
 import { useState } from 'react'
-import { Loader2 } from 'lucide-react'
 import { useChapterSuggestions, type SuggestionItem } from '@/hooks/use-chapter-content'
 import { SuggestionCard } from '../cards/SuggestionCard'
 import { ChapterEmptyState } from '../ChapterEmptyState'
 import PurchaseOptionsModal from '@/components/shared/PurchaseOptionsModal'
 import { useRouterStore } from '@/store/router'
+import { Skeleton } from '@/components/ui/skeleton'
 
 interface SuggestionsTabProps {
   chapterId: string
@@ -24,8 +24,10 @@ export function SuggestionsTab({ chapterId }: SuggestionsTabProps) {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Skeleton key={i} className="h-48 w-full rounded-xl" />
+        ))}
       </div>
     )
   }

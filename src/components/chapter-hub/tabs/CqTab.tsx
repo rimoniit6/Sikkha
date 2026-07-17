@@ -6,11 +6,11 @@ import type { CQListItem } from '@/hooks/use-chapter-content'
 import type { BoardQuestionItem } from '@/types/board-questions'
 import { useAccessStatus } from '@/hooks/use-access-status'
 import { useRouterStore } from '@/store/router'
-import { Loader2 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { CqCard } from '../cards/CqCard'
 import { ChapterEmptyState } from '../ChapterEmptyState'
 import { groupBoardItems, formatBoardsYears } from '@/lib/board-grouping'
+import { Skeleton } from '@/components/ui/skeleton'
 import {
   Pagination, PaginationContent, PaginationItem, PaginationPrevious, PaginationNext,
 } from '@/components/ui/pagination'
@@ -111,8 +111,10 @@ export function CqTab({ chapterId }: CqTabProps) {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      <div className="space-y-3">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Skeleton key={i} className="h-40 w-full rounded-xl" />
+        ))}
       </div>
     )
   }

@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { handleApiError } from '@/lib/errors'
 import { applyRateLimit } from '@/lib/api-utils'
 import { apiLimiter } from '@/lib/rate-limit'
+import { verifyAuth } from '@/lib/auth'
 
 export async function GET(request: Request) {
   try {
@@ -12,7 +13,13 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url)
     const chapterId = searchParams.get('chapterId')
     const subjectId = searchParams.get('subjectId')
-    const classLevel = searchParams.get('classLevel')
+    let classLevel = searchParams.get('classLevel')
+    if (!classLevel) {
+      const auth = await verifyAuth(request)
+      if (auth?.user?.learningMode === 'CLASS_BASED' && auth?.user?.classLevel) {
+        classLevel = auth.user.classLevel
+      }
+    }
     const page = parseInt(searchParams.get('page') || '1')
     const limit = parseInt(searchParams.get('limit') || '20')
 

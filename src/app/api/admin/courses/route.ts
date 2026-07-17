@@ -4,6 +4,7 @@ import { handleApiError } from '@/lib/errors'
 import { NextResponse } from 'next/server'
 import { toDecimal } from '@/lib/decimal'
 import { z } from 'zod'
+import { guardDeleteDependencies } from '@/lib/delete-guard'
 
 const COURSE_STATUSES = ['DRAFT', 'PUBLISHED'] as const
 
@@ -479,6 +480,8 @@ export async function POST(request: Request) {
       case 'delete': {
         const { id } = body
         if (!id) return apiError('Course ID required', 400)
+        const guard = await guardDeleteDependencies('courses', id)
+        if (!guard.ok) return guard.response
         await db.lessonProgress.deleteMany({ where: { courseId: id } })
         await db.coursePurchase.deleteMany({ where: { courseId: id } })
         await db.courseLesson.deleteMany({ where: { courseId: id } })

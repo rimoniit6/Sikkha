@@ -1,5 +1,6 @@
 'use client'
 
+import ClassContextBanner from '@/components/shared/ClassContextBanner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card,CardContent } from '@/components/ui/card'
@@ -18,6 +19,7 @@ import { Separator } from '@/components/ui/separator'
 import { Tabs,TabsList,TabsTrigger } from '@/components/ui/tabs'
 import { useContentTypes } from '@/hooks/use-content-types'
 import { useHierarchyMetadata } from '@/hooks/use-hierarchy-metadata'
+import { useLearningPreference } from '@/providers/LearningPreferenceProvider'
 import { cn } from '@/lib/utils'
 import { useAuthUser } from '@/store/auth'
 import { useRouterStore } from '@/store/router'
@@ -128,13 +130,11 @@ export default function PremiumPage() {
   }
 
   // Dynamic class level options from database (with "all" option prepended for filter)
-  const classLevelOptions = [{ value: '', label: 'সকল শ্রেণি' }, ...metadata.classOptions]
-  // Dynamic class level options for buy selector (no "all" option)
-  const classLevelBuyOptions = metadata.classOptions
+  const { classLevel: learningClassLevel, learningMode: lMode, setPreference } = useLearningPreference()
+  const classLevel = lMode === 'CLASS_BASED' && learningClassLevel ? learningClassLevel : ''
   const [bundles, setBundles] = useState<Bundle[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [classLevel, setClassLevel] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
   const [selectedBundle, setSelectedBundle] = useState<Bundle | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
@@ -148,10 +148,8 @@ export default function PremiumPage() {
   const [purchasedPackageIds, setPurchasedPackageIds] = useState<Set<string>>(new Set())
   const [pendingPackageIds, setPendingPackageIds] = useState<Set<string>>(new Set())
 
-  // Package class selector state — keyed by package id
-  const [selectedClassForPkg, setSelectedClassForPkg] = useState<Record<string, string>>({})
-  // Which package's class selector is open (for dialog)
-  const [classSelectorOpen, setClassSelectorOpen] = useState<string | null>(null)
+  // Package class selector — auto-populated from learning preference
+  const selectedPkgClass = lMode === 'CLASS_BASED' && learningClassLevel ? learningClassLevel : ''
 
   // Fetch bundles
   const fetchBundles = useCallback(async () => {
@@ -291,6 +289,7 @@ export default function PremiumPage() {
 
   return (
     <div className="min-h-screen bg-background">
+      <ClassContextBanner />
       {/* Hero Section */}
       <div className="relative bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-500 overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_80%,rgba(255,255,255,0.2),transparent)]" />
@@ -358,19 +357,12 @@ export default function PremiumPage() {
                 className="pl-10 h-10 bg-muted/30 border-border/50 w-full rounded-md border px-3 py-1 text-sm"
               />
             </div>
-            <Select value={classLevel} onValueChange={(v) => setClassLevel(v === '__all__' ? '' : v)}>
-              <SelectTrigger className="w-full sm:w-44 h-10 bg-muted/30 border-border/50">
-                <GraduationCap className="w-4 h-4 mr-1 text-muted-foreground" />
-                <SelectValue placeholder="শ্রেণি নির্বাচন" />
-              </SelectTrigger>
-              <SelectContent>
-                {classLevelOptions.map((opt) => (
-                  <SelectItem key={opt.value || '__all__'} value={opt.value || '__all__'}>
-                    {opt.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {lMode === 'CLASS_BASED' && classLevel && (
+              <div className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-edu-primary/10 text-edu-primary text-sm font-medium whitespace-nowrap h-10">
+                <GraduationCap className="w-4 h-4" />
+                {metadata.classLevelLabels[classLevel] || classLevel}
+              </div>
+            )}
             {activeTab === 'bundles' && (
               <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v === '__all__' ? '' : v)}>
                 <SelectTrigger className="w-full sm:w-40 h-10 bg-muted/30 border-border/50">
@@ -511,9 +503,7 @@ export default function PremiumPage() {
                   <PackageCard
                     key={pkg.id}
                     pkg={pkg}
-                    classLevelBuyOptions={classLevelBuyOptions}
-                    selectedClass={selectedClassForPkg[pkg.id] || ''}
-                    onClassChange={(pkgId, v) => setSelectedClassForPkg(prev => ({ ...prev, [pkgId]: v }))}
+                    classLevel={selectedPkgClass}
                     isPurchased={purchasedPackageIds.has(pkg.id)}
                     isPending={pendingPackageIds.has(pkg.id)}
                     onBuy={handleBuyPackage}
@@ -704,51 +694,7 @@ export default function PremiumPage() {
             </>
           ) : null}
         </DialogContent>
-      </Dialog>
-
-      {/* Package Class Selector Dialog (fallback for mobile) */}
-      <Dialog
-        open={!!classSelectorOpen}
-        onOpenChange={(open) => {
-          if (!open) setClassSelectorOpen(null)
-        }}
-      >
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-base">
-              <GraduationCap className="w-5 h-5 text-teal-500" />
-              শ্রেণি নির্বাচন করুন
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-2">
-            {classLevelBuyOptions.map((opt) => {
-              const pkg = packages.find(p => p.id === classSelectorOpen)
-              return (
-                <button
-                  key={opt.value}
-                  className="w-full flex items-center gap-3 p-3 rounded-lg border border-border/50 hover:border-teal-300 dark:hover:border-teal-700 hover:bg-teal-50 dark:hover:bg-teal-950/20 transition-colors text-left"
-                  onClick={() => {
-                    if (pkg) {
-                      setSelectedClassForPkg(prev => ({ ...prev, [pkg.id]: opt.value }))
-                      setClassSelectorOpen(null)
-                      handleBuyPackage(pkg, opt.value)
-                    }
-                  }}
-                >
-                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-teal-100 to-cyan-100 dark:from-teal-950/40 dark:to-cyan-950/40 flex items-center justify-center">
-                    <GraduationCap className="w-5 h-5 text-teal-600 dark:text-teal-400" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium">{opt.label}</p>
-                    <p className="text-[10px] text-muted-foreground">এই শ্রেণির সকল প্রিমিয়াম কন্টেন্ট</p>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-muted-foreground ml-auto" />
-                </button>
-              )
-            })}
-          </div>
-        </DialogContent>
-      </Dialog>
+</Dialog>
     </div>
   )
 }

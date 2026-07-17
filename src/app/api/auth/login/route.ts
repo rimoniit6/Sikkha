@@ -26,7 +26,7 @@ export async function POST(request: Request) {
 
     const user = await db.user.findUnique({
       where: { email },
-      select: { id: true, email: true, name: true, password: true, role: true, avatar: true, phone: true, institute: true, classLevel: true, board: true, isPremium: true, premiumExpiry: true },
+      select: { id: true, email: true, name: true, password: true, role: true, avatar: true, phone: true, institute: true, classLevel: true, board: true, learningMode: true, isPremium: true, premiumExpiry: true },
     })
 
     if (!user || !user.password || !verifyPassword(password, user.password)) {
@@ -48,6 +48,7 @@ export async function POST(request: Request) {
           institute: user.institute,
           classLevel: user.classLevel,
           board: user.board,
+          learningMode: user.learningMode,
           isPremium: user.isPremium,
           premiumExpiry: user.premiumExpiry?.toISOString() ?? undefined,
         },

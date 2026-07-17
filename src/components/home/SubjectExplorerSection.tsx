@@ -20,6 +20,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useHierarchyMetadata } from '@/hooks/use-hierarchy-metadata'
+import { useLearningPreference } from '@/providers/LearningPreferenceProvider'
 import { useRouterStore } from '@/store/router'
 
 // ─── Constants ──────────────────────────────────────────────────
@@ -77,10 +78,18 @@ export default function SubjectExplorerSection() {
     metadata,
   } = useHierarchyMetadata()
   const navigate = useRouterStore((s) => s.navigate)
+  const { learningMode, classLevel } = useLearningPreference()
 
   const [selectedClass, setSelectedClass] = useState<string>(CLASS_TABS[0])
   const [isVisible, setIsVisible] = useState(false)
   const sectionRef = useRef<HTMLElement>(null)
+
+  // Auto-select user's class when in CLASS_BASED mode
+  useEffect(() => {
+    if (learningMode === 'CLASS_BASED' && classLevel) {
+      setSelectedClass(classLevel)
+    }
+  }, [learningMode, classLevel])
 
   // Visibility observer
   useEffect(() => {

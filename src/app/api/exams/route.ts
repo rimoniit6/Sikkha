@@ -3,13 +3,20 @@ import { NextResponse } from 'next/server'
 import { applyRateLimit } from '@/lib/api-utils'
 import { handleApiError } from '@/lib/errors'
 import { apiLimiter } from '@/lib/rate-limit'
+import { verifyAuth } from '@/lib/auth'
 
 export async function GET(request: Request) {
   try {
     const rateCheck = await applyRateLimit(apiLimiter, request)
     if ('error' in rateCheck) return rateCheck.error
     const { searchParams } = new URL(request.url)
-    const classLevel = searchParams.get('classLevel')
+    let classLevel = searchParams.get('classLevel')
+    if (!classLevel) {
+      const auth = await verifyAuth(request)
+      if (auth?.user?.learningMode === 'CLASS_BASED' && auth?.user?.classLevel) {
+        classLevel = auth.user.classLevel
+      }
+    }
     const subjectId = searchParams.get('subjectId')
     const chapterId = searchParams.get('chapterId')
     const type = searchParams.get('type')

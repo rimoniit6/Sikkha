@@ -10,10 +10,10 @@ import { useSiteConfig } from '@/hooks/use-metadata'
 import { useRouterStore } from '@/store/router'
 import {
 ArrowRight,
-Loader2,
 Lock,
 Star
 } from 'lucide-react'
+import { Skeleton } from '@/components/ui/skeleton'
 
 // Gradient map for featured cards (by content type key)
 const GRADIENT_MAP: Record<string, string> = {
@@ -121,8 +121,10 @@ export default function FeaturedCourses() {
         </div>
 
         {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-64 w-full rounded-2xl" />
+            ))}
           </div>
         ) : (
           <div

@@ -2,13 +2,16 @@
 
 import {
   BookOpen, GraduationCap, Calculator, FlaskConical, Languages,
-  Loader2, ArrowRight, PlayCircle, FileQuestion, ClipboardList,
-  Lightbulb, Award, ChevronRight, Sparkles, AlertCircle, RefreshCw,
+  ArrowRight, PlayCircle, FileQuestion, ClipboardList,
+  Lightbulb, Award, ChevronRight, Sparkles, AlertCircle, RefreshCw, Globe,
 } from 'lucide-react'
 import { useRouterStore } from '@/store/router'
 import { useSiteConfig } from '@/hooks/use-metadata'
 import { useClassList } from '@/hooks/use-home-data'
+import { useLearningPreference } from '@/providers/LearningPreferenceProvider'
+import { useHierarchyMetadata } from '@/hooks/use-hierarchy-metadata'
 import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
 
 const iconMap: Record<string, React.ElementType> = {
   BookOpen,
@@ -37,28 +40,53 @@ export default function ClassCategories() {
   const navigate = useRouterStore((s) => s.navigate)
   const { config } = useSiteConfig()
   const { data: classes = [], isLoading: loading, error: queryError } = useClassList()
+  const { learningMode, classLevel, setPreference } = useLearningPreference()
+  const { classLevelLabels } = useHierarchyMetadata()
   const error = queryError?.message ?? null
+
+  const isClassBased = learningMode === 'CLASS_BASED' && !!classLevel
+  const currentClassName = classLevel ? (classLevelLabels[classLevel] || classLevel) : null
+  const isPersonalized = isClassBased && classes.length === 1
 
   return (
     <section className="py-16 sm:py-20 bg-background">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Section Header */}
         <div className="text-center mb-10 sm:mb-12 animate-fade-in-up">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 text-xs font-semibold mb-4">
-            <Sparkles className="w-3.5 h-3.5" />
-            {config?.homepageClassesBadge || 'শিক্ষা যাত্রা'}
-          </div>
-          <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-3">
-            {config?.homepageClassesTitle || 'আপনার ক্লাস বেছে নিন'}
-          </h2>
-          <p className="text-muted-foreground text-lg max-w-xl mx-auto">
-            {config?.homepageClassesSubtitle || 'আপনার শ্রেণি অনুযায়ী সকল বিষয় ও কন্টেন্ট দেখুন'}
-          </p>
+          {isPersonalized && currentClassName ? (
+            <>
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 text-xs font-semibold mb-4">
+                <GraduationCap className="w-3.5 h-3.5" />
+                আপনার শ্রেণি
+              </div>
+              <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-3">
+                {currentClassName}
+              </h2>
+              <p className="text-muted-foreground text-lg max-w-xl mx-auto">
+                আপনার নির্বাচিত শ্রেণির সকল বিষয় ও কন্টেন্ট
+              </p>
+            </>
+          ) : (
+            <>
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 text-xs font-semibold mb-4">
+                <Sparkles className="w-3.5 h-3.5" />
+                {config?.homepageClassesBadge || 'শিক্ষা যাত্রা'}
+              </div>
+              <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-3">
+                {config?.homepageClassesTitle || 'আপনার ক্লাস বেছে নিন'}
+              </h2>
+              <p className="text-muted-foreground text-lg max-w-xl mx-auto">
+                {config?.homepageClassesSubtitle || 'আপনার শ্রেণি অনুযায়ী সকল বিষয় ও কন্টেন্ট দেখুন'}
+              </p>
+            </>
+          )}
         </div>
 
         {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <Skeleton key={i} className="h-48 w-full rounded-2xl" />
+            ))}
           </div>
         ) : error ? (
           <div className="flex flex-col items-center justify-center py-12 text-center">
@@ -80,7 +108,9 @@ export default function ClassCategories() {
           <>
             {/* Class Cards — Horizontal snap scroll on mobile, grid on desktop */}
             <div
-              className="flex gap-4 overflow-x-auto snap-x snap-mandatory pb-4 sm:pb-0 sm:grid sm:grid-cols-3 md:grid-cols-5 sm:gap-5 scrollbar-none stagger-children"
+              className={`flex gap-4 overflow-x-auto snap-x snap-mandatory pb-4 sm:pb-0 sm:gap-5 scrollbar-none stagger-children ${
+                isPersonalized ? 'sm:grid sm:grid-cols-1 max-w-lg mx-auto' : 'sm:grid sm:grid-cols-3 md:grid-cols-5'
+              }`}
               style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
             >
               {classes.map((cls) => {
@@ -93,7 +123,9 @@ export default function ClassCategories() {
                     key={cls.id}
                     role="button"
                     tabIndex={0}
-                    className="snap-center min-w-[180px] sm:min-w-0 cursor-pointer group transition-all duration-300 hover:-translate-y-1.5 hover:scale-[1.02] active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-emerald-500"
+                    className={`snap-center cursor-pointer group transition-all duration-300 hover:-translate-y-1.5 hover:scale-[1.02] active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-emerald-500 ${
+                      isPersonalized ? 'min-w-0' : 'min-w-[180px] sm:min-w-0'
+                    }`}
                     onClick={() => navigate('class-detail', { classSlug: cls.slug })}
                     onKeyDown={(e: React.KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate('class-detail', { classSlug: cls.slug }) } }}
                   >
@@ -149,6 +181,30 @@ export default function ClassCategories() {
                 )
               })}
             </div>
+
+            {/* Class change actions for CLASS_BASED mode */}
+            {isPersonalized && (
+              <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3 animate-fade-in-up">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPreference('GLOBAL')}
+                  className="gap-2"
+                >
+                  <Globe className="h-4 w-4" />
+                  সব ক্লাস দেখুন
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => navigate('user-dashboard')}
+                  className="gap-2 text-muted-foreground"
+                >
+                  <GraduationCap className="h-4 w-4" />
+                  শ্রেণি পরিবর্তন করুন
+                </Button>
+              </div>
+            )}
 
             {/* Quick Access Chips */}
             <div className="mt-8 animate-fade-in-up" style={{ animationDelay: '0.3s' }}>

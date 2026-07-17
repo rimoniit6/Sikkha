@@ -5,6 +5,7 @@ import { toBengaliNumerals } from '@/lib/utils'
 import { NextResponse } from 'next/server'
 import { toDecimal } from '@/lib/decimal'
 import { z } from 'zod'
+import { guardDeleteDependencies } from '@/lib/delete-guard'
 
 const createMcqPackageSchema = z.object({
   action: z.literal('create-package'),
@@ -815,6 +816,8 @@ export async function DELETE(request: Request) {
       case 'delete-package': {
         const id = searchParams.get('id')
         if (!id) return apiError('Package ID required', 400)
+        const guard = await guardDeleteDependencies('mcq-exam-packages', id)
+        if (!guard.ok) return guard.response
         await db.mCQExamPackage.delete({ where: { id } })
         return apiResponse({ message: 'Package deleted' })
       }

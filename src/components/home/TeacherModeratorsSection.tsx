@@ -3,7 +3,7 @@
 import { Avatar,AvatarFallback,AvatarImage } from '@/components/ui/avatar'
 import { Card,CardContent } from '@/components/ui/card'
 import { useSiteConfig,useTeacherModerators } from '@/hooks/use-metadata'
-import { GraduationCap,Loader2 } from 'lucide-react'
+import { GraduationCap } from 'lucide-react'
 
 function getInitials(name: string): string {
   const parts = name.trim().split(/\s+/)
@@ -32,8 +32,18 @@ export default function TeacherModeratorsSection() {
         </div>
 
         {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="rounded-2xl border bg-card p-6 space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="h-14 w-14 rounded-full bg-muted animate-pulse" />
+                  <div className="space-y-2">
+                    <div className="h-4 w-28 rounded bg-muted animate-pulse" />
+                    <div className="h-3 w-20 rounded bg-muted animate-pulse" />
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">

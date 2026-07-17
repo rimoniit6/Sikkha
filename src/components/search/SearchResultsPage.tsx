@@ -8,6 +8,7 @@ import RichContentRenderer from '@/components/ui/rich-content-renderer'
 import SafeImage from '@/components/ui/safe-image'
 import { useContentTypes } from '@/hooks/use-content-types'
 import { useHierarchyMetadata } from '@/hooks/use-hierarchy-metadata'
+import { useLearningPreference } from '@/providers/LearningPreferenceProvider'
 import { useSiteConfig } from '@/hooks/use-metadata'
 import { useRouterStore, useRouteParams } from '@/store/router'
 import {
@@ -17,6 +18,7 @@ ChevronRight,
 Crown,
 FileQuestion,
 FileText,
+GraduationCap,
 Lightbulb,
 Loader2,
 Megaphone,
@@ -131,12 +133,14 @@ export default function SearchResultsPage() {
   const { classLevelLabels: classLabelMap } = useHierarchyMetadata()
   const { config } = useSiteConfig()
   const { contentTypesWithIcons, getLabel: _getLabel, getIcon: _getIcon } = useContentTypes()
+  const { classLevel: learningClassLevel, learningMode: lMode } = useLearningPreference()
   const [query, setQuery] = useState(params.searchQuery || '')
   const [activeFilter, setActiveFilter] = useState<string>('all')
   const [results, setResults] = useState<SearchResults>({})
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(false)
   const [searched, setSearched] = useState(false)
+  const [searchMyClass, setSearchMyClass] = useState(true)
 
   // Build dynamic type filters from DB content types
   const typeFilters = useMemo(() => {
@@ -155,7 +159,16 @@ export default function SearchResultsPage() {
 
     setLoading(true)
     try {
-      const url = `/api/search?q=${encodeURIComponent(searchQuery.trim())}&type=${type}&limit=20`
+      const params = new URLSearchParams({
+        q: searchQuery.trim(),
+        type,
+        limit: '20',
+      })
+      // Use classMode param — server resolves classLevel from user preference
+      if (lMode === 'CLASS_BASED' && learningClassLevel) {
+        params.set('classMode', searchMyClass ? 'my-class' : 'all')
+      }
+      const url = `/api/search?${params.toString()}`
       const res = await fetch(url)
       if (res.ok) {
         const data = await res.json()
@@ -172,7 +185,7 @@ export default function SearchResultsPage() {
       setLoading(false)
       setSearched(true)
     }
-  }, [])
+  }, [searchMyClass, lMode, learningClassLevel])
 
   useEffect(() => {
     if (params.searchQuery) {
@@ -276,6 +289,31 @@ export default function SearchResultsPage() {
               খুঁজুন
             </Button>
           </div>
+
+          {/* Search Scope Toggle */}
+          {lMode === 'CLASS_BASED' && learningClassLevel && (
+            <div className="mt-3 flex items-center gap-2">
+              <GraduationCap className="h-4 w-4 text-muted-foreground" />
+              <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-0.5">
+                <button
+                  onClick={() => setSearchMyClass(true)}
+                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                    searchMyClass ? 'bg-emerald-500 text-white' : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  আমার শ্রেণি ({classLabelMap[learningClassLevel] || learningClassLevel})
+                </button>
+                <button
+                  onClick={() => setSearchMyClass(false)}
+                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                    !searchMyClass ? 'bg-emerald-500 text-white' : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  সব শ্রেণি
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Type Filter Pills */}
           {searched && (

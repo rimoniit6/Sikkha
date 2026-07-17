@@ -37,6 +37,7 @@ export async function GET(request: Request) {
         institute: true,
         classLevel: true,
         board: true,
+        learningMode: true,
         isVerified: true,
         isPremium: true,
         premiumExpiry: true,

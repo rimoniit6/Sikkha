@@ -1,5 +1,5 @@
 import { db } from '@/lib/db'
-import { apiResponse, withAuth, withCsrf } from '@/lib/api-utils'
+import { apiResponse, apiError, withAuth, withCsrf } from '@/lib/api-utils'
 import { handleApiError } from '@/lib/errors'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
@@ -10,6 +10,7 @@ const profileSchema = z.object({
   institute: z.string().max(200).optional(),
   classLevel: z.string().max(50).optional(),
   board: z.string().max(100).optional(),
+  learningMode: z.enum(['CLASS_BASED', 'GLOBAL']).optional(),
   avatar: z.string().url().max(500).optional(),
 })
 
@@ -30,6 +31,7 @@ export async function GET(request: Request) {
         institute: true,
         classLevel: true,
         board: true,
+        learningMode: true,
         role: true,
         isPremium: true,
         avatar: true,
@@ -58,15 +60,28 @@ export async function PUT(request: Request) {
       )
     }
 
-    const { name, phone, institute, classLevel, board, avatar } = parsed.data
+    const { name, phone, institute, classLevel, board, learningMode, avatar } = parsed.data
     const userId = auth.user.id
 
     const updateData: Record<string, unknown> = {}
     if (name !== undefined) updateData.name = name
     if (phone !== undefined) updateData.phone = phone
     if (institute !== undefined) updateData.institute = institute
-    if (classLevel !== undefined) updateData.classLevel = classLevel
+    if (classLevel !== undefined) {
+      // Validate classLevel exists in ClassCategory when provided
+      if (classLevel) {
+        const validClass = await db.classCategory.findUnique({
+          where: { slug: classLevel, isActive: true },
+          select: { id: true },
+        })
+        if (!validClass) {
+          return apiError('অবৈধ শ্রেণি নির্বাচন।', 400)
+        }
+      }
+      updateData.classLevel = classLevel
+    }
     if (board !== undefined) updateData.board = board
+    if (learningMode !== undefined) updateData.learningMode = learningMode
     if (avatar !== undefined) updateData.avatar = avatar
 
     const updatedUser = await db.user.update({
@@ -80,6 +95,7 @@ export async function PUT(request: Request) {
         institute: true,
         classLevel: true,
         board: true,
+        learningMode: true,
         role: true,
         isPremium: true,
         avatar: true,

@@ -5,6 +5,7 @@ import { invalidateContentCache } from '@/lib/cache-invalidate'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { auditFromRequest, AuditActions } from '@/lib/audit'
+import { guardDeleteDependencies } from '@/lib/delete-guard'
 
 const createClassSchema = z.object({
   name: z.string().min(1, 'শ্রেণির নাম আবশ্যক'),
@@ -136,6 +137,9 @@ export async function DELETE(request: Request) {
 
     const existing = await db.classCategory.findUnique({ where: { id } })
     if (!existing) return apiError('শ্রেণি খুঁজে পাওয়া যায়নি', 404)
+
+    const guard = await guardDeleteDependencies('classes', id)
+    if (!guard.ok) return guard.response
 
     await db.classCategory.delete({ where: { id } })
     await invalidateContentCache('class')

@@ -5,6 +5,7 @@ import { invalidateContentCache } from '@/lib/cache-invalidate'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { auditFromRequest, AuditActions, EntityTypes } from '@/lib/audit'
+import { guardDeleteDependencies } from '@/lib/delete-guard'
 
 const createLectureSchema = z.object({
   title: z.string().min(1, 'শিরোনাম আবশ্যক'),
@@ -191,6 +192,9 @@ export async function DELETE(request: Request) {
     if (!existing) {
       return apiError('লেকচার খুঁজে পাওয়া যায়নি', 404)
     }
+
+    const guard = await guardDeleteDependencies('lectures', id)
+    if (!guard.ok) return guard.response
 
     await db.lecture.delete({ where: { id } })
 

@@ -2,6 +2,7 @@
 
 import MCQExamPackagePurchaseDialog from '@/components/exam/MCQExamPackagePurchaseDialog'
 import EmptyState from '@/components/shared/EmptyState'
+import ClassContextBanner from '@/components/shared/ClassContextBanner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card,CardContent } from '@/components/ui/card'
@@ -9,6 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs,TabsList,TabsTrigger } from '@/components/ui/tabs'
 import { useHierarchyMetadata } from '@/hooks/use-hierarchy-metadata'
+import { useLearningPreference } from '@/providers/LearningPreferenceProvider'
 import { useToast } from '@/hooks/use-toast'
 import { toBengaliNumerals } from '@/lib/utils'
 import { useShallowAuth } from '@/store/auth'
@@ -22,6 +24,7 @@ Calendar,
 Clock,
 Crown,
 FileQuestion,
+GraduationCap,
 Package,
 Search,
 ShoppingCart,
@@ -390,13 +393,15 @@ export default function MCQExamPackageListPage() {
   const goBack = useRouterStore((s) => s.goBack)
   const { user, isAuthenticated } = useShallowAuth()
   const { toast } = useToast()
+  const { classLevel: learningClassLevel, learningMode: lMode } = useLearningPreference()
   const { classOptions } = useHierarchyMetadata()
-  const CLASS_TABS = [{ value: 'all', label: 'সকল' }, ...classOptions]
+
+  // Derive classLevel from learning preference
+  const classLevel = lMode === 'CLASS_BASED' && learningClassLevel ? learningClassLevel : ''
 
   // State
   const [packages, setPackages] = useState<ExamPackage[]>([])
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [pagination, setPagination] = useState({
     page: 1,
@@ -491,9 +496,9 @@ export default function MCQExamPackageListPage() {
         params.set('page', String(page))
         params.set('limit', String(pagination.limit))
 
-        if (activeTab && activeTab !== 'all') {
+        if (classLevel) {
           // Resolve slug to class database ID
-          const classInfo = classMap.get(activeTab)
+          const classInfo = classMap.get(classLevel)
           if (classInfo) {
             params.set('classId', classInfo.id)
           }
@@ -524,7 +529,7 @@ export default function MCQExamPackageListPage() {
         setLoading(false)
       }
     },
-    [activeTab, searchQuery, pagination.limit, isAuthenticated, user, classMap, checkPurchases]
+    [classLevel, searchQuery, pagination.limit, isAuthenticated, user, classMap, checkPurchases]
   )
   const fetchPackagesRef = useRef(fetchPackages)
   useEffect(() => {
@@ -534,7 +539,7 @@ export default function MCQExamPackageListPage() {
   // Fetch on filter change
   useEffect(() => {
     fetchPackagesRef.current(1)
-  }, [activeTab])
+  }, [classLevel])
 
   // Debounced search
   useEffect(() => {
@@ -607,6 +612,7 @@ export default function MCQExamPackageListPage() {
 
   return (
     <div className="min-h-screen bg-background">
+      <ClassContextBanner />
       {/* Header Section */}
       <div className="sticky top-16 z-30 bg-background/95 backdrop-blur-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -624,6 +630,12 @@ export default function MCQExamPackageListPage() {
               </p>
             </div>
             <div className="hidden sm:flex items-center gap-2">
+              {lMode === 'CLASS_BASED' && classLevel && (
+                <Badge variant="secondary" className="gap-1 bg-edu-primary/10 text-edu-primary border-edu-primary/20">
+                  <GraduationCap className="size-3" />
+                  {classLevel}
+                </Badge>
+              )}
               <Badge variant="secondary" className="gap-1">
                 <Clock className="size-3" />
                 {toBengaliNumerals(pagination.total)}টি প্যাকেজ
@@ -641,23 +653,6 @@ export default function MCQExamPackageListPage() {
           transition={{ duration: 0.3 }}
           className="mb-6 space-y-4"
         >
-          {/* Class Filter Tabs */}
-          <div className="w-full overflow-x-auto">
-            <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList className="w-full justify-start gap-1 bg-muted/50 p-1 h-auto flex-wrap">
-                {CLASS_TABS.map((tab) => (
-                  <TabsTrigger
-                    key={tab.value}
-                    value={tab.value}
-                    className="text-xs sm:text-sm px-3 py-1.5 data-[state=active]:bg-emerald-500 data-[state=active]:text-white"
-                  >
-                    {tab.label}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-            </Tabs>
-          </div>
-
           {/* Search Input */}
           <div className="relative max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
@@ -684,7 +679,6 @@ export default function MCQExamPackageListPage() {
             description="আপনার ফিল্টার পরিবর্তন করে আবার চেষ্টা করুন অথবা পরে আসুন। নতুন প্যাকেজ যুক্ত হলে এখানে দেখা যাবে।"
             actionLabel="ফিল্টার রিসেট করুন"
             onAction={() => {
-              setActiveTab('all')
               setSearchQuery('')
             }}
           />

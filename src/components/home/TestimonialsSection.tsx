@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback, useEffect } from 'react'
-import { Star, ChevronLeft, ChevronRight, Quote, Loader2 } from 'lucide-react'
+import { Star, ChevronLeft, ChevronRight, Quote } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { useTestimonials, useSiteConfig } from '@/hooks/use-metadata'
@@ -140,8 +140,22 @@ export default function TestimonialsSection() {
         </div>
 
         {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="rounded-2xl border bg-card p-6 space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="h-12 w-12 rounded-full bg-muted animate-pulse" />
+                  <div className="space-y-2">
+                    <div className="h-4 w-24 rounded bg-muted animate-pulse" />
+                    <div className="h-3 w-16 rounded bg-muted animate-pulse" />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <div className="h-3 w-full rounded bg-muted animate-pulse" />
+                  <div className="h-3 w-3/4 rounded bg-muted animate-pulse" />
+                </div>
+              </div>
+            ))}
           </div>
         ) : (
           <TestimonialsCarousel testimonials={testimonials} />

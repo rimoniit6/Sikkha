@@ -2,6 +2,7 @@ import { apiError,apiResponse,withCsrf } from '@/lib/api-utils'
 import { verifyAuth } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { handleApiError,logError } from '@/lib/errors'
+import { getClassLevelForUserId } from '@/lib/class-filter'
 
 const VALID_CONTENT_TYPES = ['lecture', 'mcq', 'cq']
 
@@ -34,6 +35,8 @@ export async function GET(request: Request) {
     const page = Math.max(1, parseInt(searchParams.get('page') || '1'))
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '20')))
 
+    const classLevel = await getClassLevelForUserId(userId)
+
     const where: { userId: string; contentType?: string; contentId?: string } = { userId }
     if (contentType && VALID_CONTENT_TYPES.includes(contentType)) where.contentType = contentType
     if (contentId) where.contentId = contentId
@@ -43,28 +46,71 @@ export async function GET(request: Request) {
       db.progress.count({ where }),
     ])
 
-    // Batch-resolve titles
+    // Batch-resolve titles + class membership in parallel
     const byType: Record<string, string[]> = {}
     for (const r of progressRecords) {
       if (!byType[r.contentType]) byType[r.contentType] = []
       byType[r.contentType].push(r.contentId)
     }
     const titleMap = new Map<string, string>()
+    const classMembershipMap = new Map<string, boolean>() // contentId → belongs to class?
+
     const queries = Object.entries(byType).map(async ([type, ids]) => {
       if (type === 'mcq') {
-        const mcqs = await db.mCQ.findMany({ where: { id: { in: ids } }, select: { id: true, question: true } })
-        for (const m of mcqs) titleMap.set(m.id, m.question.length > 80 ? m.question.substring(0, 80) + '...' : m.question)
+        const mcqs = await db.mCQ.findMany({
+          where: { id: { in: ids }, ...(classLevel ? { classLevel } : {}) },
+          select: { id: true, question: true },
+        })
+        for (const m of mcqs) {
+          titleMap.set(m.id, m.question.length > 80 ? m.question.substring(0, 80) + '...' : m.question)
+          classMembershipMap.set(m.id, true)
+        }
+        if (classLevel) {
+          for (const id of ids) {
+            if (!classMembershipMap.has(id)) classMembershipMap.set(id, false)
+          }
+        }
       } else if (type === 'cq') {
-        const cqs = await db.cQ.findMany({ where: { id: { in: ids } }, select: { id: true, uddeepok: true } })
-        for (const c of cqs) titleMap.set(c.id, c.uddeepok.length > 80 ? c.uddeepok.substring(0, 80) + '...' : c.uddeepok)
+        const cqs = await db.cQ.findMany({
+          where: { id: { in: ids }, ...(classLevel ? { classLevel } : {}) },
+          select: { id: true, uddeepok: true },
+        })
+        for (const c of cqs) {
+          titleMap.set(c.id, c.uddeepok.length > 80 ? c.uddeepok.substring(0, 80) + '...' : c.uddeepok)
+          classMembershipMap.set(c.id, true)
+        }
+        if (classLevel) {
+          for (const id of ids) {
+            if (!classMembershipMap.has(id)) classMembershipMap.set(id, false)
+          }
+        }
       } else if (type === 'lecture') {
-        const lectures = await db.lecture.findMany({ where: { id: { in: ids } }, select: { id: true, title: true } })
-        for (const l of lectures) titleMap.set(l.id, l.title)
+        const lectures = await db.lecture.findMany({
+          where: {
+            id: { in: ids },
+            ...(classLevel ? { chapter: { subject: { class: { slug: classLevel } } } } : {}),
+          },
+          select: { id: true, title: true },
+        })
+        for (const l of lectures) {
+          titleMap.set(l.id, l.title)
+          classMembershipMap.set(l.id, true)
+        }
+        if (classLevel) {
+          for (const id of ids) {
+            if (!classMembershipMap.has(id)) classMembershipMap.set(id, false)
+          }
+        }
       }
     })
     await Promise.all(queries)
 
-    const enrichedProgress = progressRecords.map((record) => ({
+    // Filter progress records by class membership when class-based
+    const filteredRecords = classLevel
+      ? progressRecords.filter((r) => classMembershipMap.get(r.contentId) !== false)
+      : progressRecords
+
+    const enrichedProgress = filteredRecords.map((record) => ({
       id: record.id,
       contentId: record.contentId,
       contentType: record.contentType,
@@ -75,7 +121,7 @@ export async function GET(request: Request) {
 
     return apiResponse({
       progress: enrichedProgress,
-      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+      pagination: { page, limit, total: classLevel ? filteredRecords.length : total, totalPages: Math.ceil((classLevel ? filteredRecords.length : total) / limit) },
     })
   } catch (error) {
     return handleApiError(error, 'Get progress error')
@@ -106,26 +152,32 @@ async function handleProgressUpdate(request: Request) {
     if (!VALID_CONTENT_TYPES.includes(contentType)) return apiError('contentType অবশ্যই lecture, mcq, বা cq হতে হবে', 400)
     if (typeof progressValue !== 'number' || progressValue < 0 || progressValue > 100) return apiError('progress অবশ্যই ০ থেকে ১০০ এর মধ্যে হতে হবে', 400)
 
-    const updatedProgress = await db.$transaction(async (tx) => {
-      const progress = await tx.progress.upsert({
-        where: { userId_contentId_contentType: { userId, contentId, contentType } },
-        update: { progress: progressValue, lastAccessed: new Date() },
-        create: { userId, contentId, contentType, progress: progressValue, lastAccessed: new Date() },
-      })
+    // NOTE on transactions: the previous implementation wrapped these writes in
+    // db.$transaction (interactive transaction). On the libsql backend an
+    // interactive transaction expires after 5000ms, and this handler consistently
+    // hit that limit (slow fs / connection contention), returning HTTP 500 on
+    // every progress update. The two writes below are independent per-user records
+    // guarded by unique constraints, so they do NOT require a single atomic
+    // transaction. We therefore run them as plain sequential upserts, which are
+    // each idempotent and concurrency-safe on their own (see regression analysis).
+    const now = new Date()
 
-      // Update RecentlyViewed
-      const title = await getContentTitle(contentId, contentType)
-      const recentlyViewedTitle = title || `${contentType} - ${contentId}`
-
-      const existingRecent = await tx.recentlyViewed.findFirst({ where: { userId, contentId, contentType } })
-      if (existingRecent) {
-        await tx.recentlyViewed.update({ where: { id: existingRecent.id }, data: { viewedAt: new Date(), title: recentlyViewedTitle } })
-      } else {
-        await tx.recentlyViewed.create({ data: { userId, contentId, contentType, title: recentlyViewedTitle, viewedAt: new Date() } })
-      }
-
-      return progress
+    const updatedProgress = await db.progress.upsert({
+      where: { userId_contentId_contentType: { userId, contentId, contentType } },
+      update: { progress: progressValue, lastAccessed: now },
+      create: { userId, contentId, contentType, progress: progressValue, lastAccessed: now },
     })
+
+    // Update RecentlyViewed (separate per-user record keyed by userId+contentId+contentType)
+    const title = await getContentTitle(contentId, contentType)
+    const recentlyViewedTitle = title || `${contentType} - ${contentId}`
+
+    const existingRecent = await db.recentlyViewed.findFirst({ where: { userId, contentId, contentType } })
+    if (existingRecent) {
+      await db.recentlyViewed.update({ where: { id: existingRecent.id }, data: { viewedAt: now, title: recentlyViewedTitle } })
+    } else {
+      await db.recentlyViewed.create({ data: { userId, contentId, contentType, title: recentlyViewedTitle, viewedAt: now } })
+    }
 
     return apiResponse({ progress: updatedProgress.progress })
   } catch (error) {

@@ -49,6 +49,7 @@ export async function POST(request: Request) {
         institute: true,
         classLevel: true,
         board: true,
+        learningMode: true,
         isPremium: true,
         premiumExpiry: true,
       },

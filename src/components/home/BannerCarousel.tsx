@@ -13,7 +13,7 @@ import { useBanners,type BannerData } from '@/hooks/use-banners'
 import { useRouterStore } from '@/store/router'
 import type { RoutePath } from '@/store/router'
 import Autoplay from 'embla-carousel-autoplay'
-import { ArrowRight,Loader2 } from 'lucide-react'
+import { ArrowRight } from 'lucide-react'
 import Image from 'next/image'
 import { useCallback,useEffect,useState } from 'react'
 
@@ -77,9 +77,7 @@ export default function BannerCarousel() {
     return (
       <section className="w-full bg-muted/30">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-center h-48 sm:h-64">
-            <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
-          </div>
+          <div className="h-48 sm:h-64 rounded-2xl bg-muted animate-pulse" />
         </div>
       </section>
     )

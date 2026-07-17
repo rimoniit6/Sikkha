@@ -16,7 +16,6 @@ async function seed() {
     data: [
       { label: 'কোর্স', route: 'course-list', icon: 'BookOpen', location: 'header', order: 3, isAuthOnly: false, isAdminOnly: false, isActive: true },
     ],
-    skipDuplicates: true
   })
 
   console.log('Added Courses navigation')

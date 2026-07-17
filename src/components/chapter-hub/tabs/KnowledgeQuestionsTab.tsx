@@ -1,12 +1,12 @@
 'use client'
 
 import { useState } from 'react'
-import { Loader2 } from 'lucide-react'
 import { useRouterStore } from '@/store/router'
 import { useChapterKnowledge, type KnowledgeItem } from '@/hooks/use-chapter-content'
 import { KnowledgeCard } from '../cards/KnowledgeCard'
 import { ChapterEmptyState } from '../ChapterEmptyState'
 import PurchaseOptionsModal from '@/components/shared/PurchaseOptionsModal'
+import { Skeleton } from '@/components/ui/skeleton'
 
 interface KnowledgeQuestionsTabProps {
   chapterId: string
@@ -24,8 +24,10 @@ export function KnowledgeQuestionsTab({ chapterId }: KnowledgeQuestionsTabProps)
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      <div className="space-y-3">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Skeleton key={i} className="h-32 w-full rounded-xl" />
+        ))}
       </div>
     )
   }

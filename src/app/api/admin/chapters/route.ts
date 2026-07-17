@@ -5,6 +5,7 @@ import { invalidateContentCache } from '@/lib/cache-invalidate'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { auditFromRequest, AuditActions } from '@/lib/audit'
+import { guardDeleteDependencies } from '@/lib/delete-guard'
 
 const createChapterSchema = z.object({
   name: z.string().min(1, 'অধ্যায়ের নাম আবশ্যক'),
@@ -158,6 +159,9 @@ export async function DELETE(request: Request) {
 
     const existing = await db.chapter.findUnique({ where: { id } })
     if (!existing) return apiError('অধ্যায় খুঁজে পাওয়া যায়নি', 404)
+
+    const guard = await guardDeleteDependencies('chapters', id)
+    if (!guard.ok) return guard.response
 
     await db.chapter.delete({ where: { id } })
     await invalidateContentCache('chapter')

@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { apiError, applyRateLimit } from '@/lib/api-utils'
 import { handleApiError } from '@/lib/errors'
 import { apiLimiter } from '@/lib/rate-limit'
+import { getClassLevelForRequest } from '@/lib/class-filter'
 
 export async function GET(request: Request) {
   try {
@@ -22,6 +23,14 @@ export async function GET(request: Request) {
 
     const searchQuery = q.trim()
     const searchType = type || 'all'
+    const classMode = searchParams.get('classMode') // 'my-class' | 'all'
+
+    const classLevel = classMode === 'all' ? null : await getClassLevelForRequest(request)
+    const classFilter = classLevel ? { classLevel } : {}
+    const relationalClassFilter = classLevel
+      ? { chapter: { subject: { class: { slug: classLevel } } } }
+      : {}
+
     const results: Record<string, unknown[]> = {}
 
     const chapterInclude = {
@@ -33,14 +42,13 @@ export async function GET(request: Request) {
       },
     } as const
 
-    // Build query array and run all in parallel
     const queryPromises: Array<{ key: string; promise: Promise<unknown[]> }> = []
 
     if (searchType === 'all' || searchType === 'mcq') {
       queryPromises.push({
         key: 'mcqs',
         promise: db.mCQ.findMany({
-          where: { isActive: true, question: { contains: searchQuery } },
+          where: { isActive: true, question: { contains: searchQuery }, ...classFilter },
           include: chapterInclude,
           skip,
           take: limit,
@@ -53,7 +61,7 @@ export async function GET(request: Request) {
       queryPromises.push({
         key: 'cqs',
         promise: db.cQ.findMany({
-          where: { isActive: true, uddeepok: { contains: searchQuery } },
+          where: { isActive: true, uddeepok: { contains: searchQuery }, ...classFilter },
           include: chapterInclude,
           skip,
           take: limit,
@@ -66,7 +74,7 @@ export async function GET(request: Request) {
       queryPromises.push({
         key: 'lectures',
         promise: db.lecture.findMany({
-          where: { isActive: true, title: { contains: searchQuery } },
+          where: { isActive: true, title: { contains: searchQuery }, ...relationalClassFilter },
           include: chapterInclude,
           skip,
           take: limit,
@@ -79,7 +87,7 @@ export async function GET(request: Request) {
       queryPromises.push({
         key: 'suggestions',
         promise: db.suggestion.findMany({
-          where: { isActive: true, title: { contains: searchQuery } },
+          where: { isActive: true, title: { contains: searchQuery }, ...(classLevel ? { classId: classLevel } : {}) },
           skip,
           take: limit,
           orderBy: { createdAt: 'desc' },
@@ -111,7 +119,6 @@ export async function GET(request: Request) {
       })
     }
 
-    // Execute all in parallel
     const settled = await Promise.allSettled(
       queryPromises.map(async (qp) => ({ key: qp.key, data: await qp.promise })),
     )

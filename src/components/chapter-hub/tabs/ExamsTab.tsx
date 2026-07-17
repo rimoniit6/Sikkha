@@ -3,10 +3,10 @@
 import PurchaseOptionsModal from '@/components/shared/PurchaseOptionsModal'
 import { useChapterExams,type ExamItem } from '@/hooks/use-chapter-content'
 import { useRouterStore, useRouteParams } from '@/store/router'
-import { Loader2 } from 'lucide-react'
 import { useState } from 'react'
 import { ExamCard } from '../cards/ExamCard'
 import { ChapterEmptyState } from '../ChapterEmptyState'
+import { Skeleton } from '@/components/ui/skeleton'
 
 interface ExamsTabProps {
   chapterId: string
@@ -26,8 +26,10 @@ export function ExamsTab({ chapterId }: ExamsTabProps) {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Skeleton key={i} className="h-48 w-full rounded-xl" />
+        ))}
       </div>
     )
   }

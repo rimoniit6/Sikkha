@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   ChevronUp, ChevronDown, Copy, Trash2,
   Video, Radio, Link, Clock, FileText, StickyNote, Paperclip, Pencil, Save, X,
-  Check, Loader2,
+  Check, Loader2, Plus,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -20,11 +20,11 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog'
 import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel,
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogTrigger,
   AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
   AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { RadioGroup } from '@/components/ui/radio-group'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import type {
   CourseLessonRecord,
@@ -407,12 +407,19 @@ function EditorBasicStep({
         <RadioGroup
           value={lessonType}
           onValueChange={v => onLessonTypeChange(v as 'LIVE' | 'RECORDED')}
-          options={[
-            { label: 'লাইভ ক্লাস', value: 'LIVE', icon: Radio },
-            { label: 'রেকর্ডেড ক্লাস', value: 'RECORDED', icon: Video },
-          ]}
-          columns={2}
-        />
+          className="grid grid-cols-2 gap-3"
+        >
+          <label className="flex items-center gap-2 rounded-lg border p-3 cursor-pointer hover:bg-accent has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:bg-primary/5">
+            <RadioGroupItem value="LIVE" />
+            <Radio className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm">লাইভ ক্লাস</span>
+          </label>
+          <label className="flex items-center gap-2 rounded-lg border p-3 cursor-pointer hover:bg-accent has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:bg-primary/5">
+            <RadioGroupItem value="RECORDED" />
+            <Video className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm">রেকর্ডেড ক্লাস</span>
+          </label>
+        </RadioGroup>
       </div>
       <div className="space-y-2">
         <Label className="text-sm font-medium">বিবরণ</Label>

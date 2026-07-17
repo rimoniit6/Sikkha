@@ -13,6 +13,7 @@ export interface User {
   institute?: string
   classLevel?: string
   board?: string
+  learningMode?: string | null
   isPremium: boolean
   premiumExpiry?: string
 }

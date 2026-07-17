@@ -2,9 +2,6 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: process.env.STANDALONE_OUTPUT === 'true' ? 'standalone' : undefined,
-  typescript: {
-    ignoreBuildErrors: true,
-  },
   reactStrictMode: true,
   compress: true,
   poweredByHeader: false,

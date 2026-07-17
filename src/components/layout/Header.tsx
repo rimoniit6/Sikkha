@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useTheme } from 'next-themes'
-import { Search, Menu, X, Sun, Moon, User, GraduationCap, LogIn, LogOut, LayoutDashboard, Crown } from 'lucide-react'
+import { Search, Menu, X, Sun, Moon, User, GraduationCap, BookOpen, LogIn, LogOut, LayoutDashboard, Crown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -12,6 +12,8 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { useRouterStore, useCurrentRoute } from '@/store/router'
 import type { RoutePath } from '@/store/router'
 import { useAuthStore, useShallowAuth } from '@/store/auth'
+import { useLearningPreference } from '@/providers/LearningPreferenceProvider'
+import { useHierarchyMetadata } from '@/hooks/use-hierarchy-metadata'
 import { useSiteConfig } from '@/hooks/use-metadata'
 import { useNavigation } from '@/hooks/use-navigation'
 import Image from 'next/image'
@@ -31,6 +33,11 @@ export default function Header() {
   const logout = useAuthStore((s) => s.logout)
   const { config } = useSiteConfig()
   const { headerNav, loading: navLoading } = useNavigation()
+  const { learningMode, classLevel, setPreference } = useLearningPreference()
+  const { classLevelLabels, classOptions, boardOptions } = useHierarchyMetadata()
+
+  const currentClassLabel = classLevel ? (classLevelLabels[classLevel] || classLevel) : null
+  const isClassBased = learningMode === 'CLASS_BASED'
 
   const siteName = config?.siteName || 'শিক্ষা বাংলা'
   const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN'
@@ -143,6 +150,36 @@ export default function Header() {
               {mounted ? (isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />) : <div className="w-5 h-5" />}
             </Button>
 
+            {/* Class Badge - Desktop */}
+            {mounted && isAuthenticated && user && isClassBased && currentClassLabel && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="hidden sm:flex gap-1.5 h-9 text-xs border-edu-primary/20 text-edu-primary">
+                    <GraduationCap className="w-3.5 h-3.5" />
+                    {currentClassLabel}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <div className="px-2 py-1.5 text-xs text-muted-foreground">শ্রেণি পরিবর্তন</div>
+                  {classOptions.map((opt) => (
+                    <DropdownMenuItem
+                      key={opt.value}
+                      onClick={() => setPreference('CLASS_BASED', opt.value)}
+                      className={classLevel === opt.value ? 'bg-edu-primary/10 text-edu-primary' : ''}
+                    >
+                      <GraduationCap className="mr-2 h-4 w-4" />
+                      {opt.label}
+                    </DropdownMenuItem>
+                  ))}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => setPreference('GLOBAL')}>
+                    <BookOpen className="mr-2 h-4 w-4" />
+                    সার্বজনীন
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+
             {/* User Menu / Login */}
             {!mounted ? (
               <div className="w-9 h-9 rounded-full bg-muted/50 animate-pulse hidden sm:block" />
@@ -246,6 +283,39 @@ export default function Header() {
                         )
                       })}
                 </div>
+
+                {/* Mobile class changer */}
+                {mounted && isAuthenticated && user && isClassBased && (
+                  <div className="px-4 py-3 border-t border-border/50">
+                    <p className="text-xs text-muted-foreground mb-2">আপনার শ্রেণি</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {classOptions.map((opt) => (
+                        <button
+                          key={opt.value}
+                          onClick={() => setPreference('CLASS_BASED', opt.value)}
+                          className={`text-xs px-2.5 py-1 rounded-full transition-colors ${
+                            classLevel === opt.value
+                              ? 'bg-edu-primary text-white'
+                              : 'bg-muted text-muted-foreground hover:bg-accent'
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                      <button
+                        onClick={() => setPreference('GLOBAL')}
+                        className={`text-xs px-2.5 py-1 rounded-full transition-colors ${
+                          !isClassBased
+                            ? 'bg-edu-primary text-white'
+                            : 'bg-muted text-muted-foreground hover:bg-accent'
+                        }`}
+                      >
+                        সার্বজনীন
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 <div className="mt-auto px-4 pb-4">
                   {!mounted ? null : isAuthenticated && user ? (
                     <div className="flex flex-col gap-2">

@@ -1,6 +1,7 @@
 'use client'
 
 import PurchaseOptionsModal from '@/components/shared/PurchaseOptionsModal'
+import ClassContextBanner from '@/components/shared/ClassContextBanner'
 import { Badge } from '@/components/ui/badge'
 import {
 Breadcrumb,BreadcrumbItem,BreadcrumbLink,BreadcrumbList,BreadcrumbPage,BreadcrumbSeparator,
@@ -34,6 +35,7 @@ Search,
 Sigma,
 Table2
 } from 'lucide-react'
+import { useLearningPreference } from '@/providers/LearningPreferenceProvider'
 import { useEffect,useState } from 'react'
 
 interface SuggestionRecord {
@@ -107,8 +109,7 @@ export default function SuggestionsPage() {
   const [suggestions, setSuggestions] = useState<SuggestionRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [classId, setClassId] = useState<string>('')
-  const [classes, setClasses] = useState<ClassOption[]>([])
+  const { classLevel: learningClassLevel, learningMode: lMode } = useLearningPreference()
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
 
@@ -149,24 +150,6 @@ export default function SuggestionsPage() {
     fetchChapterInfo()
   }, [chapterId])
 
-  // Fetch classes for filter dropdown
-  useEffect(() => {
-    const fetchClasses = async () => {
-      try {
-        const res = await fetch('/api/classes')
-        if (res.ok) {
-          const json = await res.json()
-          setClasses(json.data?.classes || ensureArray<ClassOption>(json))
-        } else {
-          setClasses([])
-        }
-      } catch {
-        setClasses([])
-      }
-    }
-    fetchClasses()
-  }, [])
-
   // Fetch suggestions
   useEffect(() => {
     const fetchSuggestions = async () => {
@@ -177,7 +160,6 @@ export default function SuggestionsPage() {
           limit: '20',
         })
         if (search) params.set('search', search)
-        if (classId) params.set('classId', classId)
         if (chapterId) params.set('chapterId', chapterId)
 
         const res = await fetch(`/api/suggestions?${params}`)
@@ -198,7 +180,7 @@ export default function SuggestionsPage() {
       }
     }
     fetchSuggestions()
-  }, [search, classId, page, chapterId])
+  }, [search, page, chapterId])
 
   // Batch check purchase status for premium suggestions
   useEffect(() => {
@@ -309,6 +291,7 @@ export default function SuggestionsPage() {
 
   return (
     <div className="min-h-screen bg-background">
+      <ClassContextBanner />
       {/* Hero - only show when in chapter context */}
       {isChapterContext && (
         <div className="relative h-28 sm:h-32 bg-gradient-to-r from-violet-500 via-purple-600 to-violet-600 overflow-hidden">
@@ -442,20 +425,12 @@ export default function SuggestionsPage() {
                   className="pl-10 h-10 bg-muted/30 border-border/50"
                 />
               </div>
-              <Select value={classId} onValueChange={(v) => { setClassId(v === '__all__' ? '' : v); setPage(1) }}>
-                <SelectTrigger className="w-full sm:w-48 h-10 bg-muted/30 border-border/50">
-                  <GraduationCap className="w-4 h-4 mr-1 text-muted-foreground" />
-                  <SelectValue placeholder="শ্রেণি নির্বাচন" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__all__">সকল শ্রেণি</SelectItem>
-                  {classes.map((cls) => (
-                    <SelectItem key={cls.id} value={cls.id}>
-                      {cls.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {lMode === 'CLASS_BASED' && learningClassLevel && (
+                <div className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-edu-primary/10 text-edu-primary text-sm font-medium whitespace-nowrap">
+                  <GraduationCap className="w-4 h-4" />
+                  {learningClassLevel}
+                </div>
+              )}
             </div>
           </div>
         </div>

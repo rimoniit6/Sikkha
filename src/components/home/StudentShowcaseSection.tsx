@@ -54,9 +54,9 @@ function StarRating({ rating }: { rating: number }) {
 }
 
 // ─── Skeleton Card ───────────────────────────────────────────────────
-function SkeletonCard() {
+function SkeletonCard({ className }: { className?: string }) {
   return (
-    <div className="rounded-2xl p-[2px] bg-gradient-to-br from-muted/50 via-muted to-muted/30">
+    <div className={`rounded-2xl p-[2px] bg-gradient-to-br from-muted/50 via-muted to-muted/30 ${className || ''}`}>
       <div className="rounded-[14px] bg-card p-6 space-y-5">
         {/* Quote decoration */}
         <Skeleton className="h-10 w-10 rounded-lg" />

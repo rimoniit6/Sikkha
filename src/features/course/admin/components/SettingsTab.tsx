@@ -11,7 +11,7 @@ import { useToast } from '@/hooks/use-toast'
 
 interface Props {
   course: { hasCertificate?: boolean; metaTitle?: string | null; metaDescription?: string | null }
-  onSave: (data: { hasCertificate: boolean; metaTitle: string; metaDescription: string }) => Promise<void>
+  onSave: (data: { hasCertificate: boolean; metaTitle: string; metaDescription: string }) => Promise<unknown>
 }
 
 export default function SettingsTab({ course, onSave }: Props) {

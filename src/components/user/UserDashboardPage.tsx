@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import {
-  Clock, Crown, FileQuestion, Package, ShoppingBag, Sparkles, Timer, Play, Trophy, Bookmark, CreditCard, MessageSquareText
+  Clock, Crown, FileQuestion, Package, ShoppingBag, Sparkles, Timer, Play, Trophy, Bookmark, CreditCard, MessageSquareText, Settings2
 } from 'lucide-react'
 import { useRouterStore } from '@/store/router'
 import { Button } from '@/components/ui/button'
@@ -26,6 +26,7 @@ import { BundleDetailDialog } from './dashboard/BundleDetailDialog'
 import { EditProfileDialog } from './dashboard/EditProfileDialog'
 import CustomExamHistory from './dashboard/CustomExamHistory'
 import FeedbackSection from './dashboard/FeedbackSection'
+import LearningPreferences from './learning/LearningPreferences'
 
 export default function UserDashboardPage() {
   const navigate = useRouterStore((s) => s.navigate)
@@ -268,6 +269,10 @@ export default function UserDashboardPage() {
               <FileQuestion className="size-4" />
               কাস্টম এক্সাম
             </TabsTrigger>
+            <TabsTrigger value="preferences" className="gap-1.5 data-[state=active]:bg-gradient-to-r data-[state=active]:from-emerald-600 data-[state=active]:to-teal-600 data-[state=active]:text-white data-[state=active]:shadow-sm data-[state=active]:shadow-emerald-500/20">
+              <Settings2 className="size-4" />
+              পছন্দ
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="purchased">
@@ -320,6 +325,9 @@ export default function UserDashboardPage() {
           </TabsContent>
           <TabsContent value="custom-exams">
             <CustomExamHistory />
+          </TabsContent>
+          <TabsContent value="preferences">
+            <LearningPreferences />
           </TabsContent>
         </Tabs>
       </div>

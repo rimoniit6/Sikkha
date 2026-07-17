@@ -5,6 +5,7 @@ import { invalidateContentCache } from '@/lib/cache-invalidate'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { auditFromRequest, AuditActions, EntityTypes } from '@/lib/audit'
+import { guardDeleteDependencies } from '@/lib/delete-guard'
 
 const createCqSchema = z.object({
   uddeepok: z.string().min(1, 'উদ্দীপক আবশ্যক'),
@@ -232,6 +233,9 @@ export async function DELETE(request: Request) {
     if (!existing) {
       return apiError('CQ খুঁজে পাওয়া যায়নি', 404)
     }
+
+    const guard = await guardDeleteDependencies('cq', id)
+    if (!guard.ok) return guard.response
 
     await db.cQ.delete({ where: { id } })
 

@@ -45,6 +45,17 @@ export async function GET(request: Request) {
     const auth = await verifyAuth(request)
     let premiumIds = new Set<string>()
 
+    // Class-based access gate: reject if chapter doesn't belong to user's class
+    if (auth?.user?.learningMode === 'CLASS_BASED' && auth?.user?.classLevel) {
+      const chapter = await db.chapter.findUnique({
+        where: { id: chapterId },
+        select: { subject: { select: { class: { select: { slug: true } } } } },
+      })
+      if (chapter?.subject?.class?.slug !== auth.user.classLevel) {
+        return apiError('এই অধ্যায়ের কন্টেন্ট আপনার ক্লাসের জন্য নয়', 403)
+      }
+    }
+
     if (auth) {
       // Resolve chapter's class level for subscription check
       const chapter = await db.chapter.findUnique({

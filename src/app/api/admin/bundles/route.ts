@@ -5,6 +5,7 @@ import { invalidateContentCache } from '@/lib/cache-invalidate'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { toDecimal } from '@/lib/decimal'
+import { guardDeleteDependencies } from '@/lib/delete-guard'
 
 const createBundleSchema = z.object({
   title: z.string().min(1, 'শিরোনাম আবশ্যক'),
@@ -245,6 +246,9 @@ export async function DELETE(request: Request) {
     if (!existing) {
       return apiError('বান্ডেল খুঁজে পাওয়া যায়নি', 404)
     }
+
+    const guard = await guardDeleteDependencies('bundles', id)
+    if (!guard.ok) return guard.response
 
     await db.contentBundle.delete({ where: { id } })
     await invalidateContentCache('bundle')

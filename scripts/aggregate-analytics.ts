@@ -80,7 +80,7 @@ async function main() {
         name: `Daily Revenue Snapshot — ${dateStr}`,
         type: 'revenue',
         format: 'csv',
-        config: { period: dateStr, data: JSON.stringify(revenue) },
+        config: JSON.stringify({ period: dateStr, data: JSON.stringify(revenue) }),
         lastGenerated: new Date(),
       },
     })
@@ -96,7 +96,7 @@ async function main() {
         name: `Daily Users Snapshot — ${dateStr}`,
         type: 'students',
         format: 'csv',
-        config: { period: dateStr, data: JSON.stringify(users) },
+        config: JSON.stringify({ period: dateStr, data: JSON.stringify(users) }),
         lastGenerated: new Date(),
       },
     })
@@ -112,7 +112,7 @@ async function main() {
         name: `Daily Enrollments Snapshot — ${dateStr}`,
         type: 'courses',
         format: 'csv',
-        config: { period: dateStr, data: JSON.stringify(enrollments) },
+        config: JSON.stringify({ period: dateStr, data: JSON.stringify(enrollments) }),
         lastGenerated: new Date(),
       },
     })

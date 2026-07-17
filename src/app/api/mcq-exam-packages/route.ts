@@ -1,6 +1,6 @@
 import { db } from '@/lib/db'
 import { NextRequest, NextResponse } from 'next/server'
-import { requireAuth } from '@/lib/auth'
+import { requireAuth, verifyAuth } from '@/lib/auth'
 import { apiError, withCsrf } from '@/lib/api-utils'
 import { getExamTimeMs, getDhakaOffsetMs } from '@/lib/date-utils'
 import { resolveCourseLayerAccess } from '@/lib/course-access-resolver'
@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
 
     switch (action) {
       case 'list':
-        return await handleList(searchParams)
+        return await handleList(searchParams, request)
       case 'detail':
         return await handleDetail(searchParams, request)
       case 'take-exam':
@@ -100,10 +100,17 @@ function parseSubjectIds(raw: unknown): string[] {
 // 1. LIST — Published packages with pagination
 // ============================================================================
 
-async function handleList(searchParams: URLSearchParams) {
+async function handleList(searchParams: URLSearchParams, request: NextRequest) {
   const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10))
   const limit = Math.min(50, Math.max(1, parseInt(searchParams.get('limit') || '12', 10)))
-  const classId = searchParams.get('classId') || ''
+  let classId = searchParams.get('classId') || ''
+  if (!classId) {
+    const auth = await verifyAuth(request)
+    if (auth?.user?.learningMode === 'CLASS_BASED' && auth?.user?.classLevel) {
+      const classCat = await db.classCategory.findUnique({ where: { slug: auth.user.classLevel }, select: { id: true } })
+      if (classCat) classId = classCat.id
+    }
+  }
   const search = searchParams.get('search') || ''
   const skip = (page - 1) * limit
 

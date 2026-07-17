@@ -2,7 +2,7 @@
 
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { Card, CardContent } from '@/components/ui/card'
-import { HelpCircle, Loader2 } from 'lucide-react'
+import { HelpCircle } from 'lucide-react'
 import { useFAQs, useSiteConfig } from '@/hooks/use-metadata'
 import RichContentRenderer from '@/components/ui/rich-content-renderer'
 
@@ -36,9 +36,10 @@ export default function FAQSection() {
           <Card className="border-0 shadow-lg">
             <CardContent className="p-2 sm:p-4">
               {loading ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-                  <span className="ml-2 text-sm text-muted-foreground">FAQ লোড হচ্ছে...</span>
+                <div className="space-y-3 p-4">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <div key={i} className="h-14 w-full rounded-lg bg-muted animate-pulse" />
+                  ))}
                 </div>
               ) : (
                 <Accordion type="single" collapsible className="w-full">

@@ -2,12 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
+import ClassContextBanner from '@/components/shared/ClassContextBanner'
 import { SlidersHorizontal } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { useRouterStore } from '@/store/router'
 import { useAuthUser } from '@/store/auth'
+import { useLearningPreference } from '@/providers/LearningPreferenceProvider'
 import { useBoardFilterStore } from '@/store/board-filters'
 import { useBoardQuestionsData } from '@/hooks/use-board-questions-data'
 import { useHierarchyMetadata } from '@/hooks/use-hierarchy-metadata'
@@ -66,6 +68,16 @@ export default function BoardPage() {
   const resultsRef = useRef<HTMLDivElement>(null)
 
   const filterCount = useBoardFilterStore((s) => s.getFilterCount())
+  const setFilter = useBoardFilterStore((s) => s.setFilter)
+
+  const { classLevel: learningClassLevel, learningMode: lMode } = useLearningPreference()
+
+  // Initialize classLevels from learning preference on mount
+  useEffect(() => {
+    if (lMode === 'CLASS_BASED' && learningClassLevel && classLevels.length === 0) {
+      setFilter('classLevels', [learningClassLevel])
+    }
+  }, [lMode, learningClassLevel, classLevels.length, setFilter])
 
   const filterSignature = useMemo(
     () => [classLevels.join(','), boards.join(','), years.join(','), subjects.join(','), chapters.join(','), difficulty.join(','), topics.join(','), status.join(','), contentAccess].join('|'),
@@ -150,6 +162,7 @@ export default function BoardPage() {
 
   return (
     <div className="min-h-screen bg-background">
+      <ClassContextBanner />
       <HeroBanner totalQuestions={totalQuestions} recentAdded={recentAdded} activeStudents={stats?.students ?? 0} />
 
       {/* Mobile sticky search + filter bar */}

@@ -1,5 +1,6 @@
 import { apiError,apiResponse,paginatedApiResponse,parseIdsParam,validateBody,withAdmin,withCsrf } from '@/lib/api-utils'
 import { AuditActions,auditFromRequest,EntityTypes } from '@/lib/audit'
+import { guardDeleteDependencies } from '@/lib/delete-guard'
 import { invalidateContentCache } from '@/lib/cache-invalidate'
 import { db } from '@/lib/db'
 import { handleApiError } from '@/lib/errors'
@@ -234,6 +235,9 @@ export async function DELETE(request: Request) {
     if (!existing) {
       return apiError('MCQ খুঁজে পাওয়া যায়নি', 404)
     }
+
+    const guard = await guardDeleteDependencies('mcq', id)
+    if (!guard.ok) return guard.response
 
     await db.mCQ.delete({ where: { id } })
 

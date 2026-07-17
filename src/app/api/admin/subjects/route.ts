@@ -5,6 +5,7 @@ import { invalidateContentCache } from '@/lib/cache-invalidate'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { auditFromRequest, AuditActions } from '@/lib/audit'
+import { guardDeleteDependencies } from '@/lib/delete-guard'
 
 const createSubjectSchema = z.object({
   name: z.string().min(1, 'বিষয়ের নাম আবশ্যক'),
@@ -170,6 +171,9 @@ export async function DELETE(request: Request) {
 
     const existing = await db.subject.findUnique({ where: { id } })
     if (!existing) return apiError('বিষয় খুঁজে পাওয়া যায়নি', 404)
+
+    const guard = await guardDeleteDependencies('subjects', id)
+    if (!guard.ok) return guard.response
 
     await db.subject.delete({ where: { id } })
     await invalidateContentCache('subject')

@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useRouterStore } from '@/store/router'
+import { useLearningPreference } from '@/providers/LearningPreferenceProvider'
 
 interface McqItem {
   id: string
@@ -74,6 +75,7 @@ function LoadingSkeleton() {
 
 export default function RecentContentSection() {
   const navigate = useRouterStore((s) => s.navigate)
+  const { learningMode, classLevel } = useLearningPreference()
   const [mcqs, setMcqs] = useState<McqItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -83,7 +85,11 @@ export default function RecentContentSection() {
 
     async function fetchRecent() {
       try {
-        const res = await fetch('/api/mcq?limit=10')
+        const params = new URLSearchParams({ limit: '10' })
+        if (learningMode === 'CLASS_BASED' && classLevel) {
+          params.set('classLevel', classLevel)
+        }
+        const res = await fetch(`/api/mcq?${params.toString()}`)
         if (!res.ok) throw new Error('ফেচ করতে সমস্যা হয়েছে')
         const json = await res.json()
         if (!cancelled) {
@@ -117,7 +123,7 @@ export default function RecentContentSection() {
 
     fetchRecent()
     return () => { cancelled = true }
-  }, [])
+  }, [learningMode, classLevel])
 
   return (
     <section className="py-16 sm:py-20 bg-background relative overflow-hidden">

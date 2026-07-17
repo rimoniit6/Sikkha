@@ -1,6 +1,7 @@
 'use client'
 
 import EmptyState from '@/components/shared/EmptyState'
+import ClassContextBanner from '@/components/shared/ClassContextBanner'
 import PurchaseOptionsModal from '@/components/shared/PurchaseOptionsModal'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -34,6 +35,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useHierarchyMetadata } from '@/hooks/use-hierarchy-metadata'
 import { cn } from '@/lib/utils'
 import { useRouterStore, useRouteParams } from '@/store/router'
+import { useLearningPreference } from '@/providers/LearningPreferenceProvider'
 import { AnimatePresence,motion } from 'framer-motion'
 import {
 AlignLeft,
@@ -45,6 +47,7 @@ Clock,
 Crown,
 FileQuestion,
 Filter,
+GraduationCap,
 Play,
 Search,
 Target,
@@ -293,10 +296,12 @@ export default function UserExamListPage() {
   // Chapter info for breadcrumb (fetched when navigating from chapter)
   const [chapterInfo, setChapterInfo] = useState<{ name: string; subjectName: string; className: string } | null>(null)
 
+  const { classLevel: learningClassLevel, learningMode: lMode } = useLearningPreference()
+  const classLevel = !isChapterContext && lMode === 'CLASS_BASED' && learningClassLevel ? learningClassLevel : 'all'
+
   // State
   const [exams, setExams] = useState<PublicExam[]>([])
   const [loading, setLoading] = useState(true)
-  const [classLevel, setClassLevel] = useState<string>('all')
   const [examType, setExamType] = useState<string>('mcq')
   const [searchQuery, setSearchQuery] = useState('')
   const [pagination, setPagination] = useState({
@@ -452,6 +457,7 @@ export default function UserExamListPage() {
 
   return (
     <div className="min-h-screen bg-background">
+      <ClassContextBanner />
       {/* Hero - only show when in chapter context */}
       {isChapterContext && (
         <div className="relative h-28 sm:h-32 bg-gradient-to-r from-sky-500 via-sky-600 to-cyan-600 overflow-hidden">
@@ -652,19 +658,13 @@ export default function UserExamListPage() {
           <Card className="border-border/50 shadow-sm">
             <CardContent className="p-4">
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-                {/* Class Level Filter */}
-                <div className="flex items-center gap-2 flex-1 min-w-0">
-                  <Filter className="size-4 text-muted-foreground shrink-0" />
-                  <Select value={classLevel} onValueChange={setClassLevel}>
-                    <SelectTrigger className="w-full sm:w-[140px]">
-                      <SelectValue placeholder="শ্রেণি" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">সকল শ্রেণি</SelectItem>
-                      {classOptions.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
+                {/* Class Badge (auto-inferred) */}
+                {lMode === 'CLASS_BASED' && classLevel && classLevel !== 'all' && (
+                  <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-edu-primary/10 text-edu-primary text-sm font-medium whitespace-nowrap">
+                    <GraduationCap className="size-4" />
+                    {CLASS_LEVEL_LABELS[classLevel] || classLevel}
+                  </div>
+                )}
 
                 {/* Exam Type Filter */}
                 <Select value={examType} onValueChange={setExamType}>
@@ -709,7 +709,6 @@ export default function UserExamListPage() {
             description="আপনার ফিল্টার পরিবর্তন করে আবার চেষ্টা করুন অথবা পরে আসুন। নতুন পরীক্ষা যুক্ত হলে এখানে দেখা যাবে।"
             actionLabel="ফিল্টার রিসেট করুন"
             onAction={() => {
-              setClassLevel('all')
               setExamType('mcq')
               setSearchQuery('')
             }}

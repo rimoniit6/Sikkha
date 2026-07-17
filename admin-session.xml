@@ -1,0 +1,39 @@
+<Objs Version="1.1.0.1" xmlns="http://schemas.microsoft.com/powershell/2004/04">
+  <Obj RefId="0">
+    <TN RefId="0">
+      <T>Microsoft.PowerShell.Commands.WebRequestSession</T>
+      <T>System.Object</T>
+    </TN>
+    <ToString>Microsoft.PowerShell.Commands.WebRequestSession</ToString>
+    <Props>
+      <Obj N="Headers" RefId="1">
+        <TN RefId="1">
+          <T>System.Collections.Generic.Dictionary`2[[System.String, System.Private.CoreLib, Version=10.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e],[System.String, System.Private.CoreLib, Version=10.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]</T>
+          <T>System.Object</T>
+        </TN>
+        <DCT />
+      </Obj>
+      <Obj N="Cookies" RefId="2">
+        <TN RefId="2">
+          <T>System.Net.CookieContainer</T>
+          <T>System.Object</T>
+        </TN>
+        <ToString>System.Net.CookieContainer</ToString>
+        <Props>
+          <I32 N="Capacity">300</I32>
+          <I32 N="Count">1</I32>
+          <I32 N="MaxCookieSize">4096</I32>
+          <I32 N="PerDomainCapacity">20</I32>
+        </Props>
+      </Obj>
+      <B N="UseDefaultCredentials">false</B>
+      <Nil N="Credentials" />
+      <Nil N="Certificates" />
+      <S N="UserAgent">Mozilla/5.0 (Windows NT 10.0; Microsoft Windows 10.0.26200; en-US) PowerShell/7.6.3</S>
+      <Nil N="Proxy" />
+      <I32 N="MaximumRedirection">-1</I32>
+      <I32 N="MaximumRetryCount">0</I32>
+      <I32 N="RetryIntervalInSeconds">0</I32>
+    </Props>
+  </Obj>
+</Objs>

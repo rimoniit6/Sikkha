@@ -57,14 +57,14 @@ function extractItems(contentType: ContentType, raw: unknown): unknown[] {
   const obj = raw as Record<string, unknown>
 
   // Unwrap { success: true, data: ... } envelope if present
-  const payload = obj.success === true && 'data' in obj ? obj.data : obj
+  const payload = (obj.success === true && 'data' in obj ? obj.data : obj) as Record<string, unknown>
 
   switch (contentType) {
-    case 'lecture':    return (payload?.lectures as unknown[]) ?? []
-    case 'mcq':        return (payload?.questions as unknown[]) ?? []
-    case 'cq':         return (payload?.cqs as unknown[]) ?? []
+    case 'lecture':    return (payload.lectures as unknown[]) ?? []
+    case 'mcq':        return (payload.questions as unknown[]) ?? []
+    case 'cq':         return (payload.cqs as unknown[]) ?? []
     case 'board':      return (Array.isArray(payload) ? payload : (obj.data as unknown[])) ?? []
-    case 'knowledge':  return (payload?.data as unknown[]) ?? []
+    case 'knowledge':  return (payload.data as unknown[]) ?? []
     case 'suggestion': return (Array.isArray(payload) ? payload : []) as unknown[]
     case 'exam':       return (Array.isArray(payload) ? payload : []) as unknown[]
     default:           return []

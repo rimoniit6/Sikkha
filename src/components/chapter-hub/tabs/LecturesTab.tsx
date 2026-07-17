@@ -1,12 +1,12 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { Loader2 } from 'lucide-react'
 import { useRouterStore } from '@/store/router'
 import { useChapterLectures, type LectureItem } from '@/hooks/use-chapter-content'
 import { LectureCard } from '../cards/LectureCard'
 import { ChapterEmptyState } from '../ChapterEmptyState'
 import PurchaseOptionsModal from '@/components/shared/PurchaseOptionsModal'
+import { Skeleton } from '@/components/ui/skeleton'
 import {
   Pagination, PaginationContent, PaginationItem, PaginationPrevious,
   PaginationNext,
@@ -40,8 +40,10 @@ export function LecturesTab({ chapterId }: LecturesTabProps) {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      <div className="space-y-3">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Skeleton key={i} className="h-24 w-full rounded-xl" />
+        ))}
       </div>
     )
   }

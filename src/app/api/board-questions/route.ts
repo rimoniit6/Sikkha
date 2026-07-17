@@ -5,6 +5,7 @@ import { db } from '@/lib/db'
 import { apiLimiter } from '@/lib/rate-limit'
 import { Prisma } from '@prisma/client'
 import { NextResponse } from 'next/server'
+import { getClassLevelForRequest } from '@/lib/class-filter'
 
 // ----------------------------------------------------------------
 // Analytics helper — builds a Prisma.Sql WHERE clause from filter
@@ -75,7 +76,10 @@ export async function GET(request: Request) {
     const type = searchParams.get('type')
     const board = searchParams.get('board')
     const year = searchParams.get('year')
-    const classLevel = searchParams.get('classLevel')
+    let classLevel = searchParams.get('classLevel')
+    if (!classLevel) {
+      classLevel = await getClassLevelForRequest(request)
+    }
     const subjectId = searchParams.get('subjectId')
     const chapterId = searchParams.get('chapterId')
     const search = searchParams.get('search')

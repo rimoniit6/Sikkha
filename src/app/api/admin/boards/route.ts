@@ -4,6 +4,7 @@ import { apiResponse, apiError, withAdmin, validateBody } from '@/lib/api-utils'
 import { handleApiError } from '@/lib/errors'
 import { z } from 'zod'
 import { auditFromRequest, AuditActions } from '@/lib/audit'
+import { guardDeleteDependencies } from '@/lib/delete-guard'
 import { invalidateContentCache } from '@/lib/cache-invalidate'
 
 const createBoardSchema = z.object({
@@ -122,6 +123,9 @@ export async function DELETE(req: NextRequest) {
     if (!existing) {
       return apiError('বোর্ড খুঁজে পাওয়া যায়নি', 404)
     }
+
+    const guard = await guardDeleteDependencies('boards', id, existing.slug)
+    if (!guard.ok) return guard.response
 
     await db.board.delete({ where: { id } })
     await auditFromRequest(req, auth.user.id, AuditActions.CONTENT_DELETE, 'board', id)

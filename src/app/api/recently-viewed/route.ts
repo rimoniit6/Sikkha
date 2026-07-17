@@ -2,6 +2,7 @@ import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { verifyAuth } from '@/lib/auth'
 import { apiError, withCsrf } from '@/lib/api-utils'
+import { getClassLevelForUserId } from '@/lib/class-filter'
 
 const VALID_CONTENT_TYPES = ['lecture', 'mcq', 'cq']
 
@@ -18,6 +19,8 @@ export async function GET(request: Request) {
     const contentType = searchParams.get('contentType')
     const limit = Math.min(50, Math.max(1, parseInt(searchParams.get('limit') || '10', 10)))
 
+    const classLevel = await getClassLevelForUserId(userId)
+
     // Build where clause
     const where: { userId: string; contentType?: string } = { userId }
     if (contentType && VALID_CONTENT_TYPES.includes(contentType)) {
@@ -27,31 +30,74 @@ export async function GET(request: Request) {
     const recentlyViewedItems = await db.recentlyViewed.findMany({
       where,
       orderBy: { viewedAt: 'desc' },
-      take: limit,
+      take: limit * 2, // overfetch to account for class filtering
     })
 
-    // Batch-resolve content titles to avoid N+1 queries
+    // Batch-resolve content titles + class membership
     const byType: Record<string, string[]> = {}
     for (const item of recentlyViewedItems) {
       if (!byType[item.contentType]) byType[item.contentType] = []
       byType[item.contentType].push(item.contentId)
     }
     const titleMap = new Map<string, string>()
+    const classMembershipMap = new Map<string, boolean>()
+
     const queries = Object.entries(byType).map(async ([type, ids]) => {
       if (type === 'mcq') {
-        const mcqs = await db.mCQ.findMany({ where: { id: { in: ids } }, select: { id: true, question: true } })
-        for (const m of mcqs) titleMap.set(m.id, m.question.length > 80 ? m.question.substring(0, 80) + '...' : m.question)
+        const mcqs = await db.mCQ.findMany({
+          where: { id: { in: ids }, ...(classLevel ? { classLevel } : {}) },
+          select: { id: true, question: true },
+        })
+        for (const m of mcqs) {
+          titleMap.set(m.id, m.question.length > 80 ? m.question.substring(0, 80) + '...' : m.question)
+          classMembershipMap.set(m.id, true)
+        }
+        if (classLevel) {
+          for (const id of ids) {
+            if (!classMembershipMap.has(id)) classMembershipMap.set(id, false)
+          }
+        }
       } else if (type === 'cq') {
-        const cqs = await db.cQ.findMany({ where: { id: { in: ids } }, select: { id: true, uddeepok: true } })
-        for (const c of cqs) titleMap.set(c.id, c.uddeepok.length > 80 ? c.uddeepok.substring(0, 80) + '...' : c.uddeepok)
+        const cqs = await db.cQ.findMany({
+          where: { id: { in: ids }, ...(classLevel ? { classLevel } : {}) },
+          select: { id: true, uddeepok: true },
+        })
+        for (const c of cqs) {
+          titleMap.set(c.id, c.uddeepok.length > 80 ? c.uddeepok.substring(0, 80) + '...' : c.uddeepok)
+          classMembershipMap.set(c.id, true)
+        }
+        if (classLevel) {
+          for (const id of ids) {
+            if (!classMembershipMap.has(id)) classMembershipMap.set(id, false)
+          }
+        }
       } else if (type === 'lecture') {
-        const lectures = await db.lecture.findMany({ where: { id: { in: ids } }, select: { id: true, title: true } })
-        for (const l of lectures) titleMap.set(l.id, l.title)
+        const lectures = await db.lecture.findMany({
+          where: {
+            id: { in: ids },
+            ...(classLevel ? { chapter: { subject: { class: { slug: classLevel } } } } : {}),
+          },
+          select: { id: true, title: true },
+        })
+        for (const l of lectures) {
+          titleMap.set(l.id, l.title)
+          classMembershipMap.set(l.id, true)
+        }
+        if (classLevel) {
+          for (const id of ids) {
+            if (!classMembershipMap.has(id)) classMembershipMap.set(id, false)
+          }
+        }
       }
     })
     await Promise.all(queries)
 
-    const enrichedItems = recentlyViewedItems.map((item) => ({
+    // Filter by class membership
+    const filteredItems = classLevel
+      ? recentlyViewedItems.filter((item) => classMembershipMap.get(item.contentId) !== false)
+      : recentlyViewedItems
+
+    const enrichedItems = filteredItems.slice(0, limit).map((item) => ({
       id: item.id,
       contentId: item.contentId,
       contentType: item.contentType,

@@ -2,12 +2,12 @@
 
 import { useMemo, useState } from 'react'
 import { AnimatePresence } from 'framer-motion'
-import { Loader2 } from 'lucide-react'
 import { useRouterStore } from '@/store/router'
 import { useChapterMCQs } from '@/hooks/use-chapter-content'
 import { McqCard, type McqItem } from '../cards/McqCard'
 import { ChapterEmptyState } from '../ChapterEmptyState'
 import PurchaseOptionsModal from '@/components/shared/PurchaseOptionsModal'
+import { Skeleton } from '@/components/ui/skeleton'
 import {
   Pagination, PaginationContent, PaginationItem, PaginationPrevious, PaginationNext,
 } from '@/components/ui/pagination'
@@ -38,8 +38,10 @@ export function McqTab({ chapterId }: McqTabProps) {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <Skeleton key={i} className="h-40 w-full rounded-xl" />
+        ))}
       </div>
     )
   }

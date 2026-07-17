@@ -2,6 +2,7 @@ import { db } from '@/lib/db'
 import { apiError, withAdmin, withCsrf, validateBody } from '@/lib/api-utils'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
+import { guardDeleteDependencies } from '@/lib/delete-guard'
 
 const createBoardYearSchema = z.object({
   board: z.string().min(1, 'বোর্ড আবশ্যক'),
@@ -125,6 +126,9 @@ export async function DELETE(request: Request) {
     if (!existing) {
       return apiError('বোর্ড সাল খুঁজে পাওয়া যায়নি', 404)
     }
+
+    const guard = await guardDeleteDependencies('board-years', id)
+    if (!guard.ok) return guard.response
 
     await db.boardYear.delete({ where: { id } })
 

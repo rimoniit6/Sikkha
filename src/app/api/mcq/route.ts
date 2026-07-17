@@ -97,7 +97,13 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url)
     const chapterId = searchParams.get('chapterId')
-    const classLevel = searchParams.get('classLevel')
+    const auth = await verifyAuth(request)
+    let classLevel = searchParams.get('classLevel')
+    if (!classLevel) {
+      if (auth?.user?.learningMode === 'CLASS_BASED' && auth?.user?.classLevel) {
+        classLevel = auth.user.classLevel
+      }
+    }
     const subjectId = searchParams.get('subjectId')
     const type = searchParams.get('type') // "exam" for exam mode, "list" for listing page
     const difficulty = searchParams.get('difficulty')
@@ -105,7 +111,7 @@ export async function GET(request: Request) {
     const year = searchParams.get('year')
     const isPremium = searchParams.get('isPremium')
     const page = parseInt(searchParams.get('page') || '1')
-    const limit = parseInt(searchParams.get('limit') || '500')
+    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '20')))
 
     const where: Record<string, unknown> = { isActive: true }
 
@@ -226,8 +232,7 @@ export async function GET(request: Request) {
       db.mCQ.count({ where }),
     ])
 
-    // Fetch user access control list
-    const auth = await verifyAuth(request)
+    // Fetch user access control list (reuse auth resolved earlier in handler)
     const isAdmin = auth?.user && ['ADMIN', 'SUPER_ADMIN'].includes(auth.user.role)
     
     let accessMap = new Map()

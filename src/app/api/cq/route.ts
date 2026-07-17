@@ -136,8 +136,14 @@ export async function GET(request: Request) {
     if ('error' in rateCheck) return rateCheck.error
 
     const { searchParams } = new URL(request.url)
+    const auth = await verifyAuth(request)
     const chapterId = searchParams.get('chapterId')
-    const classLevel = searchParams.get('classLevel')
+    let classLevel = searchParams.get('classLevel')
+    if (!classLevel) {
+      if (auth?.user?.learningMode === 'CLASS_BASED' && auth?.user?.classLevel) {
+        classLevel = auth.user.classLevel
+      }
+    }
     const subjectId = searchParams.get('subjectId')
     const board = searchParams.get('board')
     const year = searchParams.get('year')
@@ -264,8 +270,7 @@ export async function GET(request: Request) {
       db.cQ.count({ where }),
     ])
 
-    // Fetch user access control list
-    const auth = await verifyAuth(request)
+    // Fetch user access control list (reuse auth resolved earlier in handler)
     const isAdmin = auth?.user && ['ADMIN', 'SUPER_ADMIN'].includes(auth.user.role)
 
     let accessMap = new Map()

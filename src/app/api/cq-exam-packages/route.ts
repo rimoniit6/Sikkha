@@ -17,7 +17,10 @@ export async function GET(request: Request) {
 
     // List available packages (public) - with pagination
     if (action === 'list') {
-      const classSlug = searchParams.get('classSlug') || ''
+      let classSlug = searchParams.get('classSlug') || ''
+      if (!classSlug && auth?.user?.learningMode === 'CLASS_BASED' && auth?.user?.classLevel) {
+        classSlug = auth.user.classLevel
+      }
       const search = searchParams.get('search') || ''
       const page = parseInt(searchParams.get('page') || '1')
       const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 50)

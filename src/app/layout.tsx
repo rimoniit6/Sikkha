@@ -8,6 +8,7 @@ import { QueryClient, dehydrate } from '@tanstack/react-query'
 import { ThemeProvider } from "next-themes";
 import QueryProvider from "@/providers/QueryProvider";
 import AuthProvider from "@/providers/AuthProvider";
+import { LearningPreferenceProvider } from "@/providers/LearningPreferenceProvider";
 import LoadingProvider from "@/providers/LoadingProvider";
 import { RouteLoader } from "@/components/loading/RouteLoader";
 import "./globals.css";
@@ -162,6 +163,7 @@ export default async function RootLayout({
         >
           <QueryProvider dehydratedState={dehydratedState}>
             <AuthProvider>
+              <LearningPreferenceProvider>
               <LoadingProvider>
                 <RouteLoader />
                 <RouteSync />
@@ -171,6 +173,7 @@ export default async function RootLayout({
                 <GlobalStructuredData />
                 {children}
               </LoadingProvider>
+              </LearningPreferenceProvider>
             </AuthProvider>
             <Toaster />
           </QueryProvider>
