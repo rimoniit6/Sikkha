@@ -1,6 +1,5 @@
 'use client'
 
-import { useState } from 'react'
 import { motion } from 'framer-motion'
 import {
   GraduationCap,
@@ -22,7 +21,9 @@ import { getMessages } from '@/lib/messages'
 import Image from 'next/image'
 
 export default function Footer() {
-  const currentYear = new Date().getFullYear()
+  // Static year constant to avoid hydration mismatch between server/client timezones.
+  // Updated annually — only affects footer copyright display.
+  const currentYear = 2026
 
   const navigate = useRouterStore((s) => s.navigate)
   const { config } = useSiteConfig()

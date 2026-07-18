@@ -1,6 +1,7 @@
 import { db } from '@/lib/db'
 import { apiResponse, apiError, withAdmin, withCsrf } from '@/lib/api-utils'
 import { handleApiError } from '@/lib/errors'
+import { deriveIsPremium } from '@/lib/premium'
 import { NextResponse } from 'next/server'
 import { toDecimal } from '@/lib/decimal'
 import { z } from 'zod'
@@ -409,7 +410,7 @@ export async function POST(request: Request) {
             slug,
             description: b.description || null,
             status: normalizeStatus(b.status),
-            isPremium: b.isPremium ?? false,
+            isPremium: deriveIsPremium(b.price),
             price: b.price ?? 0,
             originalPrice: b.originalPrice ?? 0,
             thumbnail: b.thumbnail || null,
@@ -455,6 +456,11 @@ export async function POST(request: Request) {
         }
         if (updateData.status && typeof updateData.status === 'string') {
           updateData.status = updateData.status.toUpperCase()
+        }
+
+        // Derive isPremium from price if price is being changed
+        if (updateData.price !== undefined) {
+          updateData.isPremium = deriveIsPremium(updateData.price)
         }
 
         if (data.slug && data.slug !== existing.slug) {

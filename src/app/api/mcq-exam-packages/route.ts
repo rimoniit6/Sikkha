@@ -231,11 +231,9 @@ async function handleList(searchParams: URLSearchParams, request: NextRequest) {
       },
     },
   })
-  // Public catalog data — safe to cache at the edge/CDN for a short window.
-  response.headers.set(
-    'Cache-Control',
-    'public, s-maxage=60, stale-while-revalidate=300'
-  )
+  // DO NOT cache this response — it contains user-specific purchase status
+  // and must always reflect the latest data after admin edits.
+  response.headers.set('Cache-Control', 'no-store')
   return response
 }
 
@@ -318,7 +316,7 @@ async function handleDetail(searchParams: URLSearchParams, request: NextRequest)
       }
     }
 
-  return NextResponse.json({
+  const response = NextResponse.json({
     success: true,
     data: {
       package: pkg,
@@ -327,6 +325,9 @@ async function handleDetail(searchParams: URLSearchParams, request: NextRequest)
       purchase,
     },
   })
+  // DO NOT cache — contains user-specific purchase status
+  response.headers.set('Cache-Control', 'no-store')
+  return response
 }
 
 // ============================================================================
@@ -1786,7 +1787,7 @@ async function handleSetOverview(searchParams: URLSearchParams, request: NextReq
     retakeRes.json(),
   ])
 
-  return NextResponse.json({
+  const response = NextResponse.json({
     // Only the package detail is mandatory; status/retake can legitimately
     // fail for guests (they require auth) without breaking the whole overview.
     success: detail.success,
@@ -1798,6 +1799,9 @@ async function handleSetOverview(searchParams: URLSearchParams, request: NextReq
       retakeRequests: retake.success ? retake.data?.requests : [],
     },
   })
+  // DO NOT cache — contains user-specific purchase status and package price/premium data
+  response.headers.set('Cache-Control', 'no-store')
+  return response
 }
 
 // ============================================================================

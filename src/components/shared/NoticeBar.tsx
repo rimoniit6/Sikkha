@@ -42,7 +42,7 @@ export default function NoticeBar() {
 
   return (
     <div className="sticky top-16 z-40">
-      <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 dark:from-emerald-800 dark:via-teal-800 dark:to-cyan-800 overflow-hidden animate-notice-slide-down"
+      <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 dark:from-emerald-800 dark:via-teal-800 dark:to-cyan-800 overflow-hidden notice-reveal"
       >
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="flex items-center h-9 gap-3">

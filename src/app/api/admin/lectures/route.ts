@@ -2,6 +2,7 @@ import { db } from '@/lib/db'
 import { apiResponse, paginatedApiResponse, apiError, withAdmin, parseIdsParam, validateBody } from '@/lib/api-utils'
 import { handleApiError } from '@/lib/errors'
 import { invalidateContentCache } from '@/lib/cache-invalidate'
+import { deriveIsPremium } from '@/lib/premium'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { auditFromRequest, AuditActions, EntityTypes } from '@/lib/audit'
@@ -105,7 +106,7 @@ export async function POST(request: Request) {
         title: fields.title, slug: lectureSlug, chapterId: fields.chapterId, content: fields.content,
         videoUrl: fields.videoUrl || null, audioUrl: fields.audioUrl || null, pdfUrl: fields.pdfUrl || null,
         thumbnail: fields.thumbnail || null, duration: fields.duration ?? 0, order: fields.order ?? 0,
-        isPremium: fields.isPremium ?? false, price: fields.price ?? 0, isActive: fields.isActive ?? true,
+        isPremium: deriveIsPremium(fields.price), price: fields.price ?? 0, isActive: fields.isActive ?? true,
       },
     })
 
@@ -144,6 +145,11 @@ export async function PUT(request: Request) {
       if (updateData[field] !== undefined) {
         updateFields[field] = updateData[field]
       }
+    }
+
+    // Derive isPremium from price if price is being changed
+    if (updateData.price !== undefined) {
+      updateFields.isPremium = deriveIsPremium(updateData.price)
     }
 
     const updated = await db.lecture.update({ where: { id }, data: updateFields as never })

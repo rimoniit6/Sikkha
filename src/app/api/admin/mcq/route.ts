@@ -2,6 +2,7 @@ import { apiError,apiResponse,paginatedApiResponse,parseIdsParam,validateBody,wi
 import { AuditActions,auditFromRequest,EntityTypes } from '@/lib/audit'
 import { guardDeleteDependencies } from '@/lib/delete-guard'
 import { invalidateContentCache } from '@/lib/cache-invalidate'
+import { deriveIsPremium } from '@/lib/premium'
 import { db } from '@/lib/db'
 import { handleApiError } from '@/lib/errors'
 import { NextResponse } from 'next/server'
@@ -130,7 +131,7 @@ export async function POST(request: Request) {
         year: fields.year ?? null,
         topic: fields.topic ?? null,
         difficulty: (fields.difficulty || 'MEDIUM').toUpperCase() as 'EASY' | 'MEDIUM' | 'HARD',
-        isPremium: fields.isPremium ?? false,
+        isPremium: deriveIsPremium(fields.price),
         price: fields.price ?? 0,
         tags: fields.tags ?? null,
         isActive: fields.isActive ?? true,
@@ -182,6 +183,11 @@ export async function PUT(request: Request) {
       if (updateData[field] !== undefined) {
         updateFields[field] = updateData[field]
       }
+    }
+
+    // Derive isPremium from price if price is being changed
+    if (updateData.price !== undefined) {
+      updateFields.isPremium = deriveIsPremium(updateData.price)
     }
 
     const updated = await db.mCQ.update({

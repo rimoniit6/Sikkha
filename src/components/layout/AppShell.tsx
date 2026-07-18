@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useEffect, useState } from 'react'
+import { Suspense, useEffect, useRef, useState } from 'react'
 import { usePathname, useSearchParams } from 'next/navigation'
 import Header from './Header'
 import Footer from './Footer'
@@ -16,16 +16,33 @@ interface AppShellProps {
   children: React.ReactNode
 }
 
+/**
+ * NetworkStatus — hydration-safe.
+ *
+ * Server always renders null (isOnline=true, showReconnecting=false).
+ * Client reads navigator.onLine only inside useEffect, never during render.
+ * This guarantees identical DOM on server and first client render.
+ */
 function NetworkStatus() {
-  const [isOnline, setIsOnline] = useState(() => typeof navigator !== 'undefined' ? navigator.onLine : true)
+  const [isOnline, setIsOnline] = useState(true)
   const [showReconnecting, setShowReconnecting] = useState(false)
+  const hasMountedRef = useRef(false)
 
   useEffect(() => {
+    // Read actual browser state only after hydration
+    // Using requestAnimationFrame to avoid synchronous setState in effect
+    const raf = requestAnimationFrame(() => {
+      if (!hasMountedRef.current) {
+        hasMountedRef.current = true
+        setIsOnline(navigator.onLine)
+      }
+    })
+
     const handleOnline = () => {
       setIsOnline(true)
       setShowReconnecting(true)
-      // Auto-hide reconnection banner after 3 seconds
-      setTimeout(() => setShowReconnecting(false), 3000)
+      const timer = setTimeout(() => setShowReconnecting(false), 3000)
+      return () => clearTimeout(timer)
     }
     const handleOffline = () => {
       setIsOnline(false)
@@ -35,12 +52,14 @@ function NetworkStatus() {
     window.addEventListener('online', handleOnline)
     window.addEventListener('offline', handleOffline)
     return () => {
+      cancelAnimationFrame(raf)
       window.removeEventListener('online', handleOnline)
       window.removeEventListener('offline', handleOffline)
     }
   }, [])
 
-  // Don't show anything if online and not reconnecting
+  // Server and first client render: isOnline=true, showReconnecting=false → returns null
+  // Only after useEffect fires does the real state take effect
   if (isOnline && !showReconnecting) return null
 
   // Show reconnection success

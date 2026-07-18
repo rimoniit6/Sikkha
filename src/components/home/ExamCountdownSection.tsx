@@ -20,7 +20,7 @@ interface ExamConfig {
   id: string
   name: string
   nameBn: string
-  date: Date
+  dateStr: string  // ISO string — deterministic, same on server and client
   dateLabel: string
   accentFrom: string
   accentTo: string
@@ -28,15 +28,12 @@ interface ExamConfig {
 }
 
 /* ── Default dates (fallback when admin hasn't configured yet) ── */
-const DEFAULT_HSC_DATE = new Date('2026-04-06T09:00:00+06:00')
-const DEFAULT_SSC_DATE = new Date('2026-02-15T09:00:00+06:00')
-
 const DEFAULT_EXAMS: ExamConfig[] = [
   {
     id: 'hsc-2026',
     name: 'HSC 2026',
     nameBn: 'এইচএসসি পরীক্ষা ২০২৬',
-    date: DEFAULT_HSC_DATE,
+    dateStr: '2026-04-06T09:00:00+06:00',
     dateLabel: '৬ এপ্রিল ২০২৬',
     accentFrom: 'from-amber-500',
     accentTo: 'to-orange-600',
@@ -46,7 +43,7 @@ const DEFAULT_EXAMS: ExamConfig[] = [
     id: 'ssc-2026',
     name: 'SSC 2026',
     nameBn: 'এসএসসি পরীক্ষা ২০২৬',
-    date: DEFAULT_SSC_DATE,
+    dateStr: '2026-02-15T09:00:00+06:00',
     dateLabel: '১৫ ফেব্রুয়ারি ২০২৬',
     accentFrom: 'from-sky-500',
     accentTo: 'to-cyan-600',
@@ -62,9 +59,25 @@ interface TimeLeft {
   total: number
 }
 
-function getTimeLeft(target: Date): TimeLeft {
-  const now = Date.now()
-  const diff = Math.max(0, target.getTime() - now)
+/** Compute time left from a target date string. Deterministic — no Date.now() in render. */
+function getTimeLeft(dateStr: string): TimeLeft {
+  const target = new Date(dateStr).getTime()
+  const diff = Math.max(0, target - Date.now())
+  return {
+    days: Math.floor(diff / (1000 * 60 * 60 * 24)),
+    hours: Math.floor((diff / (1000 * 60 * 60)) % 24),
+    minutes: Math.floor((diff / (1000 * 60)) % 60),
+    seconds: Math.floor((diff / 1000) % 60),
+    total: diff,
+  }
+}
+
+/** Deterministic initial time left — uses a fixed reference so server and client match. */
+function getInitialTimeLeft(dateStr: string): TimeLeft {
+  const target = new Date(dateStr).getTime()
+  // Use a fixed reference (target - 1 day) so both server and client render the same numbers.
+  // The real countdown starts in useEffect.
+  const diff = Math.max(0, target - (target - 86400000))
   return {
     days: Math.floor(diff / (1000 * 60 * 60 * 24)),
     hours: Math.floor((diff / (1000 * 60 * 60)) % 24),
@@ -98,14 +111,24 @@ function CountdownBox({ value, label }: { value: number; label: string }) {
 
 function ExamCountdownCard({ exam, isPrimary }: { exam: ExamConfig; isPrimary: boolean }) {
   const navigate = useRouterStore((s) => s.navigate)
-  const [time, setTime] = useState<TimeLeft>(() => getTimeLeft(exam.date))
+  // Use deterministic initial value — same on server and client
+  const [time, setTime] = useState<TimeLeft>(() => getInitialTimeLeft(exam.dateStr))
 
+  // Start real countdown only after hydration
   useEffect(() => {
+    // Compute real time left via rAF to avoid synchronous setState in effect
+    const raf = requestAnimationFrame(() => {
+      setTime(getTimeLeft(exam.dateStr))
+    })
+
     const id = setInterval(() => {
-      setTime(getTimeLeft(exam.date))
+      setTime(getTimeLeft(exam.dateStr))
     }, 1000)
-    return () => clearInterval(id)
-  }, [exam.date])
+    return () => {
+      cancelAnimationFrame(raf)
+      clearInterval(id)
+    }
+  }, [exam.dateStr])
 
   const isExpired = time.total <= 0
 
@@ -193,16 +216,15 @@ export default function ExamCountdownSection() {
 
     // Exam 1 — use admin config or fallback
     const exam1Name = config?.homepageExam1Name || DEFAULT_EXAMS[0].nameBn
-    const exam1DateStr = config?.homepageExam1Date || DEFAULT_EXAMS[0].date.toISOString()
+    const exam1DateStr = config?.homepageExam1Date || DEFAULT_EXAMS[0].dateStr
     const exam1DateLabel = config?.homepageExam1DateLabel || DEFAULT_EXAMS[0].dateLabel
-    const exam1Date = new Date(exam1DateStr)
 
-    if (!isNaN(exam1Date.getTime())) {
+    if (exam1DateStr && !isNaN(new Date(exam1DateStr).getTime())) {
       result.push({
         id: 'exam-1',
         name: 'Exam 1',
         nameBn: exam1Name,
-        date: exam1Date,
+        dateStr: exam1DateStr,
         dateLabel: exam1DateLabel,
         accentFrom: 'from-amber-500',
         accentTo: 'to-orange-600',
@@ -212,16 +234,15 @@ export default function ExamCountdownSection() {
 
     // Exam 2 — use admin config or fallback
     const exam2Name = config?.homepageExam2Name || DEFAULT_EXAMS[1].nameBn
-    const exam2DateStr = config?.homepageExam2Date || DEFAULT_EXAMS[1].date.toISOString()
+    const exam2DateStr = config?.homepageExam2Date || DEFAULT_EXAMS[1].dateStr
     const exam2DateLabel = config?.homepageExam2DateLabel || DEFAULT_EXAMS[1].dateLabel
-    const exam2Date = new Date(exam2DateStr)
 
-    if (!isNaN(exam2Date.getTime())) {
+    if (exam2DateStr && !isNaN(new Date(exam2DateStr).getTime())) {
       result.push({
         id: 'exam-2',
         name: 'Exam 2',
         nameBn: exam2Name,
-        date: exam2Date,
+        dateStr: exam2DateStr,
         dateLabel: exam2DateLabel,
         accentFrom: 'from-sky-500',
         accentTo: 'to-cyan-600',

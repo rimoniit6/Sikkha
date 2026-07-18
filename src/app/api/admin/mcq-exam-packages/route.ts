@@ -2,6 +2,7 @@ import { db } from '@/lib/db'
 import { apiResponse, apiError, withAdmin, validateBody } from '@/lib/api-utils'
 import { handleApiError } from '@/lib/errors'
 import { toBengaliNumerals } from '@/lib/utils'
+import { deriveIsPremium } from '@/lib/premium'
 import { NextResponse } from 'next/server'
 import { toDecimal } from '@/lib/decimal'
 import { z } from 'zod'
@@ -374,7 +375,7 @@ export async function POST(request: Request) {
             subjectIds: subjectIds ? JSON.stringify(subjectIds) : '[]',
             price: price ?? 0,
             originalPrice: originalPrice ?? 0,
-            isPremium: isPremium ?? true,
+            isPremium: deriveIsPremium(price),
             thumbnail: thumbnail || null,
             isActive: isActive ?? true,
             order: order ?? 0,
@@ -615,6 +616,11 @@ export async function PUT(request: Request) {
         }
 
         if (updateData.subjectIds !== undefined)       data.subjectIds = JSON.stringify(updateData.subjectIds)
+
+        // Derive isPremium from price if price is being changed
+        if (updateData.price !== undefined) {
+          data.isPremium = deriveIsPremium(updateData.price)
+        }
 
         const updated = await db.mCQExamPackage.update({
           where: { id },

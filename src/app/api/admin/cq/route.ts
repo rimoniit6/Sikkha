@@ -2,6 +2,7 @@ import { db } from '@/lib/db'
 import { apiResponse, paginatedApiResponse, apiError, withAdmin, parseIdsParam, validateBody, withCsrf } from '@/lib/api-utils'
 import { handleApiError } from '@/lib/errors'
 import { invalidateContentCache } from '@/lib/cache-invalidate'
+import { deriveIsPremium } from '@/lib/premium'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { auditFromRequest, AuditActions, EntityTypes } from '@/lib/audit'
@@ -136,7 +137,7 @@ export async function POST(request: Request) {
         chapterId, classLevel, subjectId,
         board: board || null, year: year || null, topic: topic || null,
         difficulty: (difficulty || 'MEDIUM').toUpperCase() as 'EASY' | 'MEDIUM' | 'HARD',
-        isPremium: isPremium ?? false, price: price ?? 0,
+        isPremium: deriveIsPremium(price), price: price ?? 0,
         tags: tags || null, isActive: isActive ?? true,
       },
     })
@@ -183,6 +184,11 @@ export async function PUT(request: Request) {
       if (updateData[field] !== undefined) {
         updateFields[field] = updateData[field]
       }
+    }
+
+    // Derive isPremium from price if price is being changed
+    if (updateData.price !== undefined) {
+      updateFields.isPremium = deriveIsPremium(updateData.price)
     }
 
     const updated = await db.cQ.update({ where: { id }, data: updateFields as never })

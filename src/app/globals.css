@@ -903,7 +903,7 @@ mroot, msqrt { font-style: normal; }
 .animate-loading-bar-2 { animation: loading-bar-2 1.2s ease-in-out 0.15s infinite alternate; }
 .animate-loading-bar-3 { animation: loading-bar-3 1.2s ease-in-out 0.3s infinite alternate; }
 .animate-dot-bounce { animation: dot-bounce 0.8s ease-in-out infinite; }
-.animate-notice-slide-down { animation: notice-slide-down 0.3s ease-out both; overflow: hidden; }
+.notice-reveal { animation: notice-slide-down 0.3s ease-out both; overflow: hidden; }
 .animate-notice-pulse { animation: notice-pulse 2s ease-in-out infinite; }
 .animate-bounce-in-up { animation: bounce-in-up 0.6s ease-out both; }
 .animate-blink { animation: blink 1s step-end infinite; }

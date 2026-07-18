@@ -14,13 +14,24 @@ interface Particle {
 
 const particleColors = [COLORS.primary, COLORS.secondary, COLORS.accent]
 
+/**
+ * Deterministic particle generation — no Math.random().
+ * Uses a seeded pseudo-random based on particle index so server and client
+ * produce identical DOM, preventing hydration mismatches.
+ */
+function seededRandom(seed: number): number {
+  // Simple deterministic hash: sin-based pseudo-random
+  const x = Math.sin(seed * 9301 + 49297) * 49297
+  return x - Math.floor(x)
+}
+
 function generateParticles(): Particle[] {
   return Array.from({ length: MAX_PARTICLES }, (_, i) => ({
     id: i,
-    x: Math.random() * 180 - 90,
-    y: Math.random() * 80 - 40,
-    size: Math.random() * 3 + 1.5,
-    delay: Math.random() * PARTICLE_FLOAT_DURATION,
+    x: seededRandom(i * 7 + 1) * 180 - 90,
+    y: seededRandom(i * 13 + 3) * 80 - 40,
+    size: seededRandom(i * 17 + 5) * 3 + 1.5,
+    delay: seededRandom(i * 23 + 7) * PARTICLE_FLOAT_DURATION,
     color: particleColors[i % particleColors.length],
   }))
 }

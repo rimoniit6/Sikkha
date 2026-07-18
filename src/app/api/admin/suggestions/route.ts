@@ -1,6 +1,7 @@
 import { apiResponse,parseIdsParam,validateBody,withAdmin } from '@/lib/api-utils'
 import { guardDeleteDependencies } from '@/lib/delete-guard'
 import { invalidateContentCache } from '@/lib/cache-invalidate'
+import { deriveIsPremium } from '@/lib/premium'
 import { db } from '@/lib/db'
 import { handleApiError } from '@/lib/errors'
 import { NextResponse } from 'next/server'
@@ -124,7 +125,7 @@ export async function POST(request: Request) {
         chapterId: chapterId || null,
         thumbnail: thumbnail || null,
         pdfUrl: pdfUrl || null,
-        isPremium: isPremium ?? false,
+        isPremium: deriveIsPremium(price),
         price: price ?? 0,
         order: order ?? 0,
         isActive: isActive ?? true,
@@ -166,6 +167,11 @@ export async function PUT(request: Request) {
       if (updateData[field] !== undefined) {
         data[field] = updateData[field]
       }
+    }
+
+    // Derive isPremium from price if price is being changed
+    if (updateData.price !== undefined) {
+      data.isPremium = deriveIsPremium(updateData.price)
     }
 
     const updated = await db.suggestion.update({

@@ -1,10 +1,11 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { BookOpen, GraduationCap, ArrowRight, Sparkles, Star, Loader2, Play, Users, Award, Zap } from 'lucide-react'
+import { BookOpen, GraduationCap, ArrowRight, Sparkles, Star, Play, Users, Award, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useRouterStore } from '@/store/router'
-import { usePublicStats, useSiteConfig } from '@/hooks/use-metadata'
+import { useSiteConfig } from '@/hooks/use-metadata'
+import { useLearningPreference } from '@/providers/LearningPreferenceProvider'
 
 const floatingElements = [
   { Icon: BookOpen, x: '8%', y: '18%', delay: 0, size: 28 },
@@ -39,6 +40,9 @@ function ParticleCanvas() {
   const isMobile = useIsMobile()
 
   useEffect(() => {
+    // Respect prefers-reduced-motion — skip animation entirely
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+
     const canvas = canvasRef.current
     if (!canvas) return
     const ctx = canvas.getContext('2d')
@@ -136,7 +140,6 @@ function ParticleCanvas() {
 
 export default function HeroSection() {
   const navigate = useRouterStore((s) => s.navigate)
-  const { stats, loading } = usePublicStats()
   const { config } = useSiteConfig()
   const isMobile = useIsMobile()
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 })
@@ -153,14 +156,43 @@ export default function HeroSection() {
     return () => window.removeEventListener('mousemove', handleMove)
   }, [isMobile])
 
-  const heroStats = stats
-    ? [
-        { value: formatStatValue(stats.students), label: 'শিক্ষার্থী', icon: Users },
-        { value: formatStatValue(stats.mcqs), label: 'MCQ প্রশ্ন', icon: BookOpen },
-        { value: formatStatValue(stats.lectures), label: 'লেকচার', icon: Play },
-        { value: formatStatValue(stats.exams), label: 'পরীক্ষা', icon: Award },
-      ]
-    : []
+  // ── Urgency: class-aware exam countdown ──────────────────────────
+  // Priority 1: Show exam relevant to user's class context
+  // Priority 2: Show nearest upcoming exam (guest visitors)
+  // Priority 3: Hide if no valid exam exists
+  const { classLevel } = useLearningPreference()
+  const [urgency, setUrgency] = useState<{ name: string; days: number } | null>(null)
+
+  useEffect(() => {
+    const now = Date.now()
+    const DAY = 86400000
+    const MAX_DAYS = 180
+
+    const exams = [
+      { name: config?.homepageExam1Name, date: config?.homepageExam1Date },
+      { name: config?.homepageExam2Name, date: config?.homepageExam2Date },
+    ]
+      .filter((e) => e.name && e.date && !isNaN(new Date(e.date).getTime()))
+      .map((e) => ({ ...e, days: Math.ceil((new Date(e.date).getTime() - now) / DAY) }))
+
+    const valid = exams.filter((e) => e.days > 0 && e.days < MAX_DAYS)
+    if (valid.length === 0) { setUrgency(null); return }
+
+    // Priority 1: Class-based selection
+    const classExamMap: Record<string, string> = {
+      'class-9': 'ssc', 'class-10': 'ssc', ssc: 'ssc',
+      'class-11': 'hsc', 'class-12': 'hsc', hsc: 'hsc',
+    }
+    if (classLevel) {
+      const examType = classExamMap[classLevel]
+      const match = valid.find((e) => e.name.toLowerCase().includes(examType))
+      if (match) { setUrgency({ name: match.name, days: match.days }); return }
+    }
+
+    // Priority 2: Nearest exam
+    valid.sort((a, b) => a.days - b.days)
+    setUrgency({ name: valid[0].name, days: valid[0].days })
+  }, [config?.homepageExam1Date, config?.homepageExam1Name, config?.homepageExam2Date, config?.homepageExam2Name, classLevel])
 
   return (
     <section className={`relative ${isMobile ? 'min-h-[80vh]' : 'min-h-[92vh]'} flex flex-col overflow-hidden`}>
@@ -202,28 +234,30 @@ export default function HeroSection() {
             {/* Top Badge */}
             <div className={isMobile ? 'mb-4' : 'mb-6'}>
               <span className="relative inline-flex items-center gap-2 px-4 sm:px-5 py-2 sm:py-2.5 rounded-full bg-white/15 backdrop-blur-sm text-white text-xs sm:text-sm font-medium border border-white/20 shadow-lg shadow-black/10">
-                <span className="absolute inset-0 rounded-full bg-white/5 animate-pulse-ring" />
-                <span className="absolute inset-0 rounded-full bg-white/5 animate-pulse-ring-delayed" />
-                <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 relative z-10" />
-                <span className="relative z-10">{config?.heroBadge || 'বাংলাদেশের সেরা অনলাইন শিক্ষা প্ল্যাটফর্ম'}</span>
+                <span className="relative z-10">{config?.heroBadge || '৮০% কনটেন্ট বিনামূল্যে'}</span>
               </span>
             </div>
 
             {/* Main Heading */}
             <h1 className={`${isMobile ? 'text-3xl' : 'text-4xl sm:text-5xl md:text-6xl lg:text-7xl'} font-extrabold text-white leading-[1.1] mb-4 sm:mb-6 tracking-tight`}>
-              {config?.heroTitle || 'বাংলাদেশের সেরা'}
-              <br />
-              <span className="relative inline-block mt-1">
-                <span className="bg-gradient-to-r from-yellow-200 via-amber-300 to-yellow-200 bg-clip-text text-transparent animate-text-shimmer bg-[length:200%_auto]">
-                  শিক্ষা প্ল্যাটফর্ম
-                </span>
-                <span className="absolute -bottom-1 left-0 right-0 h-1 bg-gradient-to-r from-yellow-300/0 via-amber-300/60 to-yellow-300/0 rounded-full" />
-              </span>
+              {config?.heroTitle || 'Class 6 থেকে HSC পর্যন্ত A+ পেতে প্রস্তুত হোন'}
             </h1>
 
             {/* Subtitle */}
             <p className={`${isMobile ? 'text-base' : 'text-lg sm:text-xl'} text-white/85 max-w-2xl mx-auto mb-8 sm:mb-10 leading-relaxed`}>
-              {config?.heroSubtitle || 'Class 6 থেকে HSC পর্যন্ত সকল বিষয়ের লেকচার, MCQ, সৃজনশীল প্রশ্ন ও বোর্ড প্রশ্ন'}
+              {config?.heroSubtitle || 'সরকারি কারিকুলাম অনুযায়ী লেকচার, প্র্যাকটিস MCQ ও বোর্ড প্রশ্ন — ৮০% কনটেন্ট বিনামূল্যে'}
+            </p>
+
+            {/* Feature Strip — Product Discovery */}
+            <div className={`${isMobile ? 'flex flex-nowrap overflow-x-auto gap-3 pb-1 -mx-4 px-4 snap-x snap-mandatory no-scrollbar' : 'flex flex-wrap justify-center gap-x-4 gap-y-2'} mb-6 sm:mb-8`}>
+              {['🎬 ভিডিও ক্লাস', '📝 MCQ', '📖 বোর্ড প্রশ্ন', '✍️ সৃজনশীল', '🏆 মডেল টেস্ট', '📄 PDF নোট'].map((item) => (
+                <span key={item} className={`${isMobile ? 'snap-center shrink-0 text-xs' : 'text-sm'} text-white/90 whitespace-nowrap`}>{item}</span>
+              ))}
+            </div>
+
+            {/* Trust Message */}
+            <p className={`${isMobile ? 'text-xs' : 'text-sm'} text-white/90 text-center mb-6 sm:mb-8`}>
+              ১০,০০০+ শিক্ষার্থী · ৫০,০০০+ MCQ · ৮০% কনটেন্ট বিনামূল্যে
             </p>
 
             {/* CTA Buttons */}
@@ -234,46 +268,28 @@ export default function HeroSection() {
                 onClick={() => navigate('class-list')}
               >
                 <span className="flex items-center gap-2 justify-center">
-                  শিক্ষা শুরু করুন
+                  ফ্রি শুরু করুন
                   <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 transition-transform duration-200 group-hover:translate-x-0.5" />
                 </span>
               </Button>
               <Button
                 variant="outline"
                 size="lg"
-                className={`group border-2 border-white/30 text-white hover:bg-white/15 hover:border-white/50 hover:text-white font-bold ${isMobile ? 'text-base w-full h-12' : 'text-lg px-10 h-13'} bg-white/5 backdrop-blur-sm transition-all duration-300 hover:scale-[1.02] active:scale-[0.97] hover-shine`}
-                onClick={() => navigate('premium')}
+                className={`group border-2 border-white/30 text-white hover:bg-white/15 hover:border-white/50 hover:text-white font-bold ${isMobile ? 'text-base w-full h-12' : 'text-lg px-10 h-13'} bg-white/10 backdrop-blur-sm transition-all duration-300 hover:scale-[1.02] active:scale-[0.97] hover-shine`}
+                onClick={() => navigate('board-questions')}
               >
                 <span className="flex items-center gap-2 justify-center">
-                  প্রিমিয়াম দেখুন
-                  <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 transition-transform duration-200 group-hover:rotate-12" />
+                  বোর্ড প্রশ্ন দেখুন
                 </span>
               </Button>
             </div>
 
-            {/* Stats */}
-            <div className={`grid grid-cols-2 ${!isMobile ? 'md:grid-cols-4' : ''} gap-2.5 sm:gap-5 ${isMobile ? 'max-w-sm' : 'max-w-3xl'} mx-auto`}>
-              {heroStats.map((stat, i) => {
-                const StatIcon = stat.icon
-                return (
-                  <div
-                    key={i}
-                    className={`group relative bg-white/10 backdrop-blur-sm rounded-xl sm:rounded-2xl ${isMobile ? 'p-3' : 'p-4 sm:p-5'} border border-white/15 hover:bg-white/18 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-black/10 animate-scale-in cursor-default`}
-                    style={{ animationDelay: `${0.8 + i * 0.1}s` }}
-                  >
-                    <StatIcon className={`${isMobile ? 'w-3.5 h-3.5' : 'w-4 h-4'} text-white/50 mx-auto mb-1.5 sm:mb-2 transition-colors group-hover:text-amber-300`} />
-                    <div className={`${isMobile ? 'text-xl' : 'text-2xl sm:text-3xl'} font-bold text-white`}>
-                      {loading ? (
-                        <div role="status" aria-busy="true"><Loader2 className={`${isMobile ? 'w-5 h-5' : 'w-6 h-6'} animate-spin mx-auto`} /></div>
-                      ) : (
-                        stat.value
-                      )}
-                    </div>
-                    <div className={`${isMobile ? 'text-[10px]' : 'text-xs sm:text-sm'} text-white/70 mt-0.5 sm:mt-1 font-medium`}>{stat.label}</div>
-                  </div>
-                )
-              })}
-            </div>
+            {/* Urgency Message — class-aware exam countdown (conditional, no spacing — CTA wrapper provides margin) */}
+            {urgency && (
+              <p className={`${isMobile ? 'text-xs' : 'text-sm'} text-white/90 text-center`}>
+                {urgency.name}: {formatStatValue(urgency.days).replace('+', '')} দিন বাকি — এখনই প্রস্তুতি শুরু করুন
+              </p>
+            )}
           </div>
         </div>
       </div>

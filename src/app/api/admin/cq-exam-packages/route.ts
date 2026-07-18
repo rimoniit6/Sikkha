@@ -2,6 +2,7 @@ import { apiError,apiResponse,withAdmin } from '@/lib/api-utils'
 import { AuditActions,createAuditLog,EntityTypes,getClientIP } from '@/lib/audit'
 import { db } from '@/lib/db'
 import { handleApiError } from '@/lib/errors'
+import { deriveIsPremium } from '@/lib/premium'
 import { NextResponse } from 'next/server'
 import { toDecimal } from '@/lib/decimal'
 import { guardDeleteDependencies } from '@/lib/delete-guard'
@@ -300,7 +301,7 @@ export async function POST(request: Request) {
             subjectIds: subjectIds ? JSON.stringify(subjectIds) : '[]',
             price: price || 0, originalPrice: originalPrice || 0,
             thumbnail: thumbnail || null,
-            isPremium: isPremium ?? true,
+            isPremium: deriveIsPremium(price),
             isActive: isActive ?? true,
             order: order ?? 0, status: status || 'DRAFT',
           },
@@ -470,6 +471,11 @@ export async function PUT(request: Request) {
         }
         if (updateData.subjectIds !== undefined) {
           updateData.subjectIds = JSON.stringify(updateData.subjectIds)
+        }
+
+        // Derive isPremium from price if price is being changed
+        if (updateData.price !== undefined) {
+          updateData.isPremium = deriveIsPremium(updateData.price)
         }
 
         const pkg = await db.cQExamPackage.update({ where: { id }, data: updateData as never })

@@ -47,7 +47,10 @@ export async function GET(request: Request) {
         db.cQExamPackage.count({ where }),
       ])
 
-      return NextResponse.json({ success: true, data: { packages }, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } })
+      const response = NextResponse.json({ success: true, data: { packages }, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } })
+      // DO NOT cache — contains user-specific purchase status
+      response.headers.set('Cache-Control', 'no-store')
+      return response
     }
 
     // Package detail with sets

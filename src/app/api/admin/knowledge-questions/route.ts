@@ -1,6 +1,7 @@
 import { db } from '@/lib/db'
 import { apiResponse, paginatedApiResponse, apiError, withAdmin, validateBody } from '@/lib/api-utils'
 import { handleApiError } from '@/lib/errors'
+import { deriveIsPremium } from '@/lib/premium'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 
@@ -103,7 +104,7 @@ export async function POST(request: Request) {
         answer,
         questionImage: questionImage || null,
         answerImage: answerImage || null,
-        isPremium: isPremium ?? false,
+        isPremium: deriveIsPremium(price),
         price: price ?? 0,
         order: order ?? 0,
       },
@@ -142,7 +143,11 @@ export async function PUT(request: Request) {
     if (questionImage !== undefined) updateData.questionImage = questionImage
     if (answerImage !== undefined) updateData.answerImage = answerImage
     if (isPremium !== undefined) updateData.isPremium = isPremium
-    if (price !== undefined) updateData.price = price
+    if (price !== undefined) {
+      updateData.price = price
+      // Derive isPremium from price
+      updateData.isPremium = deriveIsPremium(price)
+    }
     if (order !== undefined) updateData.order = order
     if (isActive !== undefined) updateData.isActive = isActive
 

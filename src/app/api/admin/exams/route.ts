@@ -1,6 +1,7 @@
 import { db } from '@/lib/db'
 import { apiResponse, paginatedApiResponse, apiError, withAdmin, parseIdsParam, validateBody } from '@/lib/api-utils'
 import { handleApiError } from '@/lib/errors'
+import { deriveIsPremium } from '@/lib/premium'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { toDecimal } from '@/lib/decimal'
@@ -99,7 +100,7 @@ export async function POST(request: Request) {
         title, description: description || null, classLevel, subjectId: subjectId || null,
         chapterIds: chapterIds || null, type: type as 'MCQ' | 'CQ' | 'MIXED', duration,
         totalMarks: totalMarks ?? 0, marksPerMcq: marksPerMcq ?? 1, negativeMarks: negativeMarks ?? 0,
-        isPremium: isPremium ?? false, price: price ?? 0, isActive: isActive ?? true,
+        isPremium: deriveIsPremium(price), price: price ?? 0, isActive: isActive ?? true,
         status: ((status ?? 'DRAFT') as string).toUpperCase() as 'DRAFT' | 'PUBLISHED' | 'ARCHIVED', instructions: instructions || null,
         startsAt: startsAt ? new Date(startsAt) : null,
         endsAt: endsAt ? new Date(endsAt) : null,
@@ -146,6 +147,11 @@ export async function PUT(request: Request) {
       if (updateData[field] !== undefined) {
         updateFields[field] = field === 'status' ? String(updateData[field]).toUpperCase() : updateData[field]
       }
+    }
+
+    // Derive isPremium from price if price is being changed
+    if (updateData.price !== undefined) {
+      updateFields.isPremium = deriveIsPremium(updateData.price)
     }
 
     if (updateData.startsAt !== undefined) updateFields.startsAt = updateData.startsAt ? new Date(updateData.startsAt) : null
