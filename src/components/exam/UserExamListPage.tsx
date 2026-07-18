@@ -36,7 +36,6 @@ import { useHierarchyMetadata } from '@/hooks/use-hierarchy-metadata'
 import { cn } from '@/lib/utils'
 import { useRouterStore, useRouteParams } from '@/store/router'
 import { useLearningPreference } from '@/providers/LearningPreferenceProvider'
-import { AnimatePresence,motion } from 'framer-motion'
 import {
 AlignLeft,
 ArrowLeft,
@@ -97,58 +96,28 @@ const TYPE_COLORS: Record<string, string> = {
   mixed: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300',
 }
 
-// ─── Animation Variants ──────────────────────────────────────────────────────
-
-const containerVariants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: { staggerChildren: 0.06 },
-  },
-}
-
-const cardVariants = {
-  hidden: { opacity: 0, y: 20, scale: 0.97 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    scale: 1,
-    transition: { duration: 0.4, ease: 'easeOut' },
-  },
-} as const
-
 // ─── Skeleton Card ───────────────────────────────────────────────────────────
 
 function ExamCardSkeleton() {
   return (
-    <Card className="overflow-hidden border-border/50">
+    <Card className="overflow-hidden border-border/50 rounded-xl">
       <CardContent className="p-0">
-        {/* Top accent bar */}
         <Skeleton className="h-1.5 w-full" />
-        <div className="p-5 space-y-4">
-          {/* Title + Badge row */}
+        <div className="p-4 sm:p-5 space-y-3">
           <div className="flex items-start justify-between gap-2">
             <Skeleton className="h-5 w-3/5" />
             <Skeleton className="h-5 w-16 rounded-full" />
           </div>
-          {/* Badges */}
           <div className="flex items-center gap-2">
             <Skeleton className="h-5 w-12 rounded-full" />
             <Skeleton className="h-5 w-14 rounded-full" />
           </div>
-          {/* Stats */}
           <div className="flex items-center gap-4">
             <Skeleton className="h-4 w-20" />
             <Skeleton className="h-4 w-16" />
             <Skeleton className="h-4 w-20" />
           </div>
-          {/* Description */}
-          <div className="space-y-2">
-            <Skeleton className="h-3.5 w-full" />
-            <Skeleton className="h-3.5 w-4/5" />
-          </div>
-          {/* Button */}
-          <Skeleton className="h-10 w-full rounded-md" />
+          <Skeleton className="h-10 w-full rounded-lg" />
         </div>
       </CardContent>
     </Card>
@@ -163,12 +132,14 @@ function ExamCard({
   onPremiumClick,
   classLevelLabels,
   classLevelColors,
+  index,
 }: {
   exam: PublicExam
   onStart: (exam: PublicExam) => void
   onPremiumClick: (exam: PublicExam) => void
   classLevelLabels: Record<string, string>
   classLevelColors: Record<string, string>
+  index: number
 }) {
   const classLabel = classLevelLabels[exam.classLevel] || exam.classLevel
   const typeLabel = TYPE_LABELS[exam.type] || exam.type
@@ -176,8 +147,8 @@ function ExamCard({
   const classColor = classLevelColors[exam.classLevel] || classLevelColors['class-6']
 
   return (
-    <motion.div variants={cardVariants} whileHover={{ y: -2 }} className="h-full">
-      <Card className="overflow-hidden border-border/50 hover:border-emerald-300 dark:hover:border-emerald-700 transition-colors h-full flex flex-col">
+    <div className="animate-fade-in-up h-full" style={{ animationDelay: `${index * 0.05}s` }}>
+      <Card className="overflow-hidden border-border/50 hover:border-emerald-300 dark:hover:border-emerald-700 transition-all duration-200 h-full flex flex-col rounded-xl sm:rounded-2xl group">
         <CardContent className="p-0 flex flex-col flex-1">
           {/* Top accent bar */}
           <div
@@ -189,16 +160,16 @@ function ExamCard({
             )}
           />
 
-          <div className="p-5 flex flex-col flex-1">
+          <div className="p-4 sm:p-5 flex flex-col flex-1">
             {/* Title + Premium badge */}
-            <div className="flex items-start justify-between gap-2 mb-3">
-              <h3 className="font-semibold text-foreground leading-snug line-clamp-2 flex-1">
+            <div className="flex items-start justify-between gap-2 mb-2.5">
+              <h3 className="font-semibold text-foreground leading-snug line-clamp-2 flex-1 text-sm sm:text-base">
                 {exam.title}
               </h3>
               {exam.isPremium && (
                 <Badge
                   className={cn(
-                    'shrink-0 gap-1 bg-amber-100 text-amber-700 border-amber-200',
+                    'shrink-0 gap-1 text-[10px] sm:text-xs bg-amber-100 text-amber-700 border-amber-200',
                     'dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-800'
                   )}
                 >
@@ -209,22 +180,22 @@ function ExamCard({
             </div>
 
             {/* Class + Type badges */}
-            <div className="flex items-center gap-2 mb-3 flex-wrap">
-              <Badge variant="outline" className={cn('text-xs font-medium', classColor)}>
+            <div className="flex items-center gap-1.5 sm:gap-2 mb-2.5 flex-wrap">
+              <Badge variant="outline" className={cn('text-[10px] sm:text-xs font-medium', classColor)}>
                 {classLabel}
               </Badge>
-              <Badge variant="outline" className={cn('text-xs font-medium', typeColor)}>
+              <Badge variant="outline" className={cn('text-[10px] sm:text-xs font-medium', typeColor)}>
                 {typeLabel}
               </Badge>
               {exam.negativeMarks > 0 && (
-                <Badge variant="outline" className="text-xs font-medium text-destructive border-destructive/30">
+                <Badge variant="outline" className="text-[10px] sm:text-xs font-medium text-destructive border-destructive/30">
                   -{exam.negativeMarks} নেগেটিভ
                 </Badge>
               )}
             </div>
 
             {/* Stats row */}
-            <div className="flex items-center gap-4 text-sm text-muted-foreground mb-3">
+            <div className="flex items-center gap-3 sm:gap-4 text-xs sm:text-sm text-muted-foreground mb-3">
               <span className="flex items-center gap-1.5">
                 <Clock className="size-3.5 text-emerald-500" />
                 {exam.duration} মিনিট
@@ -241,7 +212,7 @@ function ExamCard({
 
             {/* Description */}
             {exam.description && (
-              <div className="text-sm text-muted-foreground leading-relaxed line-clamp-2 mb-4">
+              <div className="text-xs sm:text-sm text-muted-foreground leading-relaxed line-clamp-2 mb-3">
                 <RichContentRenderer content={exam.description} />
               </div>
             )}
@@ -253,7 +224,8 @@ function ExamCard({
             {exam.isPremium ? (
               <Button
                 className={cn(
-                  'w-full gap-2 bg-gradient-to-r from-amber-500 to-amber-600',
+                  'w-full gap-2 h-10 sm:h-11 rounded-lg sm:rounded-xl',
+                  'bg-gradient-to-r from-amber-500 to-amber-600',
                   'hover:from-amber-600 hover:to-amber-700 text-white border-0'
                 )}
                 onClick={() => onPremiumClick(exam)}
@@ -263,7 +235,7 @@ function ExamCard({
               </Button>
             ) : (
               <Button
-                className="w-full gap-2 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white border-0"
+                className="w-full gap-2 h-10 sm:h-11 rounded-lg sm:rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white border-0"
                 onClick={() => onStart(exam)}
               >
                 <Play className="size-4" />
@@ -273,7 +245,7 @@ function ExamCard({
           </div>
         </CardContent>
       </Card>
-    </motion.div>
+    </div>
   )
 }
 
@@ -438,12 +410,6 @@ export default function UserExamListPage() {
     setPremiumOpen(true)
   }
 
-  const _handlePremiumProceed = () => {
-    // This is now handled by PurchaseOptionsModal
-    setPremiumOpen(false)
-    setPremiumExam(null)
-  }
-
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchQuery(e.target.value)
   }
@@ -463,8 +429,8 @@ export default function UserExamListPage() {
         <div className="relative h-28 sm:h-32 bg-gradient-to-r from-sky-500 via-sky-600 to-cyan-600 overflow-hidden">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_40%,rgba(255,255,255,0.12),transparent)]" />
           <div className="relative z-10 flex items-center h-full max-w-5xl mx-auto px-4">
-            <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="flex items-center gap-3">
-              <Button variant="ghost" size="icon" className="text-white/80 hover:text-white hover:bg-white/10 -ml-2" onClick={goBack}>
+            <div className="flex items-center gap-3 animate-fade-in">
+              <Button variant="ghost" size="icon" className="text-white/80 hover:text-white hover:bg-white/10 -ml-2 min-h-[44px] min-w-[44px]" onClick={goBack}>
                 <ArrowLeft className="h-5 w-5" />
               </Button>
               <div className="p-2.5 rounded-xl bg-white/20 backdrop-blur-sm">
@@ -474,7 +440,7 @@ export default function UserExamListPage() {
                 <h1 className="text-xl sm:text-2xl font-bold text-white">{pageTitle}</h1>
                 {chapterInfo?.subjectName && <p className="text-sky-100 text-sm mt-0.5">{chapterInfo.subjectName}</p>}
               </div>
-            </motion.div>
+            </div>
           </div>
         </div>
       )}
@@ -530,16 +496,16 @@ export default function UserExamListPage() {
       {!isChapterContext && (
         <div className="sticky top-16 z-30 bg-background/95 backdrop-blur-sm border-b">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex items-center gap-3 py-4">
-              <Button variant="ghost" size="icon" onClick={goBack} className="shrink-0">
+            <div className="flex items-center gap-3 py-3 sm:py-4">
+              <Button variant="ghost" size="icon" onClick={goBack} className="shrink-0 min-h-[44px] min-w-[44px]">
                 <ArrowLeft className="size-5" />
               </Button>
               <div className="flex-1 min-w-0">
-                <h1 className="text-xl sm:text-2xl font-bold text-foreground flex items-center gap-2">
-                  <BookOpen className="size-6 text-emerald-500" />
+                <h1 className="text-lg sm:text-xl font-bold text-foreground flex items-center gap-2">
+                  <BookOpen className="size-5 sm:size-6 text-emerald-500" />
                   এক্সাম সেন্টার
                 </h1>
-                <p className="text-sm text-muted-foreground mt-0.5">
+                <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
                   সময় নির্ধারিত পরীক্ষায় অংশ নিয়ে নিজেকে যাচাই করুন
                 </p>
               </div>
@@ -554,109 +520,83 @@ export default function UserExamListPage() {
         </div>
       )}
 
-      <div className={cn("px-4 sm:px-6 lg:px-8 py-6", isChapterContext ? "max-w-5xl mx-auto" : "max-w-7xl mx-auto")}>
+      <div className={cn("px-4 sm:px-6 lg:px-8 py-5 sm:py-6", isChapterContext ? "max-w-5xl mx-auto" : "max-w-7xl mx-auto")}>
         {/* Exam Package Promo Banners - only in standalone mode */}
         {!isChapterContext && (
         <>
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4 }}
-          className="mb-4"
-        >
+        <div className="mb-3 sm:mb-4 animate-fade-in-up">
           <Card
-            className="border-purple-200 dark:border-purple-800 bg-gradient-to-r from-purple-50 to-violet-50 dark:from-purple-950/30 dark:to-violet-950/30 cursor-pointer hover:shadow-md transition-all overflow-hidden"
+            className="border-purple-200 dark:border-purple-800 bg-gradient-to-r from-purple-50 to-violet-50 dark:from-purple-950/30 dark:to-violet-950/30 cursor-pointer hover:shadow-md transition-all overflow-hidden rounded-xl"
             onClick={() => navigate('create-exam')}
           >
-            <CardContent className="p-4 sm:p-5">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-violet-500 flex items-center justify-center shrink-0">
-                  <Sparkles className="w-6 h-6 text-white" />
+            <CardContent className="p-3.5 sm:p-5">
+              <div className="flex items-center gap-3 sm:gap-4">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-gradient-to-br from-purple-500 to-violet-500 flex items-center justify-center shrink-0">
+                  <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <h3 className="font-bold text-foreground text-sm sm:text-base">কাস্টম MCQ পরীক্ষা তৈরি করুন</h3>
-                  <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">আপনার পছন্দের অধ্যায় নির্বাচন করুন, সময় ও নেগেটিভ মার্কিং সেট করুন, এবং নিজের পরীক্ষা নিজেই তৈরি করুন</p>
+                  <p className="text-xs sm:text-sm text-muted-foreground mt-0.5 line-clamp-2">আপনার পছন্দের অধ্যায় নির্বাচন করুন, সময় ও নেগেটিভ মার্কিং সেট করুন</p>
                 </div>
-                <div className="shrink-0">
-                  <Badge className="bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300 text-xs">
-                    নতুন
-                  </Badge>
-                </div>
+                <Badge className="bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300 text-[10px] sm:text-xs shrink-0">
+                  নতুন
+                </Badge>
               </div>
             </CardContent>
           </Card>
-        </motion.div>
+        </div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4 }}
-          className="mb-4"
-        >
-          <Card 
-            className="border-emerald-200 dark:border-emerald-800 bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/30 cursor-pointer hover:shadow-md transition-all overflow-hidden"
+        <div className="mb-3 sm:mb-4 animate-fade-in-up" style={{ animationDelay: '0.05s' }}>
+          <Card
+            className="border-emerald-200 dark:border-emerald-800 bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/30 cursor-pointer hover:shadow-md transition-all overflow-hidden rounded-xl"
             onClick={() => navigate('mcq-exam-package-list')}
           >
-            <CardContent className="p-4 sm:p-5">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center shrink-0">
-                  <ClipboardCheck className="w-6 h-6 text-white" />
+            <CardContent className="p-3.5 sm:p-5">
+              <div className="flex items-center gap-3 sm:gap-4">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center shrink-0">
+                  <ClipboardCheck className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <h3 className="font-bold text-foreground text-sm sm:text-base">MCQ এক্সাম প্যাকেজ</h3>
-                  <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">তারিখ অনুযায়ী নির্ধারিত এক্সাম প্যাকেজ — কিনুন, এক্সাম দিন, ফলাফল দেখুন</p>
+                  <p className="text-xs sm:text-sm text-muted-foreground mt-0.5 line-clamp-2">তারিখ অনুযায়ী নির্ধারিত এক্সাম প্যাকেজ — কিনুন, এক্সাম দিন, ফলাফল দেখুন</p>
                 </div>
-                <div className="shrink-0">
-                  <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300 text-xs">
-                    নতুন
-                  </Badge>
-                </div>
+                <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300 text-[10px] sm:text-xs shrink-0">
+                  নতুন
+                </Badge>
               </div>
             </CardContent>
           </Card>
-        </motion.div>
+        </div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.05 }}
-          className="mb-6"
-        >
-          <Card 
-            className="border-amber-200 dark:border-amber-800 bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/30 cursor-pointer hover:shadow-md transition-all overflow-hidden"
+        <div className="mb-5 sm:mb-6 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
+          <Card
+            className="border-amber-200 dark:border-amber-800 bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/30 cursor-pointer hover:shadow-md transition-all overflow-hidden rounded-xl"
             onClick={() => navigate('cq-exam-package-list')}
           >
-            <CardContent className="p-4 sm:p-5">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center shrink-0">
-                  <AlignLeft className="w-6 h-6 text-white" />
+            <CardContent className="p-3.5 sm:p-5">
+              <div className="flex items-center gap-3 sm:gap-4">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center shrink-0">
+                  <AlignLeft className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <h3 className="font-bold text-foreground text-sm sm:text-base">CQ এক্সাম প্যাকেজ</h3>
-                  <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">সৃজনশীল প্রশ্নের প্যাকেজ — কিনুন, উত্তর লিখুন, ফলাফল দেখুন</p>
+                  <p className="text-xs sm:text-sm text-muted-foreground mt-0.5 line-clamp-2">সৃজনশীল প্রশ্নের প্যাকেজ — কিনুন, উত্তর লিখুন, ফলাফল দেখুন</p>
                 </div>
-                <div className="shrink-0">
-                  <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300 text-xs">
-                    নতুন
-                  </Badge>
-                </div>
+                <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300 text-[10px] sm:text-xs shrink-0">
+                  নতুন
+                </Badge>
               </div>
             </CardContent>
           </Card>
-        </motion.div>
+        </div>
         </>
         )}
 
         {/* Filter Bar - only in standalone mode */}
         {!isChapterContext && (
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3 }}
-          className="mb-6"
-        >
-          <Card className="border-border/50 shadow-sm">
-            <CardContent className="p-4">
+        <div className="mb-5 sm:mb-6 animate-fade-in-up" style={{ animationDelay: '0.15s' }}>
+          <Card className="border-border/50 shadow-sm rounded-xl">
+            <CardContent className="p-3.5 sm:p-4">
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
                 {/* Class Badge (auto-inferred) */}
                 {lMode === 'CLASS_BASED' && classLevel && classLevel !== 'all' && (
@@ -668,7 +608,7 @@ export default function UserExamListPage() {
 
                 {/* Exam Type Filter */}
                 <Select value={examType} onValueChange={setExamType}>
-                  <SelectTrigger className="w-full sm:w-[130px]">
+                  <SelectTrigger className="w-full sm:w-[130px] h-10">
                     <SelectValue placeholder="ধরন" />
                   </SelectTrigger>
                   <SelectContent>
@@ -684,19 +624,19 @@ export default function UserExamListPage() {
                     placeholder="পরীক্ষা খুঁজুন..."
                     value={searchQuery}
                     onChange={handleSearchChange}
-                    className="pl-9 w-full"
+                    className="pl-9 w-full h-10"
                   />
                 </div>
               </div>
             </CardContent>
           </Card>
-        </motion.div>
+        </div>
         )}
 
         {/* Content Area */}
         {loading ? (
           // Loading Skeleton
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
             {Array.from({ length: 6 }).map((_, i) => (
               <ExamCardSkeleton key={i} />
             ))}
@@ -706,7 +646,7 @@ export default function UserExamListPage() {
           <EmptyState
             icon={FileQuestion}
             title="কোনো পরীক্ষা পাওয়া যায়নি"
-            description="আপনার ফিল্টার পরিবর্তন করে আবার চেষ্টা করুন অথবা পরে আসুন। নতুন পরীক্ষা যুক্ত হলে এখানে দেখা যাবে।"
+            description="আপনার ফিল্টার পরিবর্তন করে আবার চেষ্টা করুন অথবা পরে আসুন।"
             actionLabel="ফিল্টার রিসেট করুন"
             onAction={() => {
               setExamType('mcq')
@@ -715,35 +655,30 @@ export default function UserExamListPage() {
           />
         ) : (
           // Exam Cards Grid
-          <motion.div
-            variants={containerVariants}
-            initial="hidden"
-            animate="visible"
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5"
-          >
-            <AnimatePresence>
-              {exams.map((exam) => (
-                <ExamCard
-                  key={exam.id}
-                  exam={exam}
-                  onStart={handleStartExam}
-                  onPremiumClick={handlePremiumClick}
-                  classLevelLabels={CLASS_LEVEL_LABELS}
-                  classLevelColors={CLASS_COLORS}
-                />
-              ))}
-            </AnimatePresence>
-          </motion.div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
+            {exams.map((exam, idx) => (
+              <ExamCard
+                key={exam.id}
+                exam={exam}
+                onStart={handleStartExam}
+                onPremiumClick={handlePremiumClick}
+                classLevelLabels={CLASS_LEVEL_LABELS}
+                classLevelColors={CLASS_COLORS}
+                index={idx}
+              />
+            ))}
+          </div>
         )}
 
         {/* Pagination */}
         {!loading && pagination.totalPages > 1 && (
-          <div className="flex items-center justify-center gap-2 mt-8">
+          <div className="flex items-center justify-center gap-2 mt-6 sm:mt-8">
             <Button
               variant="outline"
               size="sm"
               disabled={pagination.page <= 1}
               onClick={() => fetchExams(pagination.page - 1)}
+              className="min-h-[40px]"
             >
               আগের
             </Button>
@@ -755,6 +690,7 @@ export default function UserExamListPage() {
               size="sm"
               disabled={pagination.page >= pagination.totalPages}
               onClick={() => fetchExams(pagination.page + 1)}
+              className="min-h-[40px]"
             >
               পরের
             </Button>
@@ -778,7 +714,7 @@ export default function UserExamListPage() {
           {instructionsExam && (
             <div className="space-y-4">
               {/* Exam Info */}
-              <div className="rounded-lg bg-muted/50 p-4 space-y-2">
+              <div className="rounded-xl bg-muted/50 p-4 space-y-2">
                 <h4 className="font-semibold text-foreground">
                   {instructionsExam.title}
                 </h4>
@@ -818,7 +754,7 @@ export default function UserExamListPage() {
               {instructionsExam.instructions && (
                 <div className="space-y-2">
                   <h5 className="text-sm font-medium text-foreground">বিশেষ নির্দেশনা:</h5>
-                  <div className="text-sm text-muted-foreground bg-emerald-50 dark:bg-emerald-950/20 rounded-lg p-3 border border-emerald-200 dark:border-emerald-800">
+                  <div className="text-sm text-muted-foreground bg-emerald-50 dark:bg-emerald-950/20 rounded-xl p-3 border border-emerald-200 dark:border-emerald-800">
                     {instructionsExam.instructions}
                   </div>
                 </div>

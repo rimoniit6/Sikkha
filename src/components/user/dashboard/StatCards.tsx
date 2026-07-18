@@ -30,17 +30,17 @@ function AnimatedStatCard({ icon: Icon, value, label, gradient, bgGradient, icon
   return (
     <Reveal delay={100}>
       <Card className="border-0 shadow-lg shadow-emerald-500/5 overflow-hidden group hover:shadow-xl hover:shadow-emerald-500/10 transition-all duration-300 card-lift cursor-pointer" onClick={onClick}>
-        <CardContent className="p-4 sm:p-5 text-center flex flex-col items-center h-[9rem] relative">
+        <CardContent className="p-3 sm:p-5 text-center flex flex-col items-center h-28 sm:h-36 relative">
           <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${gradient} opacity-60`} />
-          <div className={`p-2.5 rounded-xl bg-gradient-to-br ${bgGradient} mb-2.5 group-hover:scale-110 transition-transform duration-300`}>
-            <Icon className={`size-5 ${iconColor}`} />
+          <div className={`p-2 sm:p-2.5 rounded-xl bg-gradient-to-br ${bgGradient} mb-2 sm:mb-2.5 group-hover:scale-110 transition-transform duration-300`}>
+            <Icon className={`size-4 sm:size-5 ${iconColor}`} />
           </div>
-          <p ref={ref as React.Ref<HTMLParagraphElement>} className="text-2xl sm:text-3xl font-bold tabular-nums">
+          <p ref={ref as React.Ref<HTMLParagraphElement>} className="text-xl sm:text-2xl lg:text-3xl font-bold tabular-nums">
             {label.includes('স্কোর') ? `${animatedValue}%` : animatedValue}
           </p>
-          <p className="text-xs text-muted-foreground mt-0.5">{label}</p>
+          <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">{label}</p>
           <div className="mt-auto w-full">
-            <Progress value={progressValue} className={`h-1.5 [&>div]:bg-gradient-to-r ${gradient}`} />
+            <Progress value={progressValue} className={`h-1 sm:h-1.5 [&>div]:bg-gradient-to-r ${gradient}`} />
           </div>
         </CardContent>
       </Card>
@@ -54,7 +54,7 @@ function StatCardsComponent({ stats, approvedPaymentsCount, onPurchasedClick }: 
   const purchasedProgress = Math.min(approvedPaymentsCount * 20, 100)
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-8">
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-4 mb-6 sm:mb-8">
       <AnimatedStatCard
         icon={BookOpen}
         value={stats.completedLectures}

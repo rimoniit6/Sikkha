@@ -246,7 +246,7 @@ export default function ExamResultPage() {
 
   return (
     <div className="pb-24 sm:pb-8">
-      <div className="max-w-3xl mx-auto px-4 py-8">
+      <div className="max-w-3xl mx-auto px-4 py-6 sm:py-8">
         {/* Score Card */}
         <div className="animate-fade-in-up">
           <Card className="border-border/50 overflow-hidden">
@@ -511,9 +511,9 @@ export default function ExamResultPage() {
         </div>
 
         {/* Action Buttons */}
-        <div className="animate-fade-in-up delay-700 mt-8 mb-24 sm:mb-8 flex flex-col sm:flex-row gap-3">
+        <div className="animate-fade-in-up delay-700 mt-6 sm:mt-8 mb-24 sm:mb-8 flex flex-col sm:flex-row gap-3">
           <Button
-            className="flex-1 gap-2"
+            className="flex-1 gap-2 h-11 min-h-[44px]"
             onClick={() => {
               resetExam()
               navigate('exam-session', {
@@ -526,7 +526,7 @@ export default function ExamResultPage() {
           </Button>
           <Button
             variant="outline"
-            className="flex-1 gap-2"
+            className="flex-1 gap-2 h-11 min-h-[44px]"
             onClick={() => {
               resetExam()
               goBack()

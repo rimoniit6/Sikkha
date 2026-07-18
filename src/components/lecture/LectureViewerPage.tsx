@@ -19,7 +19,6 @@ import { fetchCsrfToken } from '@/lib/api-client'
 import { downloadPdf,getFilenameFromUrl } from '@/lib/pdf-download'
 import { useAuthUser } from '@/store/auth'
 import { useRouterStore, useRouteParams } from '@/store/router'
-import { motion } from 'framer-motion'
 import {
 ArrowLeft,ArrowRight,
 BookOpen,
@@ -335,11 +334,7 @@ export default function LectureViewerPage() {
     <>
       {/* Thumbnail Hero Banner */}
       {lectureData.thumbnail && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-6 overflow-hidden rounded-xl"
-        >
+        <div className="mb-6 overflow-hidden rounded-xl animate-fade-in-up">
           <div className="relative">
             <SafeImage
               src={lectureData.thumbnail}
@@ -349,15 +344,11 @@ export default function LectureViewerPage() {
             {/* Gradient overlay at bottom for text readability */}
             <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/50 to-transparent rounded-b-xl" />
           </div>
-        </motion.div>
+        </div>
       )}
       {/* Video Embed */}
       {lectureData.videoUrl && showVideo && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-6"
-        >
+        <div className="mb-6 animate-fade-in-up">
           <div className="relative aspect-video rounded-xl overflow-hidden bg-black">
             <iframe
               src={lectureData.videoUrl}
@@ -375,7 +366,7 @@ export default function LectureViewerPage() {
             <X className="size-4" />
             ভিডিও লুকান
           </Button>
-        </motion.div>
+        </div>
       )}
 
       {!showVideo && lectureData.videoUrl && (
@@ -392,11 +383,7 @@ export default function LectureViewerPage() {
 
       {/* PDF Viewer */}
       {lectureData.pdfUrl && showPdf && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-6"
-        >
+        <div className="mb-6 animate-fade-in-up">
           <div className="rounded-xl overflow-hidden border border-border/50 bg-muted/20">
             <iframe
               src={`/api/pdf?url=${encodeURIComponent(lectureData.pdfUrl)}&inline=true`}
@@ -413,7 +400,7 @@ export default function LectureViewerPage() {
             <X className="size-4" />
             PDF লুকান
           </Button>
-        </motion.div>
+        </div>
       )}
       {!showPdf && lectureData.pdfUrl && (
         <Button
@@ -428,11 +415,7 @@ export default function LectureViewerPage() {
       )}
 
       {/* Article Content */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.2 }}
-        className={`max-w-none mb-8 ${
+      <div className={`max-w-none mb-8 animate-fade-in ${
           fontSize === 'sm' ? 'text-sm' : fontSize === 'lg' ? 'text-lg' : 'text-base'
         }`}
       >
@@ -446,7 +429,7 @@ export default function LectureViewerPage() {
           // Fallback: render as HTML
           return <RichContentRenderer content={lectureData.content} />
         })()}
-      </motion.div>
+      </div>
 
       {/* PDF Attachment */}
       {lectureData.pdfUrl && (
@@ -497,9 +480,9 @@ export default function LectureViewerPage() {
     <div className="min-h-screen bg-background">
       {/* Reading progress bar */}
       <div className="fixed top-0 left-0 right-0 z-50 h-0.5 bg-muted">
-        <motion.div
-          className="h-full bg-edu-primary"
-          style={{ scaleX: scrollProgress, transformOrigin: 'left' }}
+        <div
+          className="h-full bg-edu-primary transition-transform duration-150 origin-left"
+          style={{ transform: `scaleX(${scrollProgress})` }}
         />
       </div>
 
@@ -557,20 +540,21 @@ export default function LectureViewerPage() {
               <span>{lectureData.className}</span>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            {/* Font size controls */}
-            <div className="hidden sm:flex items-center gap-0.5 border border-border/50 rounded-lg p-0.5">
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            {/* Font size controls — visible on all screens */}
+            <div className="flex items-center gap-0.5 border border-border/50 rounded-lg p-0.5">
               {(['sm', 'base', 'lg'] as const).map((size) => (
                 <button
                   key={size}
                   onClick={() => setFontSize(size)}
-                  className={`px-2 py-1 rounded-md text-xs font-medium transition-colors ${
+                  className={`px-2 py-1.5 rounded-md text-xs font-medium transition-colors min-h-[32px] min-w-[32px] ${
                     fontSize === size
                       ? 'bg-edu-primary/10 text-edu-primary'
                       : 'text-muted-foreground hover:text-foreground'
                   }`}
+                  aria-label={size === 'sm' ? 'ছোট ফন্ট' : size === 'base' ? 'স্বাভাবিক ফন্ট' : 'বড় ফন্ট'}
                 >
-                  {size === 'sm' ? 'অ' : size === 'base' ? 'অ' : 'অ'}
+                  {size === 'sm' ? 'A' : size === 'base' ? 'A' : 'A'}
                 </button>
               ))}
             </div>
@@ -672,10 +656,10 @@ export default function LectureViewerPage() {
 
             {/* Next/Previous Navigation */}
             <Separator className="my-6" />
-            <div className="flex items-center justify-between gap-4">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
               <Button
                 variant="outline"
-                className="gap-2"
+                className="gap-2 justify-start min-h-[44px]"
                 disabled={!hasPrev}
                 onClick={() => {
                   if (hasPrev) {
@@ -692,11 +676,11 @@ export default function LectureViewerPage() {
                 <ArrowLeft className="size-4" />
                 আগের লেকচার
               </Button>
-              <span className="text-sm text-muted-foreground">
+              <span className="text-sm text-muted-foreground text-center sm:text-left">
                 {lectureData.currentIndex + 1} / {lectureData.lectures.length}
               </span>
               <Button
-                className="gap-2"
+                className="gap-2 justify-end min-h-[44px]"
                 disabled={!hasNext}
                 onClick={() => {
                   if (hasNext) {

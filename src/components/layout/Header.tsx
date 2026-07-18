@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useTheme } from 'next-themes'
 import { Search, Menu, X, Sun, Moon, User, GraduationCap, BookOpen, LogIn, LogOut, LayoutDashboard, Crown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -26,6 +26,7 @@ export default function Header() {
   const [mounted, setMounted] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const searchInputRef = useRef<HTMLInputElement>(null)
   const { theme, setTheme } = useTheme()
   const currentRoute = useCurrentRoute()
   const navigate = useRouterStore((s) => s.navigate)
@@ -34,7 +35,7 @@ export default function Header() {
   const { config } = useSiteConfig()
   const { headerNav, loading: navLoading } = useNavigation()
   const { learningMode, classLevel, setPreference } = useLearningPreference()
-  const { classLevelLabels, classOptions, boardOptions } = useHierarchyMetadata()
+  const { classLevelLabels, classOptions } = useHierarchyMetadata()
 
   const currentClassLabel = classLevel ? (classLevelLabels[classLevel] || classLevel) : null
   const isClassBased = learningMode === 'CLASS_BASED'
@@ -55,6 +56,13 @@ export default function Header() {
     return () => { window.removeEventListener('scroll', handleScroll); cancelAnimationFrame(frameId) }
   }, [])
 
+  // Auto-focus search input when opened on mobile
+  useEffect(() => {
+    if (searchOpen && searchInputRef.current) {
+      searchInputRef.current.focus()
+    }
+  }, [searchOpen])
+
   const handleNavClick = useCallback((route: string) => {
     navigate(route as RoutePath)
   }, [navigate])
@@ -62,7 +70,7 @@ export default function Header() {
   const handleLogout = useCallback(() => { logout(); navigate('home') }, [logout, navigate])
 
   const handleSearch = useCallback(() => {
-    if (searchQuery.trim()) { navigate('search', { searchQuery: searchQuery.trim() }); setSearchOpen(false) }
+    if (searchQuery.trim()) { navigate('search', { searchQuery: searchQuery.trim() }); setSearchOpen(false); setSearchQuery('') }
   }, [searchQuery, navigate])
 
   const handleSearchKeyDown = useCallback((e: React.KeyboardEvent) => { if (e.key === 'Enter') handleSearch() }, [handleSearch])
@@ -76,26 +84,32 @@ export default function Header() {
 
   return (
     <header
-      className={`fixed top-0 left-0 right-0 z-50 transition-shadow duration-300 ${
-        scrolled ? 'shadow-lg shadow-black/5 bg-background/95 backdrop-blur-md' : 'bg-background/80 backdrop-blur-md'
+      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
+        scrolled
+          ? 'shadow-lg shadow-black/5 bg-background/95 backdrop-blur-md border-b border-border/50'
+          : 'bg-background/80 backdrop-blur-md border-b border-transparent'
       }`}
     >
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="flex h-16 items-center justify-between gap-4">
+      <div className="mx-auto max-w-7xl px-3 sm:px-4 lg:px-8">
+        <div className="flex h-14 sm:h-16 items-center justify-between gap-3 sm:gap-4">
           {/* Logo */}
-          <button aria-label="হোম পেজে যান" className="flex items-center gap-2 shrink-0 cursor-pointer" onClick={() => navigate('home')}>
+          <button
+            aria-label="হোম পেজে যান"
+            className="flex items-center gap-2 shrink-0 cursor-pointer min-h-[44px] min-w-[44px] justify-center -ml-1 sm:ml-0"
+            onClick={() => navigate('home')}
+          >
             {config?.logo ? (
-              <Image src={config.logo} alt={siteName} width={36} height={36} className="w-9 h-9 rounded-lg object-contain" />
+              <Image src={config.logo} alt={siteName} width={36} height={36} className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg object-contain" />
             ) : (
-              <div className="relative flex items-center justify-center w-9 h-9 rounded-lg bg-gradient-to-br from-edu-primary to-edu-primary-dark text-white shadow-md">
-                <GraduationCap className="w-5 h-5" />
+              <div className="relative flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-gradient-to-br from-edu-primary to-edu-primary-dark text-white shadow-md">
+                <GraduationCap className="w-4 h-4 sm:w-5 sm:h-5" />
               </div>
             )}
-            <span className="text-lg font-bold leading-tight text-foreground">{siteName}</span>
+            <span className="text-base sm:text-lg font-bold leading-tight text-foreground truncate max-w-[120px] sm:max-w-none">{siteName}</span>
           </button>
 
           {/* Desktop Navigation */}
-          <nav className="hidden md:flex items-center gap-1">
+          <nav className="hidden md:flex items-center gap-0.5" aria-label="মূল নেভিগেশন">
             {navLoading
               ? Array.from({ length: 5 }).map((_, i) => (
                   <div key={i} className="w-16 h-9 rounded-lg bg-muted/50 animate-pulse" />
@@ -106,9 +120,10 @@ export default function Header() {
                     <button
                       key={link.id}
                       onClick={() => handleNavClick(link.route)}
-                      className={`relative px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
-                        isActive ? 'text-edu-primary' : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+                      className={`relative px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200 min-h-[36px] ${
+                        isActive ? 'text-edu-primary bg-edu-primary/5' : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
                       }`}
+                      aria-current={isActive ? 'page' : undefined}
                     >
                       {link.label}
                       {isActive && <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-6 h-0.5 bg-edu-primary rounded-full" />}
@@ -133,22 +148,25 @@ export default function Header() {
           </div>
 
           {/* Right Section */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2">
             {/* Search Toggle - Mobile */}
-            <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setSearchOpen(!searchOpen)} aria-label={searchOpen ? "সার্চ বন্ধ করুন" : "সার্চ খুলুন"} aria-expanded={searchOpen}>
+            <button
+              onClick={() => setSearchOpen(!searchOpen)}
+              className="md:hidden flex items-center justify-center w-10 h-10 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent/50 active:bg-accent transition-colors"
+              aria-label={searchOpen ? "সার্চ বন্ধ করুন" : "সার্চ খুলুন"}
+              aria-expanded={searchOpen}
+            >
               {searchOpen ? <X className="w-5 h-5" /> : <Search className="w-5 h-5" />}
-            </Button>
+            </button>
 
             {/* Theme Toggle */}
-            <Button
-              variant="ghost"
-              size="icon"
+            <button
               onClick={() => setTheme(isDark ? 'light' : 'dark')}
-              className="text-muted-foreground hover:text-foreground"
+              className="flex items-center justify-center w-10 h-10 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent/50 active:bg-accent transition-colors"
               aria-label="থিম পরিবর্তন করুন"
             >
               {mounted ? (isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />) : <div className="w-5 h-5" />}
-            </Button>
+            </button>
 
             {/* Class Badge - Desktop */}
             {mounted && isAuthenticated && user && isClassBased && currentClassLabel && (
@@ -182,12 +200,12 @@ export default function Header() {
 
             {/* User Menu / Login */}
             {!mounted ? (
-              <div className="w-9 h-9 rounded-full bg-muted/50 animate-pulse hidden sm:block" />
+              <div className="w-10 h-10 rounded-full bg-muted/50 animate-pulse hidden sm:block" />
             ) : isAuthenticated && user ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="relative h-9 w-9 rounded-full">
-                    <Avatar className="h-9 w-9 border-2 border-transparent hover:border-edu-primary/50 transition-colors">
+                  <button className="relative flex items-center justify-center w-10 h-10 rounded-full" aria-label="ব্যবহারকারী মেনু">
+                    <Avatar className="h-8 w-8 border-2 border-transparent hover:border-edu-primary/50 transition-colors">
                       <AvatarImage src={user.avatar} alt={user.name} />
                       <AvatarFallback className="bg-edu-primary/10 text-edu-primary text-xs font-semibold">
                         {getUserInitials(user.name)}
@@ -196,7 +214,7 @@ export default function Header() {
                     {user.isPremium && (
                       <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-edu-premium rounded-full border-2 border-background" />
                     )}
-                  </Button>
+                  </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56">
                   <div className="flex items-center gap-2 p-2">
@@ -204,9 +222,9 @@ export default function Header() {
                       <AvatarImage src={user.avatar} alt={user.name} />
                       <AvatarFallback className="bg-edu-primary/10 text-edu-primary text-xs">{getUserInitials(user.name)}</AvatarFallback>
                     </Avatar>
-                    <div className="flex flex-col">
-                      <span className="text-sm font-medium">{user.name}</span>
-                      <span className="text-xs text-muted-foreground">{user.email}</span>
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-sm font-medium truncate">{user.name}</span>
+                      <span className="text-xs text-muted-foreground truncate">{user.email}</span>
                     </div>
                   </div>
                   <DropdownMenuSeparator />
@@ -241,13 +259,16 @@ export default function Header() {
             {/* Mobile Menu */}
             <Sheet>
               <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" className="md:hidden">
+                <button
+                  className="md:hidden flex items-center justify-center w-10 h-10 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent/50 active:bg-accent transition-colors"
+                  aria-label="মেনু খুলুন"
+                >
                   <Menu className="w-5 h-5" />
-                </Button>
+                </button>
               </SheetTrigger>
-              <SheetContent side="right" className="w-72">
-                <SheetHeader>
-                  <SheetTitle className="flex items-center gap-2">
+              <SheetContent side="right" className="w-72 p-0">
+                <SheetHeader className="px-4 pt-5 pb-3 border-b border-border/50">
+                  <SheetTitle className="flex items-center gap-2.5">
                     {config?.logo ? (
                       <Image src={config.logo} alt={siteName} width={32} height={32} className="w-8 h-8 rounded-lg object-contain" />
                     ) : (
@@ -258,11 +279,11 @@ export default function Header() {
                     {siteName}
                   </SheetTitle>
                 </SheetHeader>
-                <div className="flex flex-col gap-1 px-4 mt-4">
+                <nav className="flex flex-col gap-0.5 px-3 py-3" aria-label="মোবাইল নেভিগেশন">
                   {navLoading
                     ? Array.from({ length: 6 }).map((_, i) => (
                         <div key={i} className="flex items-center gap-3 px-3 py-2.5 rounded-lg">
-                          <div className="w-4 h-4 rounded bg-muted/50 animate-pulse" />
+                          <div className="w-5 h-5 rounded bg-muted/50 animate-pulse" />
                           <div className="w-24 h-4 rounded bg-muted/50 animate-pulse" />
                         </div>
                       ))
@@ -272,17 +293,19 @@ export default function Header() {
                           <SheetClose asChild key={link.id}>
                             <button
                               onClick={() => handleNavClick(link.route)}
-                              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                                isActive ? 'bg-edu-primary/10 text-edu-primary' : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+                              className={`flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-all duration-200 min-h-[48px] ${
+                                isActive
+                                  ? 'bg-edu-primary/10 text-edu-primary'
+                                  : 'text-muted-foreground hover:bg-accent hover:text-foreground active:bg-accent/80'
                               }`}
                             >
-                              <link.Icon className="w-4 h-4" />
+                              <link.Icon className="w-5 h-5 shrink-0" />
                               {link.label}
                             </button>
                           </SheetClose>
                         )
                       })}
-                </div>
+                </nav>
 
                 {/* Mobile class changer */}
                 {mounted && isAuthenticated && user && isClassBased && (
@@ -293,7 +316,7 @@ export default function Header() {
                         <button
                           key={opt.value}
                           onClick={() => setPreference('CLASS_BASED', opt.value)}
-                          className={`text-xs px-2.5 py-1 rounded-full transition-colors ${
+                          className={`text-xs px-2.5 py-1.5 rounded-full transition-colors min-h-[32px] ${
                             classLevel === opt.value
                               ? 'bg-edu-primary text-white'
                               : 'bg-muted text-muted-foreground hover:bg-accent'
@@ -304,7 +327,7 @@ export default function Header() {
                       ))}
                       <button
                         onClick={() => setPreference('GLOBAL')}
-                        className={`text-xs px-2.5 py-1 rounded-full transition-colors ${
+                        className={`text-xs px-2.5 py-1.5 rounded-full transition-colors min-h-[32px] ${
                           !isClassBased
                             ? 'bg-edu-primary text-white'
                             : 'bg-muted text-muted-foreground hover:bg-accent'
@@ -316,28 +339,28 @@ export default function Header() {
                   </div>
                 )}
 
-                <div className="mt-auto px-4 pb-4">
+                <div className="mt-auto px-4 pb-5 pt-3 border-t border-border/50">
                   {!mounted ? null : isAuthenticated && user ? (
                     <div className="flex flex-col gap-2">
-                      <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/50">
-                        <Avatar className="h-8 w-8">
+                      <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-muted/50">
+                        <Avatar className="h-9 w-9">
                           <AvatarImage src={user.avatar} alt={user.name} />
                           <AvatarFallback className="bg-edu-primary/10 text-edu-primary text-xs">{getUserInitials(user.name)}</AvatarFallback>
                         </Avatar>
-                        <div className="flex flex-col">
-                          <span className="text-sm font-medium">{user.name}</span>
-                          <span className="text-xs text-muted-foreground">{user.email}</span>
+                        <div className="flex flex-col min-w-0">
+                          <span className="text-sm font-medium truncate">{user.name}</span>
+                          <span className="text-xs text-muted-foreground truncate">{user.email}</span>
                         </div>
                       </div>
                       <SheetClose asChild>
-                        <Button variant="outline" className="w-full justify-start gap-2 text-destructive hover:text-destructive" onClick={handleLogout}>
+                        <Button variant="outline" className="w-full justify-start gap-2 text-destructive hover:text-destructive min-h-[44px]" onClick={handleLogout}>
                           <LogOut className="w-4 h-4" /> লগ আউট
                         </Button>
                       </SheetClose>
                     </div>
                   ) : (
                     <SheetClose asChild>
-                      <Button className="w-full bg-edu-primary hover:bg-edu-primary-dark text-white gap-2" onClick={() => navigate('login')}>
+                      <Button className="w-full bg-edu-primary hover:bg-edu-primary-dark text-white gap-2 min-h-[44px]" onClick={() => navigate('login')}>
                         <LogIn className="w-4 h-4" /> লগইন করুন
                       </Button>
                     </SheetClose>
@@ -350,18 +373,30 @@ export default function Header() {
 
         {/* Mobile Search Bar */}
         {searchOpen && (
-          <div className="md:hidden pb-3">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                placeholder="কোর্স, অধ্যায় খুঁজুন..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyDown={handleSearchKeyDown}
-                className="pl-9 pr-4 bg-muted/50 border-transparent focus:border-edu-primary/30"
-                autoFocus
-                aria-label="সার্চ করুন"
-              />
+          <div className="md:hidden pb-3 animate-slide-up" style={{ animationDuration: '0.2s' }}>
+            <div className="relative flex items-center gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <input
+                  ref={searchInputRef}
+                  type="search"
+                  placeholder="কোর্স, অধ্যায় খুঁজুন..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={handleSearchKeyDown}
+                  className="w-full h-11 pl-10 pr-4 rounded-xl bg-muted/50 border border-transparent focus:border-edu-primary/30 focus:bg-background text-sm text-foreground placeholder:text-muted-foreground/60 outline-none transition-all"
+                  aria-label="সার্চ করুন"
+                />
+              </div>
+              {searchQuery.trim() && (
+                <button
+                  onClick={handleSearch}
+                  className="shrink-0 flex items-center justify-center h-11 px-4 rounded-xl bg-edu-primary text-white text-sm font-medium active:bg-edu-primary-dark transition-colors"
+                  aria-label="সার্চ করুন"
+                >
+                  <Search className="w-4 h-4" />
+                </button>
+              )}
             </div>
           </div>
         )}

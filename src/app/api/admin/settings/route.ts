@@ -12,6 +12,29 @@ const createSettingSchema = z.object({
   label: z.string().nullable().optional(),
 })
 
+const MAX_BATCH_SIZE = 200
+
+const batchSettingSchema = z
+  .object({
+    key: z
+      .string()
+      .min(1, 'কী খালি থাকতে পারবে না')
+      .max(191, 'কী খুব বড়'),
+    value: z
+      .string()
+      .max(100000, 'ভ্যালু খুব বড়'),
+    group: z.string().nullable().optional(),
+    label: z.string().nullable().optional(),
+  })
+  .strict()
+
+const batchUpdateSchema = z.object({
+  settings: z
+    .array(batchSettingSchema)
+    .min(1, 'সেটিংস অ্যারে আবশ্যক')
+    .max(MAX_BATCH_SIZE, 'সেটিংস অ্যারে খুব বড়'),
+})
+
 export async function GET(request: Request) {
   const auth = await withAdmin(request)
   if (auth instanceof NextResponse) return auth
@@ -102,10 +125,16 @@ export async function PATCH(request: Request) {
     const csrfCheck = await withCsrf(request)
     if ('error' in csrfCheck) return csrfCheck.error
     const body = await request.json()
-    const { settings } = body
+    const validation = validateBody(batchUpdateSchema, body)
+    if ('error' in validation) return validation.error
+    const { settings } = validation.data
 
-    if (!Array.isArray(settings) || settings.length === 0) {
-      return apiError('সেটিংস অ্যারে আবশ্যক', 400)
+    const seen = new Set<string>()
+    for (const s of settings) {
+      if (seen.has(s.key)) {
+        return apiError(`ডুপ্লিকেট কী: ${s.key}`, 400, 'DUPLICATE_KEY')
+      }
+      seen.add(s.key)
     }
 
     await Promise.all(

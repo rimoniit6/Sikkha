@@ -10,7 +10,7 @@ import { getMessages } from '@/lib/messages'
 import { cn } from '@/lib/utils'
 import { useAuthUser } from '@/store/auth'
 import { useRouterStore, useRouteParams } from '@/store/router'
-import { AnimatePresence,motion } from 'framer-motion'
+
 import {
 AlertCircle,
 ArrowLeft,
@@ -278,13 +278,10 @@ export default function LectureListPage() {
     const style = variantStyles[variant]
 
     return (
-      <motion.div
+      <div
         key={lecture.id}
-        layout
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95 }}
-        transition={{ delay: idx * 0.03, duration: 0.2 }}
+        className="animate-fade-in-up"
+        style={{ animationDelay: `${idx * 0.03}s` }}
       >
         <Card
           className={cn(
@@ -379,7 +376,7 @@ export default function LectureListPage() {
             </div>
           </CardContent>
         </Card>
-      </motion.div>
+      </div>
     )
   }
 
@@ -420,7 +417,7 @@ export default function LectureListPage() {
       <div className="relative h-32 sm:h-40 bg-gradient-to-r from-emerald-500 via-teal-600 to-emerald-600 overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_40%,rgba(255,255,255,0.12),transparent)]" />
         <div className="relative z-10 flex items-center h-full max-w-5xl mx-auto px-4">
-          <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="flex items-center gap-3">
+          <div className="flex items-center gap-3">
             <Button variant="ghost" size="icon" className="text-white/80 hover:text-white hover:bg-white/10 -ml-2" onClick={handleBack}>
               <ArrowLeft className="h-5 w-5" />
             </Button>
@@ -431,7 +428,7 @@ export default function LectureListPage() {
               <h1 className="text-xl sm:text-2xl font-bold text-white">{pageTitle}</h1>
               {pageSubtitle && <p className="text-emerald-100 text-sm mt-0.5">{pageSubtitle}</p>}
             </div>
-          </motion.div>
+          </div>
         </div>
       </div>
 
@@ -525,10 +522,8 @@ export default function LectureListPage() {
               </span>
             </div>
             <div className="space-y-2">
-              <AnimatePresence mode="popLayout">
                 {freeLectures.map((lecture, idx) => renderLectureCard(lecture, idx, 'free'))}
-              </AnimatePresence>
-            </div>
+              </div>
           </div>
         )}
 
@@ -543,10 +538,8 @@ export default function LectureListPage() {
               </span>
             </div>
             <div className="space-y-2">
-              <AnimatePresence mode="popLayout">
                 {purchasedLectures.map((lecture, idx) => renderLectureCard(lecture, idx, 'purchased'))}
-              </AnimatePresence>
-            </div>
+              </div>
           </div>
         )}
 
@@ -562,11 +555,7 @@ export default function LectureListPage() {
             </div>
 
             {/* Premium summary card */}
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="mb-3"
-            >
+            <div className="mb-3 animate-fade-in-up">
               <Card className="border-amber-200 dark:border-amber-800 bg-gradient-to-r from-amber-50/80 to-orange-50/80 dark:from-amber-950/20 dark:to-orange-950/20">
                 <CardContent className="p-4">
                   <div className="flex items-center gap-3">
@@ -584,14 +573,12 @@ export default function LectureListPage() {
                   </div>
                 </CardContent>
               </Card>
-            </motion.div>
+            </div>
 
             {/* Locked lecture list with preview */}
             <div className="space-y-2">
-              <AnimatePresence mode="popLayout">
                 {lockedLectures.map((lecture, idx) => renderLectureCard(lecture, idx, 'locked'))}
-              </AnimatePresence>
-            </div>
+              </div>
           </div>
         )}
       </div>

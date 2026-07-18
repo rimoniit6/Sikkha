@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Script from "next/script";
-import { unstable_cache } from "next/cache";
 import { Geist, Geist_Mono } from "next/font/google";
 
 export const dynamic = 'force-dynamic'
@@ -19,9 +18,9 @@ import GlobalStructuredData from "@/components/shared/JsonLd";
 import RouteSync from "@/components/shared/RouteSync";
 import AppNavigationBridge from "@/components/shared/AppNavigationBridge";
 import { RouteLoadingBar } from "@/components/loading/RouteLoadingBar";
-import { db } from '@/lib/db'
 import { fetchSiteConfig } from '@/lib/fetch-site-config'
 import { queryKeys } from '@/lib/query-keys'
+import { getSeoSettings, buildMetadata } from '@/lib/seo-settings'
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -35,75 +34,11 @@ const geistMono = Geist_Mono({
   display: "swap",
 });
 
-// Default values as fallback
-const DEFAULT_SEO = {
-  title: "শিক্ষা বাংলা - বাংলাদেশের সেরা শিক্ষা প্ল্যাটফর্ম",
-  description: "Class 6 থেকে HSC পর্যন্ত সকল বিষয়ের লেকচার, MCQ, সৃজনশীল প্রশ্ন ও বোর্ড প্রশ্ন। বাংলাদেশের সেরা অনলাইন শিক্ষা প্ল্যাটফর্ম।",
-  keywords: "শিক্ষা বাংলা,অনলাইন শিক্ষা,MCQ,বোর্ড প্রশ্ন,HSC,SSC,বাংলাদেশ",
-  author: "শিক্ষা বাংলা",
-}
-
-const getSeoSettings = unstable_cache(
-  async () => {
-    try {
-      const settings = await db.siteSetting.findMany({
-        where: { group: 'seo' },
-        select: { key: true, value: true },
-      })
-      const map = Object.fromEntries(settings.map(s => [s.key, s.value]))
-      return {
-        title: map['seo_title'] || DEFAULT_SEO.title,
-        description: map['seo_description'] || DEFAULT_SEO.description,
-        keywords: map['seo_keywords'] || DEFAULT_SEO.keywords,
-        author: map['seo_author'] || DEFAULT_SEO.author,
-      }
-    } catch {
-      return DEFAULT_SEO
-    }
-  },
-  ['seo-settings'],
-  { revalidate: 300 }
-)
-
-function buildMetadata(seo: typeof DEFAULT_SEO): Metadata {
-  return {
-    metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'https://sikkhabangla.com'),
-    title: seo.title,
-    description: seo.description,
-    keywords: seo.keywords.split(','),
-    authors: [{ name: seo.author }],
-    icons: { icon: "/api/favicon", apple: "/apple-icon.png" },
-    manifest: "/manifest.json",
-    appleWebApp: { capable: true, title: "শিক্ষা বাংলা", statusBarStyle: "default" },
-    openGraph: {
-      title: seo.title,
-      description: seo.description,
-      url: '/',
-      siteName: 'শিক্ষা বাংলা',
-      locale: 'bn_BD',
-      type: 'website',
-      images: [{ url: '/icon-512.png', width: 512, height: 512 }],
-    },
-    twitter: {
-      card: 'summary_large_image',
-      title: seo.title,
-      description: seo.description,
-      images: ['/icon-512.png'],
-    },
-    robots: { index: true, follow: true },
-    other: {
-      'mobile-web-app-capable': 'yes',
-      'apple-mobile-web-app-capable': 'yes',
-      'apple-mobile-web-app-status-bar-style': 'default',
-    },
-  }
-}
-
 export async function generateMetadata(): Promise<Metadata> {
   try {
     return buildMetadata(await getSeoSettings())
   } catch {
-    return buildMetadata(DEFAULT_SEO)
+    return buildMetadata(await getSeoSettings())
   }
 }
 
@@ -122,10 +57,14 @@ export default async function RootLayout({
   return (
     <html lang="bn" suppressHydrationWarning>
       <head>
-        <meta name="theme-color" content="#059669" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
+        <meta name="theme-color" content="#059669" media="(prefers-color-scheme: light)" />
+        <meta name="theme-color" content="#059669" media="(prefers-color-scheme: dark)" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="শিক্ষা বাংলা" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="format-detection" content="telephone=no" />
         <link rel="apple-touch-icon" href="/apple-icon.png" />
         <link rel="preconnect" href="https://utfs.io" />
         <link rel="dns-prefetch" href="https://utfs.io" />

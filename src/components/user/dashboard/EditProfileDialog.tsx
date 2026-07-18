@@ -37,7 +37,7 @@ export function EditProfileDialog({
             আপনার নাম এবং মোবাইল নম্বর আপডেট করুন।
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-4 py-4">
+        <div className="space-y-4 py-2">
           <div className="space-y-2">
             <Label htmlFor="edit-name">নাম</Label>
             <Input

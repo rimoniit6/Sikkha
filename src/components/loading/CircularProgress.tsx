@@ -1,8 +1,6 @@
 'use client'
 
-import { motion } from 'framer-motion'
 import { useLoading } from '@/hooks/useLoading'
-import { COLORS, ANIMATION_DURATIONS } from '@/utils/loading'
 
 const SIZE = 80
 const STROKE_WIDTH = 4
@@ -39,43 +37,20 @@ export function CircularProgress() {
           strokeWidth={STROKE_WIDTH}
           className="text-gray-200 dark:text-gray-700"
         />
-        <motion.circle
+        <circle
           cx={SIZE / 2}
           cy={SIZE / 2}
           r={RADIUS}
           fill="none"
-          stroke={COLORS.primary}
+          stroke="#059669"
           strokeWidth={STROKE_WIDTH}
           strokeLinecap="round"
           strokeDasharray={CIRCUMFERENCE}
-          strokeDashoffset={isIndeterminate ? 0 : offset}
-          animate={
-            isIndeterminate
-              ? {
-                  rotate: 360,
-                  strokeDashoffset: [CIRCUMFERENCE * 0.75, CIRCUMFERENCE * 0.25],
-                }
-              : { strokeDashoffset: offset }
-          }
-          transition={
-            isIndeterminate
-              ? {
-                  rotate: {
-                    repeat: Infinity,
-                    duration: 1.5,
-                    ease: 'linear',
-                  },
-                  strokeDashoffset: {
-                    repeat: Infinity,
-                    duration: 1.5,
-                    ease: 'easeInOut',
-                  },
-                }
-              : {
-                  duration: ANIMATION_DURATIONS.progressRing / 1000,
-                  ease: 'easeInOut',
-                }
-          }
+          strokeDashoffset={isIndeterminate ? CIRCUMFERENCE * 0.75 : offset}
+          className="transition-all duration-500 ease-in-out"
+          style={isIndeterminate ? {
+            animation: 'circular-progress-indeterminate 1.5s linear infinite',
+          } : undefined}
         />
       </svg>
       <span className="absolute text-sm font-semibold text-foreground tabular-nums">

@@ -27,6 +27,8 @@ export function UIContentTab({
   homepageFeaturedSubtitle, setHomepageFeaturedSubtitle,
   homepagePremiumTitle, setHomepagePremiumTitle,
   homepagePremiumSubtitle, setHomepagePremiumSubtitle,
+  homepageTeachersTitle, setHomepageTeachersTitle,
+  homepageTeachersSubtitle, setHomepageTeachersSubtitle,
   footerDescription, setFooterDescription,
   premiumFeaturesText, setPremiumFeaturesText,
   mcqFeaturesText, setMcqFeaturesText,
@@ -52,6 +54,8 @@ export function UIContentTab({
   homepageFeaturedSubtitle: string; setHomepageFeaturedSubtitle: (v: string) => void
   homepagePremiumTitle: string; setHomepagePremiumTitle: (v: string) => void
   homepagePremiumSubtitle: string; setHomepagePremiumSubtitle: (v: string) => void
+  homepageTeachersTitle: string; setHomepageTeachersTitle: (v: string) => void
+  homepageTeachersSubtitle: string; setHomepageTeachersSubtitle: (v: string) => void
   footerDescription: string; setFooterDescription: (v: string) => void
   premiumFeaturesText: string; setPremiumFeaturesText: (v: string) => void
   mcqFeaturesText: string; setMcqFeaturesText: (v: string) => void
@@ -136,6 +140,14 @@ export function UIContentTab({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2"><Label>শিরোনাম</Label><Input value={homepagePremiumTitle} onChange={(e) => setHomepagePremiumTitle(e.target.value)} placeholder="প্রিমিয়াম কন্টেন্ট" /></div>
             <div className="space-y-2"><Label>উপশিরোনাম</Label><Input value={homepagePremiumSubtitle} onChange={(e) => setHomepagePremiumSubtitle(e.target.value)} placeholder="প্রতিটি কন্টেন্ট আলাদাভাবে কিনুন অথবা বান্ডেলে আকর্ষণীয় ছাড়ে পান!" /></div>
+          </div>
+        </div>
+        <Separator />
+        <div className="space-y-4">
+          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">শিক্ষক সেকশন</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-2"><Label>শিরোনাম</Label><Input value={homepageTeachersTitle} onChange={(e) => setHomepageTeachersTitle(e.target.value)} placeholder="আমাদের শিক্ষকবৃন্দ" /></div>
+            <div className="space-y-2"><Label>উপশিরোনাম</Label><Input value={homepageTeachersSubtitle} onChange={(e) => setHomepageTeachersSubtitle(e.target.value)} placeholder="অভিজ্ঞ শিক্ষকদের তত্ত্বাবধানে পড়াশোনা করুন" /></div>
           </div>
         </div>
         <Separator />

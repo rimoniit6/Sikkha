@@ -22,9 +22,21 @@ function formatStatValue(count: number): string {
   return new Intl.NumberFormat('bn-BD').format(count) + '+'
 }
 
-// Canvas-based particle system for the hero background
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(false)
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768)
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
+  return isMobile
+}
+
+// Canvas-based particle system — reduced on mobile
 function ParticleCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const isMobile = useIsMobile()
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -46,8 +58,10 @@ function ParticleCanvas() {
     resize()
     window.addEventListener('resize', resize)
 
-    // Initialize particles
-    const count = Math.min(60, Math.floor(canvas.offsetWidth / 20))
+    // Fewer particles on mobile for better performance
+    const count = isMobile
+      ? Math.min(20, Math.floor(canvas.offsetWidth / 40))
+      : Math.min(60, Math.floor(canvas.offsetWidth / 20))
     for (let i = 0; i < count; i++) {
       particles.push({
         x: Math.random() * canvas.offsetWidth,
@@ -81,19 +95,21 @@ function ParticleCanvas() {
         ctx.fill()
       }
 
-      // Draw connection lines between nearby particles
-      for (let i = 0; i < particles.length; i++) {
-        for (let j = i + 1; j < particles.length; j++) {
-          const dx = particles[i].x - particles[j].x
-          const dy = particles[i].y - particles[j].y
-          const dist = Math.sqrt(dx * dx + dy * dy)
-          if (dist < 120) {
-            ctx.beginPath()
-            ctx.moveTo(particles[i].x, particles[i].y)
-            ctx.lineTo(particles[j].x, particles[j].y)
-            ctx.strokeStyle = `rgba(255, 255, 255, ${0.06 * (1 - dist / 120)})`
-            ctx.lineWidth = 0.5
-            ctx.stroke()
+      // Connection lines — skip on mobile for performance
+      if (!isMobile) {
+        for (let i = 0; i < particles.length; i++) {
+          for (let j = i + 1; j < particles.length; j++) {
+            const dx = particles[i].x - particles[j].x
+            const dy = particles[i].y - particles[j].y
+            const dist = Math.sqrt(dx * dx + dy * dy)
+            if (dist < 120) {
+              ctx.beginPath()
+              ctx.moveTo(particles[i].x, particles[i].y)
+              ctx.lineTo(particles[j].x, particles[j].y)
+              ctx.strokeStyle = `rgba(255, 255, 255, ${0.06 * (1 - dist / 120)})`
+              ctx.lineWidth = 0.5
+              ctx.stroke()
+            }
           }
         }
       }
@@ -106,7 +122,7 @@ function ParticleCanvas() {
       cancelAnimationFrame(animationId)
       window.removeEventListener('resize', resize)
     }
-  }, [])
+  }, [isMobile])
 
   return (
     <canvas
@@ -122,10 +138,12 @@ export default function HeroSection() {
   const navigate = useRouterStore((s) => s.navigate)
   const { stats, loading } = usePublicStats()
   const { config } = useSiteConfig()
+  const isMobile = useIsMobile()
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 })
 
-  // Subtle mouse parallax for floating elements
+  // Mouse parallax — desktop only
   useEffect(() => {
+    if (isMobile) return
     const handleMove = (e: MouseEvent) => {
       const x = (e.clientX / window.innerWidth - 0.5) * 2
       const y = (e.clientY / window.innerHeight - 0.5) * 2
@@ -133,7 +151,7 @@ export default function HeroSection() {
     }
     window.addEventListener('mousemove', handleMove, { passive: true })
     return () => window.removeEventListener('mousemove', handleMove)
-  }, [])
+  }, [isMobile])
 
   const heroStats = stats
     ? [
@@ -145,7 +163,7 @@ export default function HeroSection() {
     : []
 
   return (
-    <section className="relative min-h-[92vh] flex flex-col overflow-hidden">
+    <section className={`relative ${isMobile ? 'min-h-[80vh]' : 'min-h-[92vh]'} flex flex-col overflow-hidden`}>
       {/* Multi-layer Gradient Background */}
       <div className="absolute inset-0 bg-gradient-to-br from-emerald-700 via-teal-600 to-emerald-800 animate-gradient" />
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(255,255,255,0.12),transparent_50%)]" />
@@ -155,8 +173,8 @@ export default function HeroSection() {
       {/* Particle Canvas */}
       <ParticleCanvas />
 
-      {/* Animated floating elements with mouse parallax */}
-      {floatingElements.map(({ Icon, x, y, delay, size }, i) => {
+      {/* Floating elements — parallax desktop only */}
+      {!isMobile && floatingElements.map(({ Icon, x, y, delay, size }, i) => {
         const floatClass = `animate-float-${(i % 5) + 1}`
         const parallaxFactor = (i % 3) * 0.15 + 0.1
         return (
@@ -179,20 +197,20 @@ export default function HeroSection() {
 
       {/* Content */}
       <div className="relative z-10 flex-1 flex items-center">
-        <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-20">
+        <div className={`w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 ${isMobile ? 'py-12' : 'py-16 sm:py-20'}`}>
           <div className="text-center stagger-children">
-            {/* Top Badge with pulse ring */}
-            <div className="mb-6">
-              <span className="relative inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/15 backdrop-blur-sm text-white text-sm font-medium border border-white/20 shadow-lg shadow-black/10">
+            {/* Top Badge */}
+            <div className={isMobile ? 'mb-4' : 'mb-6'}>
+              <span className="relative inline-flex items-center gap-2 px-4 sm:px-5 py-2 sm:py-2.5 rounded-full bg-white/15 backdrop-blur-sm text-white text-xs sm:text-sm font-medium border border-white/20 shadow-lg shadow-black/10">
                 <span className="absolute inset-0 rounded-full bg-white/5 animate-pulse-ring" />
                 <span className="absolute inset-0 rounded-full bg-white/5 animate-pulse-ring-delayed" />
-                <Sparkles className="w-4 h-4 relative z-10" />
+                <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 relative z-10" />
                 <span className="relative z-10">{config?.heroBadge || 'বাংলাদেশের সেরা অনলাইন শিক্ষা প্ল্যাটফর্ম'}</span>
               </span>
             </div>
 
-            {/* Main Heading with enhanced gradient */}
-            <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold text-white leading-[1.1] mb-6 tracking-tight">
+            {/* Main Heading */}
+            <h1 className={`${isMobile ? 'text-3xl' : 'text-4xl sm:text-5xl md:text-6xl lg:text-7xl'} font-extrabold text-white leading-[1.1] mb-4 sm:mb-6 tracking-tight`}>
               {config?.heroTitle || 'বাংলাদেশের সেরা'}
               <br />
               <span className="relative inline-block mt-1">
@@ -203,55 +221,55 @@ export default function HeroSection() {
               </span>
             </h1>
 
-            {/* Subtitle with typing cursor effect */}
-            <p className="text-lg sm:text-xl text-white/85 max-w-2xl mx-auto mb-10 leading-relaxed">
+            {/* Subtitle */}
+            <p className={`${isMobile ? 'text-base' : 'text-lg sm:text-xl'} text-white/85 max-w-2xl mx-auto mb-8 sm:mb-10 leading-relaxed`}>
               {config?.heroSubtitle || 'Class 6 থেকে HSC পর্যন্ত সকল বিষয়ের লেকচার, MCQ, সৃজনশীল প্রশ্ন ও বোর্ড প্রশ্ন'}
             </p>
 
-            {/* CTA Buttons with enhanced styling */}
-            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-14">
+            {/* CTA Buttons */}
+            <div className={`flex ${isMobile ? 'flex-col' : 'flex-row'} gap-3 sm:gap-4 justify-center items-center ${isMobile ? 'mb-10' : 'mb-14'}`}>
               <Button
                 size="lg"
-                className="group relative bg-white text-emerald-700 hover:bg-white/95 font-bold text-lg px-10 h-13 shadow-xl shadow-black/20 transition-all duration-300 hover:shadow-2xl hover:shadow-black/25 hover:scale-[1.02] active:scale-[0.97] hover-shine"
+                className={`group relative bg-white text-emerald-700 hover:bg-white/95 font-bold ${isMobile ? 'text-base w-full h-12' : 'text-lg px-10 h-13'} shadow-xl shadow-black/20 transition-all duration-300 hover:shadow-2xl hover:shadow-black/25 hover:scale-[1.02] active:scale-[0.97] hover-shine`}
                 onClick={() => navigate('class-list')}
               >
-                <span className="flex items-center gap-2">
+                <span className="flex items-center gap-2 justify-center">
                   শিক্ষা শুরু করুন
-                  <ArrowRight className="w-5 h-5 transition-transform duration-200 group-hover:translate-x-0.5" />
+                  <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 transition-transform duration-200 group-hover:translate-x-0.5" />
                 </span>
               </Button>
               <Button
                 variant="outline"
                 size="lg"
-                className="group border-2 border-white/30 text-white hover:bg-white/15 hover:border-white/50 hover:text-white font-bold text-lg px-10 h-13 bg-white/5 backdrop-blur-sm transition-all duration-300 hover:scale-[1.02] active:scale-[0.97] hover-shine"
+                className={`group border-2 border-white/30 text-white hover:bg-white/15 hover:border-white/50 hover:text-white font-bold ${isMobile ? 'text-base w-full h-12' : 'text-lg px-10 h-13'} bg-white/5 backdrop-blur-sm transition-all duration-300 hover:scale-[1.02] active:scale-[0.97] hover-shine`}
                 onClick={() => navigate('premium')}
               >
-                <span className="flex items-center gap-2">
+                <span className="flex items-center gap-2 justify-center">
                   প্রিমিয়াম দেখুন
-                  <Sparkles className="w-5 h-5 transition-transform duration-200 group-hover:rotate-12" />
+                  <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 transition-transform duration-200 group-hover:rotate-12" />
                 </span>
               </Button>
             </div>
 
-            {/* Stats with icons */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-5 max-w-3xl mx-auto">
+            {/* Stats */}
+            <div className={`grid grid-cols-2 ${!isMobile ? 'md:grid-cols-4' : ''} gap-2.5 sm:gap-5 ${isMobile ? 'max-w-sm' : 'max-w-3xl'} mx-auto`}>
               {heroStats.map((stat, i) => {
                 const StatIcon = stat.icon
                 return (
                   <div
                     key={i}
-                    className="group relative bg-white/10 backdrop-blur-sm rounded-2xl p-4 sm:p-5 border border-white/15 hover:bg-white/18 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-black/10 animate-scale-in cursor-default"
+                    className={`group relative bg-white/10 backdrop-blur-sm rounded-xl sm:rounded-2xl ${isMobile ? 'p-3' : 'p-4 sm:p-5'} border border-white/15 hover:bg-white/18 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-black/10 animate-scale-in cursor-default`}
                     style={{ animationDelay: `${0.8 + i * 0.1}s` }}
                   >
-                    <StatIcon className="w-4 h-4 text-white/50 mx-auto mb-2 transition-colors group-hover:text-amber-300" />
-                    <div className="text-2xl sm:text-3xl font-bold text-white">
+                    <StatIcon className={`${isMobile ? 'w-3.5 h-3.5' : 'w-4 h-4'} text-white/50 mx-auto mb-1.5 sm:mb-2 transition-colors group-hover:text-amber-300`} />
+                    <div className={`${isMobile ? 'text-xl' : 'text-2xl sm:text-3xl'} font-bold text-white`}>
                       {loading ? (
-                        <div role="status" aria-busy="true"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></div>
+                        <div role="status" aria-busy="true"><Loader2 className={`${isMobile ? 'w-5 h-5' : 'w-6 h-6'} animate-spin mx-auto`} /></div>
                       ) : (
                         stat.value
                       )}
                     </div>
-                    <div className="text-xs sm:text-sm text-white/70 mt-1 font-medium">{stat.label}</div>
+                    <div className={`${isMobile ? 'text-[10px]' : 'text-xs sm:text-sm'} text-white/70 mt-0.5 sm:mt-1 font-medium`}>{stat.label}</div>
                   </div>
                 )
               })}
@@ -260,7 +278,7 @@ export default function HeroSection() {
         </div>
       </div>
 
-      {/* Enhanced Bottom wave with double layer */}
+      {/* Bottom wave */}
       <div className="absolute bottom-0 left-0 right-0" aria-hidden="true">
         <svg viewBox="0 0 1440 120" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full relative z-10">
           <path

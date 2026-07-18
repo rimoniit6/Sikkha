@@ -2,18 +2,21 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
+import { Textarea } from '@/components/ui/textarea'
 import { Phone, Share2 } from 'lucide-react'
 import React from 'react'
 
 export function ContactTab({
   contactEmail, setContactEmail,
   contactPhone, setContactPhone,
+  contactAddress, setContactAddress,
   facebook, setFacebook,
   youtube, setYoutube,
   telegram, setTelegram,
 }: {
   contactEmail: string; setContactEmail: (v: string) => void
   contactPhone: string; setContactPhone: (v: string) => void
+  contactAddress: string; setContactAddress: (v: string) => void
   facebook: string; setFacebook: (v: string) => void
   youtube: string; setYoutube: (v: string) => void
   telegram: string; setTelegram: (v: string) => void
@@ -29,6 +32,7 @@ export function ContactTab({
           <div className="space-y-2"><Label>ইমেইল</Label><Input value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} placeholder="email@example.com" /></div>
           <div className="space-y-2"><Label>ফোন</Label><Input value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} placeholder="+৮৮০..." /></div>
         </div>
+        <div className="space-y-2"><Label>ঠিকানা</Label><Textarea value={contactAddress} onChange={(e) => setContactAddress(e.target.value)} placeholder="যোগাযোগের ঠিকানা লিখুন" rows={2} /></div>
         <Separator />
         <div className="space-y-2"><Label className="flex items-center gap-2"><Share2 className="h-4 w-4" /> সোশ্যাল মিডিয়া</Label></div>
         <div className="space-y-3">

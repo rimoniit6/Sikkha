@@ -1,20 +1,19 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
-import { motion } from 'framer-motion'
 import { createPortal } from 'react-dom'
 import { BookLoader } from './BookLoader'
 import { CircularProgress } from './CircularProgress'
 import { LoadingMessages } from './LoadingMessages'
 import { Particles } from './Particles'
-import { ANIMATION_DURATIONS } from '@/utils/loading'
 
 export function LoadingOverlay() {
   const [mounted, setMounted] = useState(false)
   const overlayRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    setMounted(true)
+    const timer = setTimeout(() => setMounted(true), 0)
+    return () => clearTimeout(timer)
   }, [])
 
   useEffect(() => {
@@ -26,13 +25,9 @@ export function LoadingOverlay() {
   if (!mounted) return null
 
   return createPortal(
-    <motion.div
+    <div
       ref={overlayRef}
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: ANIMATION_DURATIONS.overlayFade / 1000, ease: 'easeInOut' }}
-      className="fixed inset-0 z-[9999] flex items-center justify-center bg-white/85 dark:bg-slate-900/85"
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-white/85 dark:bg-slate-900/85 animate-fade-in"
       role="alertdialog"
       aria-busy="true"
       aria-label="Application is loading"
@@ -52,7 +47,7 @@ export function LoadingOverlay() {
           <LoadingMessages />
         </div>
       </div>
-    </motion.div>,
+    </div>,
     document.body,
   )
 }

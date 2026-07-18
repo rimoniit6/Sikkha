@@ -21,13 +21,19 @@ function withErrorLog<Args extends unknown[], Result>(name: string, fn: (...args
   })
 }
 
+// Branding/assets and content uploads are restricted to admins and super-admins.
+async function requireAdminMiddleware(req: Request) {
+  const auth = await verifyAuth(req)
+  if (!auth?.user) throw new Error('Unauthorized')
+  if (!auth.isAdmin) throw new Error('Forbidden: admin role required')
+  return { userId: auth.user.id }
+}
+
 export const uploadRouter = {
   imageUploader: f({ image: { maxFileSize: '4MB', maxFileCount: 10 } })
     .middleware(
       withErrorLog('imageUploader.middleware', async ({ req }) => {
-        const auth = await verifyAuth(req)
-        if (!auth?.user) throw new Error('Unauthorized')
-        return { userId: auth.user.id }
+        return requireAdminMiddleware(req)
       })
     )
     .onUploadComplete(
@@ -39,9 +45,7 @@ export const uploadRouter = {
   pdfUploader: f({ pdf: { maxFileSize: '16MB', maxFileCount: 5 } })
     .middleware(
       withErrorLog('pdfUploader.middleware', async ({ req }) => {
-        const auth = await verifyAuth(req)
-        if (!auth?.user) throw new Error('Unauthorized')
-        return { userId: auth.user.id }
+        return requireAdminMiddleware(req)
       })
     )
     .onUploadComplete(
@@ -58,9 +62,7 @@ export const uploadRouter = {
   })
     .middleware(
       withErrorLog('mediaUploader.middleware', async ({ req }) => {
-        const auth = await verifyAuth(req)
-        if (!auth?.user) throw new Error('Unauthorized')
-        return { userId: auth.user.id }
+        return requireAdminMiddleware(req)
       })
     )
     .onUploadComplete(
@@ -72,9 +74,7 @@ export const uploadRouter = {
   screenshotUploader: f({ image: { maxFileSize: '4MB', maxFileCount: 1 } })
     .middleware(
       withErrorLog('screenshotUploader.middleware', async ({ req }) => {
-        const auth = await verifyAuth(req)
-        if (!auth?.user) throw new Error('Unauthorized')
-        return { userId: auth.user.id }
+        return requireAdminMiddleware(req)
       })
     )
     .onUploadComplete(
@@ -89,9 +89,7 @@ export const uploadRouter = {
   })
     .middleware(
       withErrorLog('assignmentUploader.middleware', async ({ req }) => {
-        const auth = await verifyAuth(req)
-        if (!auth?.user) throw new Error('Unauthorized')
-        return { userId: auth.user.id }
+        return requireAdminMiddleware(req)
       })
     )
     .onUploadComplete(

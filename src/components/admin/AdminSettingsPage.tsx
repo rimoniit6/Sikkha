@@ -44,6 +44,7 @@ export default function AdminSettingsPage() {
   const [siteDescription, setSiteDescription] = useState('বাংলাদেশের সেরা শিক্ষা প্ল্যাটফর্ম')
   const [contactEmail, setContactEmail] = useState('info@shikhabangla.com')
   const [contactPhone, setContactPhone] = useState('+৮৮০ ১৭০০-০০০০০০')
+  const [contactAddress, setContactAddress] = useState('')
   const [facebook, setFacebook] = useState('https://facebook.com/shikhabangla')
   const [youtube, setYoutube] = useState('https://youtube.com/@shikhabangla')
   const [telegram, setTelegram] = useState('https://t.me/shikhabangla')
@@ -77,6 +78,8 @@ export default function AdminSettingsPage() {
   const [homepageFeaturedSubtitle, setHomepageFeaturedSubtitle] = useState('')
   const [homepagePremiumTitle, setHomepagePremiumTitle] = useState('')
   const [homepagePremiumSubtitle, setHomepagePremiumSubtitle] = useState('')
+  const [homepageTeachersTitle, setHomepageTeachersTitle] = useState('')
+  const [homepageTeachersSubtitle, setHomepageTeachersSubtitle] = useState('')
 
   const [messages, setMessages] = useState<Record<string, string>>({})
 
@@ -108,6 +111,7 @@ export default function AdminSettingsPage() {
     if (map.siteDescription) setSiteDescription(map.siteDescription)
     if (map.contactEmail) setContactEmail(map.contactEmail)
     if (map.contactPhone) setContactPhone(map.contactPhone)
+    if (map.contactAddress) setContactAddress(map.contactAddress)
     if (map.facebook) setFacebook(map.facebook)
     if (map.youtube) setYoutube(map.youtube)
     if (map.telegram) setTelegram(map.telegram)
@@ -153,6 +157,8 @@ export default function AdminSettingsPage() {
     if (map.homepage_featured_subtitle) setHomepageFeaturedSubtitle(map.homepage_featured_subtitle)
     if (map.homepage_premium_title) setHomepagePremiumTitle(map.homepage_premium_title)
     if (map.homepage_premium_subtitle) setHomepagePremiumSubtitle(map.homepage_premium_subtitle)
+    if (map.homepage_teachers_title) setHomepageTeachersTitle(map.homepage_teachers_title)
+    if (map.homepage_teachers_subtitle) setHomepageTeachersSubtitle(map.homepage_teachers_subtitle)
     const msgMap: Record<string, string> = {}
     for (const key of Object.keys(map)) {
       if (key.startsWith('msg_')) msgMap[key] = map[key]
@@ -168,6 +174,7 @@ export default function AdminSettingsPage() {
         { key: 'siteDescription', value: siteDescription },
         { key: 'contactEmail', value: contactEmail },
         { key: 'contactPhone', value: contactPhone },
+        { key: 'contactAddress', value: contactAddress, group: 'contact', label: 'ঠিকানা' },
         { key: 'facebook', value: facebook },
         { key: 'youtube', value: youtube },
         { key: 'telegram', value: telegram },
@@ -182,8 +189,8 @@ export default function AdminSettingsPage() {
         { key: 'premiumFeatures', value: JSON.stringify(premiumFeaturesText.split('\n').filter(Boolean)) },
         { key: 'mcqFeatures', value: JSON.stringify(mcqFeaturesText.split('\n').filter(Boolean)) },
         { key: 'searchSuggestions', value: JSON.stringify(searchSuggestionsText.split('\n').filter(Boolean)) },
-        { key: 'logo', value: logoUrl },
-        { key: 'favicon', value: faviconUrl },
+        ...(logoUrl ? [{ key: 'logo', value: logoUrl }] : []),
+        ...(faviconUrl ? [{ key: 'favicon', value: faviconUrl }] : []),
         { key: 'seo_title', value: seoTitle, group: 'seo', label: 'সাইট শিরোনাম (SEO Title)' },
         { key: 'seo_description', value: seoDescription, group: 'seo', label: 'সাইট বিবরণ (SEO Description)' },
         { key: 'seo_keywords', value: seoKeywords, group: 'seo', label: 'কীওয়ার্ড (SEO Keywords)' },
@@ -207,6 +214,8 @@ export default function AdminSettingsPage() {
         { key: 'homepage_featured_subtitle', value: homepageFeaturedSubtitle, group: 'homepage', label: 'ফিচার্ড সেকশন উপশিরোনাম' },
         { key: 'homepage_premium_title', value: homepagePremiumTitle, group: 'homepage', label: 'প্রিমিয়াম ব্যানার শিরোনাম' },
         { key: 'homepage_premium_subtitle', value: homepagePremiumSubtitle, group: 'homepage', label: 'প্রিমিয়াম ব্যানার উপশিরোনাম' },
+        { key: 'homepage_teachers_title', value: homepageTeachersTitle, group: 'homepage', label: 'শিক্ষক সেকশন শিরোনাম' },
+        { key: 'homepage_teachers_subtitle', value: homepageTeachersSubtitle, group: 'homepage', label: 'শিক্ষক সেকশন উপশিরোনাম' },
         ...Object.entries(messages).map(([key, value]) => ({
           key, value, group: 'messages' as const,
           label: MESSAGE_CONFIG.find(m => m.key === key)?.label || key,
@@ -402,6 +411,8 @@ export default function AdminSettingsPage() {
             homepageFeaturedSubtitle={homepageFeaturedSubtitle} setHomepageFeaturedSubtitle={setHomepageFeaturedSubtitle}
             homepagePremiumTitle={homepagePremiumTitle} setHomepagePremiumTitle={setHomepagePremiumTitle}
             homepagePremiumSubtitle={homepagePremiumSubtitle} setHomepagePremiumSubtitle={setHomepagePremiumSubtitle}
+            homepageTeachersTitle={homepageTeachersTitle} setHomepageTeachersTitle={setHomepageTeachersTitle}
+            homepageTeachersSubtitle={homepageTeachersSubtitle} setHomepageTeachersSubtitle={setHomepageTeachersSubtitle}
             footerDescription={footerDescription} setFooterDescription={setFooterDescription}
             premiumFeaturesText={premiumFeaturesText} setPremiumFeaturesText={setPremiumFeaturesText}
             mcqFeaturesText={mcqFeaturesText} setMcqFeaturesText={setMcqFeaturesText}
@@ -421,6 +432,7 @@ export default function AdminSettingsPage() {
           <ContactTab
             contactEmail={contactEmail} setContactEmail={setContactEmail}
             contactPhone={contactPhone} setContactPhone={setContactPhone}
+            contactAddress={contactAddress} setContactAddress={setContactAddress}
             facebook={facebook} setFacebook={setFacebook}
             youtube={youtube} setYoutube={setYoutube}
             telegram={telegram} setTelegram={setTelegram}

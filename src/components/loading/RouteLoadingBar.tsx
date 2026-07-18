@@ -14,10 +14,20 @@ export function RouteLoadingBar() {
     if (isLoading) {
       timerRef.current = setTimeout(() => setShow(true), SHOW_THRESHOLD_MS)
     } else {
-      setShow(false)
-      if (timerRef.current) {
-        clearTimeout(timerRef.current)
-        timerRef.current = null
+      // Reset show state via microtask to avoid cascading render
+      const raf = requestAnimationFrame(() => {
+        setShow(false)
+        if (timerRef.current) {
+          clearTimeout(timerRef.current)
+          timerRef.current = null
+        }
+      })
+      return () => {
+        cancelAnimationFrame(raf)
+        if (timerRef.current) {
+          clearTimeout(timerRef.current)
+          timerRef.current = null
+        }
       }
     }
     return () => {

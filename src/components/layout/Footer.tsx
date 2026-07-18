@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { motion } from 'framer-motion'
 import {
   GraduationCap,
@@ -12,10 +12,8 @@ import {
   MessageCircle,
   ExternalLink,
   Heart,
-  ArrowUp,
 } from 'lucide-react'
 import { Separator } from '@/components/ui/separator'
-import { Button } from '@/components/ui/button'
 import { useRouterStore, type RoutePath } from '@/store/router'
 import { useSiteConfig } from '@/hooks/use-metadata'
 import { useHierarchyMetadata } from '@/hooks/use-hierarchy-metadata'
@@ -24,18 +22,7 @@ import { getMessages } from '@/lib/messages'
 import Image from 'next/image'
 
 export default function Footer() {
-  const [showScrollTop, setShowScrollTop] = useState(false)
   const currentYear = new Date().getFullYear()
-
-  useEffect(() => {
-    const handleScroll = () => setShowScrollTop(window.scrollY > 400)
-    window.addEventListener('scroll', handleScroll, { passive: true })
-    return () => window.removeEventListener('scroll', handleScroll)
-  }, [])
-
-  const scrollToTop = () => {
-    window.scrollTo({ top: 0, behavior: 'smooth' })
-  }
 
   const navigate = useRouterStore((s) => s.navigate)
   const { config } = useSiteConfig()
@@ -235,17 +222,6 @@ export default function Footer() {
         </div>
       </div>
 
-      {/* Scroll to Top Button */}
-      <Button
-        onClick={scrollToTop}
-        size="icon"
-        className={`fixed bottom-24 md:bottom-8 right-6 z-40 h-11 w-11 rounded-full bg-edu-primary hover:bg-edu-primary-dark text-white shadow-lg shadow-edu-primary/25 transition-all duration-300 ${
-          showScrollTop ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'
-        }`}
-        aria-label="উপরে যান"
-      >
-        <ArrowUp className="w-4 h-4" />
-      </Button>
     </footer>
   )
 }

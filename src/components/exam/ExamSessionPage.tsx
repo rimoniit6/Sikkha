@@ -31,7 +31,6 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { fetchCsrfToken } from '@/lib/api-client'
 import { useExamStore } from '@/store/exam'
 import { useRouterStore, useRouteParams } from '@/store/router'
-import { AnimatePresence,motion } from 'framer-motion'
 import { useToast } from '@/hooks/use-toast'
 import { useCallback,useEffect,useMemo,useRef,useState } from 'react'
 
@@ -128,7 +127,7 @@ function QuestionPalette({
           return (
             <button
               key={q.id}
-              className={`flex items-center justify-center size-9 rounded-lg text-sm font-medium transition-colors ${
+              className={`flex items-center justify-center size-10 sm:size-9 rounded-lg text-sm font-medium transition-colors min-h-[40px] min-w-[40px] ${
                 isCurrent
                   ? 'bg-primary text-primary-foreground'
                   : isAnswered
@@ -578,14 +577,10 @@ export default function ExamSessionPage() {
         <div className="flex flex-col lg:flex-row gap-6">
           {/* Question Area */}
           <div className="flex-1">
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={currentQuestion?.id}
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                transition={{ duration: 0.25 }}
-              >
+            <div
+              key={currentQuestion?.id}
+              className="animate-fade-in"
+            >
                 <Card className="border-border/50">
                   <CardContent className="p-5 sm:p-6">
                     {/* Question Header */}
@@ -634,8 +629,7 @@ export default function ExamSessionPage() {
                     </div>
                   </CardContent>
                 </Card>
-              </motion.div>
-            </AnimatePresence>
+              </div>
 
             {/* Navigation */}
             <div className="flex items-center justify-between mt-4">
@@ -749,10 +743,8 @@ export default function ExamSessionPage() {
 
         {/* Mobile Question Palette Sheet */}
         {showPalette && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="fixed inset-x-0 bottom-0 z-50 bg-background border-t rounded-t-2xl p-4 shadow-lg lg:hidden max-h-[70vh] overflow-y-auto"
+          <div
+            className="fixed inset-x-0 bottom-0 z-50 bg-background border-t rounded-t-2xl p-4 shadow-lg lg:hidden max-h-[70vh] overflow-y-auto animate-slide-up"
           >
             <div className="flex items-center justify-between mb-3">
               <h4 className="font-semibold text-sm">প্রশ্ন প্যালেট</h4>
@@ -794,7 +786,7 @@ export default function ExamSessionPage() {
                 <span>বাকি</span>
               </div>
             </div>
-          </motion.div>
+          </div>
         )}
       </div>
 

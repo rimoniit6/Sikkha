@@ -1,7 +1,6 @@
 'use client'
 
 import { memo, useMemo } from 'react'
-import { motion } from 'framer-motion'
 import { MAX_PARTICLES, PARTICLE_FLOAT_DURATION, COLORS } from '@/utils/loading'
 
 interface Particle {
@@ -37,9 +36,9 @@ export const Particles = memo(function Particles() {
       aria-hidden="true"
     >
       {particles.map((p) => (
-        <motion.div
+        <div
           key={p.id}
-          className="absolute rounded-full"
+          className="absolute rounded-full animate-particle-float"
           style={{
             width: p.size,
             height: p.size,
@@ -47,20 +46,11 @@ export const Particles = memo(function Particles() {
             left: '50%',
             top: '50%',
             boxShadow: `0 0 ${p.size * 2}px ${p.color}`,
-          }}
-          initial={{ x: 0, y: 0, opacity: 0 }}
-          animate={{
-            x: [0, p.x, p.x * 0.5],
-            y: [0, p.y, p.y * 0.8],
-            opacity: [0, 0.8, 0],
-            scale: [0, 1, 0.5],
-          }}
-          transition={{
-            duration: PARTICLE_FLOAT_DURATION / 1000,
-            delay: p.delay / 1000,
-            repeat: Infinity,
-            ease: 'easeOut',
-          }}
+            animationDelay: `${p.delay / 1000}s`,
+            animationDuration: `${PARTICLE_FLOAT_DURATION / 1000}s`,
+            '--particle-x': `${p.x}px`,
+            '--particle-y': `${p.y}px`,
+          } as React.CSSProperties}
         />
       ))}
     </div>

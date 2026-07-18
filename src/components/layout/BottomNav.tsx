@@ -1,6 +1,5 @@
 'use client'
 
-import { motion } from 'framer-motion'
 import { useRouterStore, useCurrentRoute } from '@/store/router'
 import type { RoutePath } from '@/store/router'
 import { useIsAuthenticated } from '@/store/auth'
@@ -53,7 +52,7 @@ export default function BottomNav() {
   const { bottomNav, loading: navLoading } = useNavigation()
 
   const visibleItems = bottomNav.filter(item => {
-    if (item.isAdminOnly) return false // Don't show admin in bottom nav
+    if (item.isAdminOnly) return false
     if (item.isAuthOnly && !isAuthenticated) return false
     return true
   })
@@ -73,62 +72,62 @@ export default function BottomNav() {
   }
 
   const activeIndex = getActiveIndex()
-  const itemWidthPercent = visibleItems.length > 0 ? 100 / visibleItems.length : 20
+  const itemCount = visibleItems.length
+  const itemWidthPercent = itemCount > 0 ? 100 / itemCount : 20
 
   if (navLoading) return null
 
   return (
-    <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 pb-safe">
+    <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 pb-safe" role="navigation" aria-label="মূল নেভিগেশন">
       <div className="mx-3 mb-3">
         <nav className="glass rounded-2xl shadow-lg shadow-black/10 dark:shadow-black/30 px-2 py-1.5">
           <div className="flex items-center justify-around relative">
-            {/* Active Indicator Background */}
-            <motion.div
-              className="absolute top-0 h-full pointer-events-none"
-              style={{ width: `${itemWidthPercent}%` }}
-              animate={{ left: `${activeIndex * itemWidthPercent}%` }}
-              transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+            {/* Active Indicator Background — CSS transition instead of framer-motion */}
+            <div
+              className="absolute top-0 h-full pointer-events-none transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]"
+              style={{
+                width: `${itemWidthPercent}%`,
+                left: `${activeIndex * itemWidthPercent}%`,
+              }}
             >
               <div className="mx-1 my-0.5 h-[calc(100%-4px)] rounded-xl bg-edu-primary/10 dark:bg-edu-primary/20" />
-            </motion.div>
+            </div>
 
             {/* Nav Items */}
             {visibleItems.map((item, index) => {
               const Icon = item.Icon
               const isActive = index === activeIndex
               return (
-                <motion.button
+                <button
                   key={item.id}
                   onClick={() => handleTabClick(item.route)}
-                  className="relative flex flex-col items-center justify-center py-1.5 px-3 min-w-[56px] z-10"
-                  whileTap={{ scale: 0.9 }}
-                  aria-current={isActive ? "page" : undefined}
+                  className={`relative flex flex-col items-center justify-center py-1.5 px-3 min-w-[56px] z-10 active:scale-90 transition-transform duration-150 ${
+                    isActive ? '' : 'hover:bg-accent/30'
+                  }`}
+                  aria-current={isActive ? 'page' : undefined}
+                  aria-label={item.label}
                 >
-                  <motion.div
-                    animate={{
-                      scale: isActive ? 1.15 : 1,
-                      y: isActive ? -2 : 0,
-                    }}
-                    transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+                  <div
+                    className={`transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+                      isActive ? 'scale-110 -translate-y-0.5' : 'scale-100 translate-y-0'
+                    }`}
                   >
                     <Icon
-                      className={`w-5 h-5 transition-colors ${
+                      className={`w-5 h-5 transition-colors duration-200 ${
                         isActive ? 'text-edu-primary' : 'text-muted-foreground'
                       }`}
                     />
-                  </motion.div>
-                  <motion.span
-                    animate={{
-                      opacity: isActive ? 1 : 0.7,
-                      y: isActive ? 0 : 1,
-                    }}
-                    className={`text-[10px] mt-0.5 font-medium transition-colors ${
-                      isActive ? 'text-edu-primary' : 'text-muted-foreground'
+                  </div>
+                  <span
+                    className={`text-[10px] mt-0.75 font-medium transition-all duration-200 ${
+                      isActive
+                        ? 'text-edu-primary opacity-100 translate-y-0'
+                        : 'text-muted-foreground opacity-70 translate-y-px'
                     }`}
                   >
                     {item.label}
-                  </motion.span>
-                </motion.button>
+                  </span>
+                </button>
               )
             })}
           </div>

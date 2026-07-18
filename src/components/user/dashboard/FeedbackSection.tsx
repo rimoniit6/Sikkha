@@ -9,7 +9,6 @@ import { Textarea } from '@/components/ui/textarea'
 import { useToast } from '@/hooks/use-toast'
 import { fetchCsrfToken } from '@/lib/api-client'
 import { cn } from '@/lib/utils'
-import { AnimatePresence,motion } from 'framer-motion'
 import {
 ArrowLeft,
 CheckCircle2,
@@ -150,10 +149,10 @@ export default function FeedbackSection() {
     return (
       <div className="space-y-4">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="sm" onClick={() => { setSelectedId(null); setMessages([]) }}>
+          <Button variant="ghost" size="sm" onClick={() => { setSelectedId(null); setMessages([]) }} className="min-h-[44px] min-w-[44px]">
             <ArrowLeft className="size-4" />
           </Button>
-          <div className="flex-1">
+          <div className="flex-1 min-w-0">
             <h3 className="font-semibold text-sm">{selectedFeedback.subject}</h3>
             <p className="text-xs text-muted-foreground">
               {formatDateBn(selectedFeedback.createdAt)} · {toBengaliNum(selectedFeedback._count.messages)}টি বার্তা
@@ -200,7 +199,7 @@ export default function FeedbackSection() {
               onChange={(e) => setReplyText(e.target.value)}
             />
             <Button
-              className="shrink-0 self-end"
+              className="shrink-0 self-end min-h-[44px] min-w-[44px]"
               size="sm"
               onClick={handleReply}
               disabled={sendingReply || !replyText.trim()}
@@ -230,41 +229,34 @@ export default function FeedbackSection() {
         )}
       </div>
 
-      <AnimatePresence>
-        {showForm && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="overflow-hidden"
-          >
-            <Card>
-              <CardContent className="p-4 space-y-3">
-                <Input
-                  placeholder="বিষয় (যেমন: নতুন কন্টেন্ট অনুরোধ)"
-                  value={subject}
-                  onChange={(e) => setSubject(e.target.value)}
-                />
-                <Textarea
-                  placeholder="বিস্তারিত লিখুন..."
-                  className="min-h-[100px]"
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                />
-                <div className="flex gap-2 justify-end">
-                  <Button variant="outline" size="sm" onClick={() => setShowForm(false)}>
-                    বাতিল
-                  </Button>
-                  <Button size="sm" onClick={handleSubmit} disabled={submitting || !subject.trim() || !message.trim()}>
-                    {submitting ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
-                    পাঠান
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {showForm && (
+        <div className="animate-slide-up">
+          <Card>
+            <CardContent className="p-4 space-y-3">
+              <Input
+                placeholder="বিষয় (যেমন: নতুন কন্টেন্ট অনুরোধ)"
+                value={subject}
+                onChange={(e) => setSubject(e.target.value)}
+              />
+              <Textarea
+                placeholder="বিস্তারিত লিখুন..."
+                className="min-h-[100px]"
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+              />
+              <div className="flex gap-2 justify-end">
+                <Button variant="outline" size="sm" onClick={() => setShowForm(false)}>
+                  বাতিল
+                </Button>
+                <Button size="sm" onClick={handleSubmit} disabled={submitting || !subject.trim() || !message.trim()}>
+                  {submitting ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
+                  পাঠান
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {loading ? (
         <div className="space-y-3">

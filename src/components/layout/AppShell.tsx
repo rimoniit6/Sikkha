@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { usePathname, useSearchParams } from 'next/navigation'
 import Header from './Header'
 import Footer from './Footer'
@@ -16,6 +16,62 @@ interface AppShellProps {
   children: React.ReactNode
 }
 
+function NetworkStatus() {
+  const [isOnline, setIsOnline] = useState(() => typeof navigator !== 'undefined' ? navigator.onLine : true)
+  const [showReconnecting, setShowReconnecting] = useState(false)
+
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true)
+      setShowReconnecting(true)
+      // Auto-hide reconnection banner after 3 seconds
+      setTimeout(() => setShowReconnecting(false), 3000)
+    }
+    const handleOffline = () => {
+      setIsOnline(false)
+      setShowReconnecting(false)
+    }
+
+    window.addEventListener('online', handleOnline)
+    window.addEventListener('offline', handleOffline)
+    return () => {
+      window.removeEventListener('online', handleOnline)
+      window.removeEventListener('offline', handleOffline)
+    }
+  }, [])
+
+  // Don't show anything if online and not reconnecting
+  if (isOnline && !showReconnecting) return null
+
+  // Show reconnection success
+  if (isOnline && showReconnecting) {
+    return (
+      <div
+        className="fixed top-0 left-0 right-0 z-[200] bg-emerald-500 text-white transition-all duration-300 translate-y-0"
+        role="status"
+        aria-live="polite"
+      >
+        <div className="max-w-7xl mx-auto px-4 py-2 text-center text-sm font-medium">
+          ✅ সংযোগ পুনরুদ্ধার হয়েছে
+        </div>
+      </div>
+    )
+  }
+
+  // Show offline banner
+  return (
+    <div
+      className="fixed top-0 left-0 right-0 z-[200] bg-amber-500 text-white transition-all duration-300 translate-y-0"
+      role="status"
+      aria-live="polite"
+    >
+      <div className="max-w-7xl mx-auto px-4 py-2 text-center text-sm font-medium">
+        📡 আপনি অফলাইনে আছেন — কিছু ফিচার সীমিত থাকতে পারে
+      </div>
+    </div>
+  )
+}
+
 export default function AppShell({ children }: AppShellProps) {
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -24,13 +80,21 @@ export default function AppShell({ children }: AppShellProps) {
 
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
+      <NetworkStatus />
       <div className={isAdmin ? 'h-screen' : 'min-h-screen flex flex-col'}>
         {!isAdmin && <Header />}
         {!isAdmin && <NoticeBar />}
 
-        <main className={isAdmin ? 'h-full' : 'flex-1 pt-16 pb-24 md:pb-8 mb-8'}>
+        <main className={isAdmin ? 'h-full' : 'flex-1 pt-14 sm:pt-16 pb-24 md:pb-8 mb-8 safe-bottom'}>
           <ErrorBoundary>
-            <Suspense fallback={<div className="flex items-center justify-center min-h-[60vh]"><div className="size-8 rounded-full border-2 border-primary border-t-transparent animate-spin" /></div>}>
+            <Suspense fallback={
+              <div className="flex items-center justify-center min-h-[60vh]">
+                <div className="flex flex-col items-center gap-3">
+                  <div className="size-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+                  <p className="text-sm text-muted-foreground">লোড হচ্ছে...</p>
+                </div>
+              </div>
+            }>
               {children}
             </Suspense>
           </ErrorBoundary>
