@@ -47,32 +47,50 @@ export default function NewsletterSection() {
   }, [name, email, message])
 
   const handleSubmit = useCallback(
-    (e: FormEvent) => {
+    async (e: FormEvent) => {
       e.preventDefault()
 
       if (!validate()) return
 
       setIsSubmitting(true)
 
-      // Simulate a short delay for UX
-      setTimeout(() => {
-        setIsSubmitting(false)
-        setIsSuccess(true)
-        setName('')
-        setEmail('')
-        setMessage('')
-        setErrors({})
-
-        toast({
-          title: 'ধন্যবাদ!',
-          description: 'আপনার বার্তা পাঠানো হয়েছে।',
+      try {
+        const res = await fetch('/api/contact', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: name.trim(), email: email.trim(), message: message.trim() }),
         })
 
-        // Reset success state after a few seconds
-        setTimeout(() => setIsSuccess(false), 4000)
-      }, 800)
+        if (res.ok) {
+          setIsSuccess(true)
+          setName('')
+          setEmail('')
+          setMessage('')
+          setErrors({})
+          toast({
+            title: 'ধন্যবাদ!',
+            description: 'আপনার বার্তা পাঠানো হয়েছে। আমরা শীঘ্রই যোগাযোগ করব।',
+          })
+          setTimeout(() => setIsSuccess(false), 4000)
+        } else {
+          const data = await res.json().catch(() => ({}))
+          toast({
+            title: 'ত্রুটি',
+            description: data.error || 'বার্তা পাঠাতে সমস্যা হয়েছে। আবার চেষ্টা করুন।',
+            variant: 'destructive',
+          })
+        }
+      } catch {
+        toast({
+          title: 'ত্রুটি',
+          description: 'নেটওয়ার্ক সমস্যা। আবার চেষ্টা করুন।',
+          variant: 'destructive',
+        })
+      } finally {
+        setIsSubmitting(false)
+      }
     },
-    [validate]
+    [validate, name, email, message, toast]
   )
 
   const contactItems = [

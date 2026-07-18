@@ -29,6 +29,14 @@ export function UIContentTab({
   homepagePremiumSubtitle, setHomepagePremiumSubtitle,
   homepageTeachersTitle, setHomepageTeachersTitle,
   homepageTeachersSubtitle, setHomepageTeachersSubtitle,
+  homepageExamTitle, setHomepageExamTitle,
+  homepageExamSubtitle, setHomepageExamSubtitle,
+  homepageExam1Name, setHomepageExam1Name,
+  homepageExam1Date, setHomepageExam1Date,
+  homepageExam1DateLabel, setHomepageExam1DateLabel,
+  homepageExam2Name, setHomepageExam2Name,
+  homepageExam2Date, setHomepageExam2Date,
+  homepageExam2DateLabel, setHomepageExam2DateLabel,
   footerDescription, setFooterDescription,
   premiumFeaturesText, setPremiumFeaturesText,
   mcqFeaturesText, setMcqFeaturesText,
@@ -56,6 +64,14 @@ export function UIContentTab({
   homepagePremiumSubtitle: string; setHomepagePremiumSubtitle: (v: string) => void
   homepageTeachersTitle: string; setHomepageTeachersTitle: (v: string) => void
   homepageTeachersSubtitle: string; setHomepageTeachersSubtitle: (v: string) => void
+  homepageExamTitle: string; setHomepageExamTitle: (v: string) => void
+  homepageExamSubtitle: string; setHomepageExamSubtitle: (v: string) => void
+  homepageExam1Name: string; setHomepageExam1Name: (v: string) => void
+  homepageExam1Date: string; setHomepageExam1Date: (v: string) => void
+  homepageExam1DateLabel: string; setHomepageExam1DateLabel: (v: string) => void
+  homepageExam2Name: string; setHomepageExam2Name: (v: string) => void
+  homepageExam2Date: string; setHomepageExam2Date: (v: string) => void
+  homepageExam2DateLabel: string; setHomepageExam2DateLabel: (v: string) => void
   footerDescription: string; setFooterDescription: (v: string) => void
   premiumFeaturesText: string; setPremiumFeaturesText: (v: string) => void
   mcqFeaturesText: string; setMcqFeaturesText: (v: string) => void
@@ -149,6 +165,25 @@ export function UIContentTab({
             <div className="space-y-2"><Label>শিরোনাম</Label><Input value={homepageTeachersTitle} onChange={(e) => setHomepageTeachersTitle(e.target.value)} placeholder="আমাদের শিক্ষকবৃন্দ" /></div>
             <div className="space-y-2"><Label>উপশিরোনাম</Label><Input value={homepageTeachersSubtitle} onChange={(e) => setHomepageTeachersSubtitle(e.target.value)} placeholder="অভিজ্ঞ শিক্ষকদের তত্ত্বাবধানে পড়াশোনা করুন" /></div>
           </div>
+        </div>
+        <Separator />
+        <div className="space-y-4">
+          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">পরীক্ষা কাউন্টডাউন সেকশন</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-2"><Label>শিরোনাম</Label><Input value={homepageExamTitle} onChange={(e) => setHomepageExamTitle(e.target.value)} placeholder="পরীক্ষার কাউন্টডাউন" /></div>
+            <div className="space-y-2"><Label>উপশিরোনাম</Label><Input value={homepageExamSubtitle} onChange={(e) => setHomepageExamSubtitle(e.target.value)} placeholder="আপনার পরবর্তী বোর্ড পরীক্ষার জন্য প্রস্তুত হন" /></div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="space-y-2"><Label>পরীক্ষা ১ — নাম</Label><Input value={homepageExam1Name} onChange={(e) => setHomepageExam1Name(e.target.value)} placeholder="এইচএসসি পরীক্ষা ২০২৬" /></div>
+            <div className="space-y-2"><Label>পরীক্ষা ১ — তারিখ (ISO)</Label><Input value={homepageExam1Date} onChange={(e) => setHomepageExam1Date(e.target.value)} placeholder="2026-04-06T09:00:00+06:00" /></div>
+            <div className="space-y-2"><Label>পরীক্ষা ১ — তারিখ লেবেল</Label><Input value={homepageExam1DateLabel} onChange={(e) => setHomepageExam1DateLabel(e.target.value)} placeholder="৬ এপ্রিল ২০২৬" /></div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="space-y-2"><Label>পরীক্ষা ২ — নাম</Label><Input value={homepageExam2Name} onChange={(e) => setHomepageExam2Name(e.target.value)} placeholder="এসএসসি পরীক্ষা ২০২৬" /></div>
+            <div className="space-y-2"><Label>পরীক্ষা ২ — তারিখ (ISO)</Label><Input value={homepageExam2Date} onChange={(e) => setHomepageExam2Date(e.target.value)} placeholder="2026-02-15T09:00:00+06:00" /></div>
+            <div className="space-y-2"><Label>পরীক্ষা ২ — তারিখ লেবেল</Label><Input value={homepageExam2DateLabel} onChange={(e) => setHomepageExam2DateLabel(e.target.value)} placeholder="১৫ ফেব্রুয়ারি ২০২৬" /></div>
+          </div>
+          <p className="text-xs text-muted-foreground">তারিখ ISO 8601 ফরম্যাটে দিন (যেমন: 2026-04-06T09:00:00+06:00)। ফাঁকা রাখলে ডিফল্ট তারিখ ব্যবহার করবে।</p>
         </div>
         <Separator />
         <div className="space-y-4">

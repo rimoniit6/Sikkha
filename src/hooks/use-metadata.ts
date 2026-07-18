@@ -104,6 +104,14 @@ export interface SiteConfig {
   homepageFeaturedSubtitle: string
   homepagePremiumTitle: string
   homepagePremiumSubtitle: string
+  homepageExamTitle: string
+  homepageExamSubtitle: string
+  homepageExam1Name: string
+  homepageExam1Date: string
+  homepageExam1DateLabel: string
+  homepageExam2Name: string
+  homepageExam2Date: string
+  homepageExam2DateLabel: string
   paymentBkashInstructions: string[]
   paymentNagadInstructions: string[]
   paymentRocketInstructions: string[]

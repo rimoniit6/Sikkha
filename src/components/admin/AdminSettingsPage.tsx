@@ -80,6 +80,14 @@ export default function AdminSettingsPage() {
   const [homepagePremiumSubtitle, setHomepagePremiumSubtitle] = useState('')
   const [homepageTeachersTitle, setHomepageTeachersTitle] = useState('')
   const [homepageTeachersSubtitle, setHomepageTeachersSubtitle] = useState('')
+  const [homepageExamTitle, setHomepageExamTitle] = useState('')
+  const [homepageExamSubtitle, setHomepageExamSubtitle] = useState('')
+  const [homepageExam1Name, setHomepageExam1Name] = useState('')
+  const [homepageExam1Date, setHomepageExam1Date] = useState('')
+  const [homepageExam1DateLabel, setHomepageExam1DateLabel] = useState('')
+  const [homepageExam2Name, setHomepageExam2Name] = useState('')
+  const [homepageExam2Date, setHomepageExam2Date] = useState('')
+  const [homepageExam2DateLabel, setHomepageExam2DateLabel] = useState('')
 
   const [messages, setMessages] = useState<Record<string, string>>({})
 
@@ -159,6 +167,14 @@ export default function AdminSettingsPage() {
     if (map.homepage_premium_subtitle) setHomepagePremiumSubtitle(map.homepage_premium_subtitle)
     if (map.homepage_teachers_title) setHomepageTeachersTitle(map.homepage_teachers_title)
     if (map.homepage_teachers_subtitle) setHomepageTeachersSubtitle(map.homepage_teachers_subtitle)
+    if (map.homepage_exam_title) setHomepageExamTitle(map.homepage_exam_title)
+    if (map.homepage_exam_subtitle) setHomepageExamSubtitle(map.homepage_exam_subtitle)
+    if (map.homepage_exam1_name) setHomepageExam1Name(map.homepage_exam1_name)
+    if (map.homepage_exam1_date) setHomepageExam1Date(map.homepage_exam1_date)
+    if (map.homepage_exam1_date_label) setHomepageExam1DateLabel(map.homepage_exam1_date_label)
+    if (map.homepage_exam2_name) setHomepageExam2Name(map.homepage_exam2_name)
+    if (map.homepage_exam2_date) setHomepageExam2Date(map.homepage_exam2_date)
+    if (map.homepage_exam2_date_label) setHomepageExam2DateLabel(map.homepage_exam2_date_label)
     const msgMap: Record<string, string> = {}
     for (const key of Object.keys(map)) {
       if (key.startsWith('msg_')) msgMap[key] = map[key]
@@ -216,6 +232,14 @@ export default function AdminSettingsPage() {
         { key: 'homepage_premium_subtitle', value: homepagePremiumSubtitle, group: 'homepage', label: 'প্রিমিয়াম ব্যানার উপশিরোনাম' },
         { key: 'homepage_teachers_title', value: homepageTeachersTitle, group: 'homepage', label: 'শিক্ষক সেকশন শিরোনাম' },
         { key: 'homepage_teachers_subtitle', value: homepageTeachersSubtitle, group: 'homepage', label: 'শিক্ষক সেকশন উপশিরোনাম' },
+        { key: 'homepage_exam_title', value: homepageExamTitle, group: 'homepage', label: 'পরীক্ষা কাউন্টডাউন শিরোনাম' },
+        { key: 'homepage_exam_subtitle', value: homepageExamSubtitle, group: 'homepage', label: 'পরীক্ষা কাউন্টডাউন উপশিরোনাম' },
+        { key: 'homepage_exam1_name', value: homepageExam1Name, group: 'homepage', label: 'পরীক্ষা ১ — নাম' },
+        { key: 'homepage_exam1_date', value: homepageExam1Date, group: 'homepage', label: 'পরীক্ষা ১ — তারিখ' },
+        { key: 'homepage_exam1_date_label', value: homepageExam1DateLabel, group: 'homepage', label: 'পরীক্ষা ১ — তারিখ লেবেল' },
+        { key: 'homepage_exam2_name', value: homepageExam2Name, group: 'homepage', label: 'পরীক্ষা ২ — নাম' },
+        { key: 'homepage_exam2_date', value: homepageExam2Date, group: 'homepage', label: 'পরীক্ষা ২ — তারিখ' },
+        { key: 'homepage_exam2_date_label', value: homepageExam2DateLabel, group: 'homepage', label: 'পরীক্ষা ২ — তারিখ লেবেল' },
         ...Object.entries(messages).map(([key, value]) => ({
           key, value, group: 'messages' as const,
           label: MESSAGE_CONFIG.find(m => m.key === key)?.label || key,
@@ -413,6 +437,14 @@ export default function AdminSettingsPage() {
             homepagePremiumSubtitle={homepagePremiumSubtitle} setHomepagePremiumSubtitle={setHomepagePremiumSubtitle}
             homepageTeachersTitle={homepageTeachersTitle} setHomepageTeachersTitle={setHomepageTeachersTitle}
             homepageTeachersSubtitle={homepageTeachersSubtitle} setHomepageTeachersSubtitle={setHomepageTeachersSubtitle}
+            homepageExamTitle={homepageExamTitle} setHomepageExamTitle={setHomepageExamTitle}
+            homepageExamSubtitle={homepageExamSubtitle} setHomepageExamSubtitle={setHomepageExamSubtitle}
+            homepageExam1Name={homepageExam1Name} setHomepageExam1Name={setHomepageExam1Name}
+            homepageExam1Date={homepageExam1Date} setHomepageExam1Date={setHomepageExam1Date}
+            homepageExam1DateLabel={homepageExam1DateLabel} setHomepageExam1DateLabel={setHomepageExam1DateLabel}
+            homepageExam2Name={homepageExam2Name} setHomepageExam2Name={setHomepageExam2Name}
+            homepageExam2Date={homepageExam2Date} setHomepageExam2Date={setHomepageExam2Date}
+            homepageExam2DateLabel={homepageExam2DateLabel} setHomepageExam2DateLabel={setHomepageExam2DateLabel}
             footerDescription={footerDescription} setFooterDescription={setFooterDescription}
             premiumFeaturesText={premiumFeaturesText} setPremiumFeaturesText={setPremiumFeaturesText}
             mcqFeaturesText={mcqFeaturesText} setMcqFeaturesText={setMcqFeaturesText}

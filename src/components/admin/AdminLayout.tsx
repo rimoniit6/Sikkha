@@ -39,6 +39,7 @@ import {
   Filter,
   GraduationCap,
   BarChart3,
+  Mail,
 } from 'lucide-react'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { useRouterStore, RoutePath, isAdminRoute } from '@/store/router'
@@ -105,6 +106,7 @@ const AdminPages = {
   'admin-notes': lazy(() => import('./AdminNotesPage')),
   'admin-teacher-moderators': lazy(() => import('./AdminTeacherModeratorsPage')),
   'admin-feedback': lazy(() => import('./AdminFeedbackPage')),
+  'admin-contact-messages': lazy(() => import('./AdminContactMessagesPage')),
   
   // Settings
   'admin-settings': lazy(() => import('./AdminSettingsPage')),
@@ -184,6 +186,7 @@ const sidebarItems: SidebarItem[] = [
   { label: 'নোটিফিকেশন', icon: Bell, route: 'admin-notifications', group: GROUPS.CMS },
   { label: 'টেস্টিমোনিয়াল', icon: MessageSquareQuote, route: 'admin-testimonials', group: GROUPS.CMS },
   { label: 'ফিডব্যাক', icon: MessageSquareText, route: 'admin-feedback', group: GROUPS.CMS },
+  { label: 'যোগাযোগ বার্তা', icon: Mail, route: 'admin-contact-messages', group: GROUPS.CMS },
   { label: 'সেটিংস', icon: Settings, route: 'admin-settings', group: GROUPS.SETTINGS },
 
   // Analytics (single entry — all tabs inside)

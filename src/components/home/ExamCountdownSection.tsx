@@ -1,11 +1,12 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { Clock, CalendarDays, BookOpen, ArrowRight, GraduationCap, AlertCircle } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useRouterStore } from '@/store/router'
+import { useSiteConfig } from '@/hooks/use-metadata'
 
 /* ── helpers ── */
 
@@ -26,15 +27,16 @@ interface ExamConfig {
   icon: React.ReactNode
 }
 
-const HSC_2026_DATE = new Date('2026-04-06T09:00:00+06:00')
-const SSC_2026_DATE = new Date('2026-02-15T09:00:00+06:00')
+/* ── Default dates (fallback when admin hasn't configured yet) ── */
+const DEFAULT_HSC_DATE = new Date('2026-04-06T09:00:00+06:00')
+const DEFAULT_SSC_DATE = new Date('2026-02-15T09:00:00+06:00')
 
-const EXAMS: ExamConfig[] = [
+const DEFAULT_EXAMS: ExamConfig[] = [
   {
     id: 'hsc-2026',
     name: 'HSC 2026',
     nameBn: 'এইচএসসি পরীক্ষা ২০২৬',
-    date: HSC_2026_DATE,
+    date: DEFAULT_HSC_DATE,
     dateLabel: '৬ এপ্রিল ২০২৬',
     accentFrom: 'from-amber-500',
     accentTo: 'to-orange-600',
@@ -44,7 +46,7 @@ const EXAMS: ExamConfig[] = [
     id: 'ssc-2026',
     name: 'SSC 2026',
     nameBn: 'এসএসসি পরীক্ষা ২০২৬',
-    date: SSC_2026_DATE,
+    date: DEFAULT_SSC_DATE,
     dateLabel: '১৫ ফেব্রুয়ারি ২০২৬',
     accentFrom: 'from-sky-500',
     accentTo: 'to-cyan-600',
@@ -184,8 +186,59 @@ function ExamCountdownCard({ exam, isPrimary }: { exam: ExamConfig; isPrimary: b
 /* ── main component ── */
 
 export default function ExamCountdownSection() {
-  const primaryExam = EXAMS[0]
-  const secondaryExam = EXAMS[1]
+  const { config } = useSiteConfig()
+
+  const exams = useMemo(() => {
+    const result: ExamConfig[] = []
+
+    // Exam 1 — use admin config or fallback
+    const exam1Name = config?.homepageExam1Name || DEFAULT_EXAMS[0].nameBn
+    const exam1DateStr = config?.homepageExam1Date || DEFAULT_EXAMS[0].date.toISOString()
+    const exam1DateLabel = config?.homepageExam1DateLabel || DEFAULT_EXAMS[0].dateLabel
+    const exam1Date = new Date(exam1DateStr)
+
+    if (!isNaN(exam1Date.getTime())) {
+      result.push({
+        id: 'exam-1',
+        name: 'Exam 1',
+        nameBn: exam1Name,
+        date: exam1Date,
+        dateLabel: exam1DateLabel,
+        accentFrom: 'from-amber-500',
+        accentTo: 'to-orange-600',
+        icon: <GraduationCap className="h-6 w-6" />,
+      })
+    }
+
+    // Exam 2 — use admin config or fallback
+    const exam2Name = config?.homepageExam2Name || DEFAULT_EXAMS[1].nameBn
+    const exam2DateStr = config?.homepageExam2Date || DEFAULT_EXAMS[1].date.toISOString()
+    const exam2DateLabel = config?.homepageExam2DateLabel || DEFAULT_EXAMS[1].dateLabel
+    const exam2Date = new Date(exam2DateStr)
+
+    if (!isNaN(exam2Date.getTime())) {
+      result.push({
+        id: 'exam-2',
+        name: 'Exam 2',
+        nameBn: exam2Name,
+        date: exam2Date,
+        dateLabel: exam2DateLabel,
+        accentFrom: 'from-sky-500',
+        accentTo: 'to-cyan-600',
+        icon: <BookOpen className="h-6 w-6" />,
+      })
+    }
+
+    // If no valid exams, show defaults
+    if (result.length === 0) {
+      return DEFAULT_EXAMS
+    }
+
+    return result
+  }, [config])
+
+  const sectionTitle = config?.homepageExamTitle || 'পরীক্ষার কাউন্টডাউন'
+  const sectionSubtitle = config?.homepageExamSubtitle || 'আপনার পরবর্তী বোর্ড পরীক্ষার জন্য প্রস্তুত হন — প্রতিটি সেকেন্ড মূল্যবান'
 
   return (
     <section
@@ -224,19 +277,20 @@ export default function ExamCountdownSection() {
             পরবর্তী পরীক্ষা
           </Badge>
           <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight">
-            পরীক্ষার কাউন্টডাউন
+            {sectionTitle}
           </h2>
           <p className="mt-3 text-muted-foreground text-sm sm:text-base max-w-xl mx-auto">
-            আপনার পরবর্তী বোর্ড পরীক্ষার জন্য প্রস্তুত হন — প্রতিটি সেকেন্ড মূল্যবান
+            {sectionSubtitle}
           </p>
         </div>
 
         {/* ── cards grid ── */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <ExamCountdownCard exam={primaryExam} isPrimary />
-          <div className="animate-fade-in-up" style={{ animationDelay: '0.15s' }}>
-            <ExamCountdownCard exam={secondaryExam} isPrimary={false} />
-          </div>
+          {exams.map((exam, idx) => (
+            <div key={exam.id} className={idx > 0 ? 'animate-fade-in-up' : ''} style={idx > 0 ? { animationDelay: '0.15s' } : undefined}>
+              <ExamCountdownCard exam={exam} isPrimary={idx === 0} />
+            </div>
+          ))}
         </div>
 
         {/* ── bottom note ── */}

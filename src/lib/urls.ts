@@ -72,6 +72,7 @@ const ROUTE_DEFS: Record<RoutePath, RouteDef> = {
   'admin-notes': { path: '/admin/notes', queryParams: [] },
   'admin-content-purchases': { path: '/admin/content-purchases', queryParams: [] },
   'admin-feedback': { path: '/admin/feedback', queryParams: [] },
+  'admin-contact-messages': { path: '/admin/contact-messages', queryParams: [] },
   'admin-teacher-moderators': { path: '/admin/teacher-moderators', queryParams: [] },
   'admin-cq-exam-packages': { path: '/admin/cq-exam-packages', queryParams: [] },
   'admin-knowledge-questions': { path: '/admin/knowledge-questions', queryParams: [] },

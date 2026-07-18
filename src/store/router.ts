@@ -66,6 +66,7 @@ export type RoutePath =
   | 'admin-notes'
   | 'admin-content-purchases'
   | 'admin-feedback'
+  | 'admin-contact-messages'
   | 'admin-teacher-moderators'
   | 'admin-cq-exam-packages'
   | 'short-questions'
@@ -130,6 +131,7 @@ export const ADMIN_ROUTES: Set<RoutePath> = new Set([
   'admin-notes',
   'admin-content-purchases',
   'admin-feedback',
+  'admin-contact-messages',
   'admin-teacher-moderators',
   'admin-cq-exam-packages',
   'admin-settings',

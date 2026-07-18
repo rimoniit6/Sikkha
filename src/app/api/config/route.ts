@@ -60,6 +60,14 @@ export async function GET() {
         homepagePremiumSubtitle: '',
         homepageTeachersTitle: '',
         homepageTeachersSubtitle: '',
+        homepageExamTitle: '',
+        homepageExamSubtitle: '',
+        homepageExam1Name: '',
+        homepageExam1Date: '',
+        homepageExam1DateLabel: '',
+        homepageExam2Name: '',
+        homepageExam2Date: '',
+        homepageExam2DateLabel: '',
     // Admin-controllable empty state messages
     messages: {
       contentComingSoon: 'কন্টেন্ট শীঘ্রই আসবে',
@@ -134,6 +142,14 @@ export async function GET() {
         homepagePremiumSubtitle: config.homepage_premium_subtitle || '',
         homepageTeachersTitle: config.homepage_teachers_title || '',
         homepageTeachersSubtitle: config.homepage_teachers_subtitle || '',
+        homepageExamTitle: config.homepage_exam_title || '',
+        homepageExamSubtitle: config.homepage_exam_subtitle || '',
+        homepageExam1Name: config.homepage_exam1_name || '',
+        homepageExam1Date: config.homepage_exam1_date || '',
+        homepageExam1DateLabel: config.homepage_exam1_date_label || '',
+        homepageExam2Name: config.homepage_exam2_name || '',
+        homepageExam2Date: config.homepage_exam2_date || '',
+        homepageExam2DateLabel: config.homepage_exam2_date_label || '',
         // Admin-controllable empty state messages (from SiteSetting keys starting with 'msg')
         messages: {
           contentComingSoon: config.msg_contentComingSoon || config.msgContentComingSoon || defaultConfig.messages.contentComingSoon,
