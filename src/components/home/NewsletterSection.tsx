@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback, type FormEvent } from 'react'
-import { Mail, Phone, MapPin, Send, MessageSquare, CheckCircle } from 'lucide-react'
+import { Mail, Phone, MapPin, Send, MessageSquare, CheckCircle, Loader2 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
@@ -116,19 +116,16 @@ export default function NewsletterSection() {
 
   return (
     <section
-      className="relative overflow-hidden bg-gradient-to-br from-emerald-800 via-emerald-900 to-teal-900 py-16 md:py-24"
+      className="relative overflow-hidden bg-gradient-to-br from-emerald-700 via-emerald-800 to-teal-800 py-16 md:py-24"
       aria-label="যোগাযোগ করুন"
     >
       {/* Decorative floating circles / blobs */}
       <div className="pointer-events-none absolute inset-0" aria-hidden="true">
-        <div className="absolute -top-24 -left-24 h-72 w-72 rounded-full bg-emerald-500/10 blur-3xl animate-float-1" />
-        <div className="absolute top-8 right-8 h-48 w-48 rounded-full bg-teal-400/10 blur-2xl animate-float-2" />
-        <div className="absolute bottom-8 left-1/4 h-56 w-56 rounded-full bg-emerald-400/8 blur-3xl animate-float-3" />
-        <div className="absolute -bottom-20 right-1/3 h-64 w-64 rounded-full bg-teal-300/8 blur-3xl animate-float-4" />
-        <div className="absolute top-1/2 right-[15%] h-36 w-36 rounded-full bg-emerald-300/10 blur-2xl animate-float-5" />
-        {/* Subtle mesh-like overlay */}
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_40%,rgba(16,185,129,0.08),transparent_60%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_60%,rgba(20,184,166,0.06),transparent_50%)]" />
+        <div className="absolute -top-24 -left-24 h-72 w-72 rounded-full bg-white/5 blur-3xl animate-float-1" />
+        <div className="absolute top-8 right-8 h-48 w-48 rounded-full bg-white/5 blur-2xl animate-float-2" />
+        <div className="absolute bottom-8 left-1/4 h-56 w-56 rounded-full bg-white/5 blur-3xl animate-float-3" />
+        <div className="absolute -bottom-20 right-1/3 h-64 w-64 rounded-full bg-white/5 blur-3xl animate-float-4" />
+        <div className="absolute top-1/2 right-[15%] h-36 w-36 rounded-full bg-white/5 blur-2xl animate-float-5" />
       </div>
 
       <div className="relative z-10 mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
@@ -136,15 +133,15 @@ export default function NewsletterSection() {
           {/* ── Left column: Text & Contact Info ── */}
           <div className="animate-fade-in-up text-center lg:text-left">
             {/* Icon badge */}
-            <div className="mb-6 inline-flex h-14 w-14 items-center justify-center rounded-full bg-white/10 backdrop-blur-sm">
-              <MessageSquare className="h-7 w-7 text-emerald-300" />
+            <div className="mb-6 inline-flex h-14 w-14 items-center justify-center rounded-full bg-white/15 backdrop-blur-sm">
+              <MessageSquare className="h-7 w-7 text-white" />
             </div>
 
             <h2 className="text-2xl md:text-3xl lg:text-4xl font-bold text-white leading-tight">
               আমাদের সাথে যোগাযোগ করুন
             </h2>
 
-            <p className="mt-4 text-base md:text-lg text-emerald-200/80 max-w-md mx-auto lg:mx-0 leading-relaxed">
+            <p className="mt-4 text-base md:text-lg text-white/80 max-w-md mx-auto lg:mx-0 leading-relaxed">
               যেকোনো প্রশ্ন, পরামর্শ বা মতামত থাকলে আমাদের সাথে যোগাযোগ করুন। আমরা শীঘ্রই আপনার বার্তার উত্তর দেব।
             </p>
 
@@ -157,22 +154,22 @@ export default function NewsletterSection() {
                     key={item.label}
                     className="flex items-center gap-4 group"
                   >
-                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/10 backdrop-blur-sm transition-colors group-hover:bg-white/15">
-                      <Icon className="h-5 w-5 text-emerald-300" />
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/15 backdrop-blur-sm transition-colors group-hover:bg-white/20">
+                      <Icon className="h-5 w-5 text-white" />
                     </div>
                     <div className="text-left min-w-0">
-                      <p className="text-xs font-medium text-emerald-400/70 uppercase tracking-wide">
+                      <p className="text-xs font-semibold text-white/60 uppercase tracking-wide">
                         {item.label}
                       </p>
                       {item.href ? (
                         <a
                           href={item.href}
-                          className="text-sm md:text-base text-white/90 hover:text-white transition-colors truncate block"
+                          className="text-sm md:text-base text-white font-medium hover:text-white/80 transition-colors truncate block"
                         >
                           {item.value}
                         </a>
                       ) : (
-                        <p className="text-sm md:text-base text-white/90 truncate">
+                        <p className="text-sm md:text-base text-white font-medium truncate">
                           {item.value}
                         </p>
                       )}
@@ -189,33 +186,32 @@ export default function NewsletterSection() {
               /* ── Success State ── */
               <div className="flex flex-col items-center justify-center py-12 px-6">
                 <div className="animate-scale-in mb-6 relative">
-                  {/* Pulsing ring behind the checkmark */}
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="h-24 w-24 rounded-full bg-emerald-400/20 animate-scale-pulse" />
+                    <div className="h-24 w-24 rounded-full bg-white/20 animate-scale-pulse" />
                   </div>
-                  <div className="relative flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 shadow-lg shadow-emerald-500/30">
-                    <CheckCircle className="h-10 w-10 text-white" strokeWidth={2.5} />
+                  <div className="relative flex h-20 w-20 items-center justify-center rounded-full bg-white shadow-lg">
+                    <CheckCircle className="h-10 w-10 text-emerald-600" strokeWidth={2.5} />
                   </div>
                 </div>
                 <h3 className="text-xl font-bold text-white mb-2 animate-fade-in-up">
                   বার্তা পাঠানো হয়েছে!
                 </h3>
-                <p className="text-emerald-200/70 text-sm text-center max-w-xs animate-fade-in-up [animation-delay:100ms]">
+                <p className="text-white/70 text-sm text-center max-w-xs animate-fade-in-up [animation-delay:100ms]">
                   আমরা শীঘ্রই আপনার সাথে যোগাযোগ করব। ধন্যবাদ!
                 </p>
               </div>
             ) : (
               /* ── Form ── */
-              <Card className="glass-card border-white/10 bg-white/8 backdrop-blur-xl shadow-2xl shadow-black/20">
+              <Card className="bg-white/95 dark:bg-white/90 backdrop-blur-xl shadow-2xl shadow-black/20 border-0">
                 <CardContent className="p-6 md:p-8">
                   <form onSubmit={handleSubmit} noValidate className="space-y-5">
                     {/* Name */}
                     <div className="space-y-2">
                       <label
                         htmlFor="contact-name"
-                        className="block text-sm font-medium text-emerald-100/80"
+                        className="block text-sm font-semibold text-foreground"
                       >
-                        আপনার নাম <span className="text-red-400">*</span>
+                        আপনার নাম <span className="text-destructive">*</span>
                       </label>
                       <Input
                         id="contact-name"
@@ -226,10 +222,10 @@ export default function NewsletterSection() {
                           setName(e.target.value)
                           if (errors.name) setErrors((prev) => ({ ...prev, name: undefined }))
                         }}
-                        className="border-white/15 bg-white/8 text-white placeholder:text-white/30 focus:border-emerald-400/50 focus:ring-emerald-400/30 h-11 rounded-lg"
+                        className="h-11 rounded-lg"
                       />
                       {errors.name && (
-                        <p className="text-xs text-red-400 animate-slide-up">{errors.name}</p>
+                        <p className="text-xs text-destructive animate-slide-up">{errors.name}</p>
                       )}
                     </div>
 
@@ -237,9 +233,9 @@ export default function NewsletterSection() {
                     <div className="space-y-2">
                       <label
                         htmlFor="contact-email"
-                        className="block text-sm font-medium text-emerald-100/80"
+                        className="block text-sm font-semibold text-foreground"
                       >
-                        ইমেইল <span className="text-red-400">*</span>
+                        ইমেইল <span className="text-destructive">*</span>
                       </label>
                       <Input
                         id="contact-email"
@@ -250,10 +246,10 @@ export default function NewsletterSection() {
                           setEmail(e.target.value)
                           if (errors.email) setErrors((prev) => ({ ...prev, email: undefined }))
                         }}
-                        className="border-white/15 bg-white/8 text-white placeholder:text-white/30 focus:border-emerald-400/50 focus:ring-emerald-400/30 h-11 rounded-lg"
+                        className="h-11 rounded-lg"
                       />
                       {errors.email && (
-                        <p className="text-xs text-red-400 animate-slide-up">{errors.email}</p>
+                        <p className="text-xs text-destructive animate-slide-up">{errors.email}</p>
                       )}
                     </div>
 
@@ -261,9 +257,9 @@ export default function NewsletterSection() {
                     <div className="space-y-2">
                       <label
                         htmlFor="contact-message"
-                        className="block text-sm font-medium text-emerald-100/80"
+                        className="block text-sm font-semibold text-foreground"
                       >
-                        বার্তা <span className="text-red-400">*</span>
+                        বার্তা <span className="text-destructive">*</span>
                       </label>
                       <Textarea
                         id="contact-message"
@@ -274,10 +270,10 @@ export default function NewsletterSection() {
                           setMessage(e.target.value)
                           if (errors.message) setErrors((prev) => ({ ...prev, message: undefined }))
                         }}
-                        className="border-white/15 bg-white/8 text-white placeholder:text-white/30 focus:border-emerald-400/50 focus:ring-emerald-400/30 resize-none rounded-lg min-h-[100px]"
+                        className="resize-none rounded-lg min-h-[100px]"
                       />
                       {errors.message && (
-                        <p className="text-xs text-red-400 animate-slide-up">{errors.message}</p>
+                        <p className="text-xs text-destructive animate-slide-up">{errors.message}</p>
                       )}
                     </div>
 
@@ -285,11 +281,11 @@ export default function NewsletterSection() {
                     <Button
                       type="submit"
                       disabled={isSubmitting}
-                      className="w-full h-12 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white font-semibold text-base rounded-xl shadow-lg shadow-emerald-500/20 transition-all duration-300 hover:shadow-xl hover:shadow-emerald-500/30 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed disabled:hover:scale-100"
+                      className="w-full h-12 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-semibold text-base rounded-xl shadow-lg shadow-emerald-600/20 transition-all duration-200 hover:shadow-xl hover:shadow-emerald-600/30 active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed"
                     >
                       {isSubmitting ? (
                         <span className="flex items-center gap-2">
-                          <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                          <Loader2 className="h-4 w-4 animate-spin" />
                           পাঠানো হচ্ছে...
                         </span>
                       ) : (
