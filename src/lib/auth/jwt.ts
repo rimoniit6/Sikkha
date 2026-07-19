@@ -1,4 +1,5 @@
 import { SignJWT, jwtVerify } from 'jose'
+import logger from '@/lib/logger'
 
 function getSecret(): Uint8Array {
   const secret = process.env.JWT_SECRET
@@ -12,10 +13,9 @@ function getSecret(): Uint8Array {
       )
     }
     // Development fallback — clearly documented, not usable in production
-    console.warn(
-      '[SECURITY] JWT_SECRET is not set. Using development fallback. ' +
-      'This MUST NOT be used in production.'
-    )
+    logger.warn('JWT_SECRET is not set. Using development fallback. This MUST NOT be used in production.', {
+      context: 'jwt',
+    })
     return new TextEncoder().encode('dev-only-jwt-secret-not-for-production-32ch!')
   }
 
@@ -26,9 +26,9 @@ function getSecret(): Uint8Array {
         `Current length: ${secret.length}.`
       )
     }
-    console.warn(
-      `[SECURITY] JWT_SECRET is only ${secret.length} characters. Minimum recommended: 32.`
-    )
+    logger.warn(`JWT_SECRET is only ${secret.length} characters. Minimum recommended: 32.`, {
+      context: 'jwt',
+    })
   }
 
   return new TextEncoder().encode(secret)

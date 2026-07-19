@@ -11,6 +11,8 @@
  *   )
  */
 
+import logger from '@/lib/logger'
+
 interface CacheEntry<T> {
   data: T
   expiresAt: number
@@ -31,8 +33,15 @@ class AnalyticsQueryCache {
     }
 
     this.misses++
+    const start = Date.now()
     const data = await fn()
+    const duration = Date.now() - start
     this.store.set(key, { data, expiresAt: now + ttlMs })
+
+    if (duration > 1000) {
+      logger.warn(`Slow analytics query: ${key} took ${duration}ms`, { context: 'analytics-cache' })
+    }
+
     return data
   }
 

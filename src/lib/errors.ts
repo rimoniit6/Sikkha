@@ -9,6 +9,7 @@ import { NextResponse } from 'next/server'
 import { ZodError } from 'zod'
 import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
+import logger from '@/lib/logger'
 
 // ============ ERROR CLASSES ============
 
@@ -180,15 +181,12 @@ function formatError(error: unknown): { message: string; statusCode: number; cod
 // ============ ERROR LOGGER ============
 
 export function logError(error: unknown, context?: string): void {
-  const timestamp = new Date().toISOString()
   const errorInfo = formatError(error)
 
-  // Log to console with structured format (preserves timestamp, context for observability)
-  const logPrefix = `[${timestamp}]${context ? ` [${context}]` : ''} [${errorInfo.code}]`
   if (errorInfo.statusCode >= 500) {
-    console.error(logPrefix, errorInfo.message, error instanceof Error ? error.stack : '')
+    logger.error(errorInfo.message, error, { context: context || 'api' })
   } else if (errorInfo.statusCode >= 400) {
-    console.warn(logPrefix, errorInfo.message)
+    logger.warn(`${errorInfo.code}: ${errorInfo.message}`, { context: context || 'api' })
   }
 }
 

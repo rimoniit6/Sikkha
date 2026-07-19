@@ -1,5 +1,6 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import logger from '@/lib/logger'
 
 // Helper to safely parse JSON strings (returns fallback on failure)
 function safeJSONParse(str: string | undefined | null, fallback: string[] = []): string[] {
@@ -169,7 +170,7 @@ export async function GET() {
       },
     })
   } catch (error) {
-    console.error('Get config error:', error)
+    logger.error('Failed to fetch site config', error, { route: '/api/config', method: 'GET' })
     return NextResponse.json({ success: true, data: defaultConfig })
   }
 }

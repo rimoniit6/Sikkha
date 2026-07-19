@@ -1,5 +1,6 @@
 import type { PrismaClient } from '@prisma/client'
 import { hashPassword, verifyPassword } from '@/lib/password'
+import logger from '@/lib/logger'
 
 interface EnsureSuperAdminOptions {
   email?: string
@@ -30,7 +31,7 @@ export async function ensureSuperAdmin(
   const name = overrides?.name?.trim() || process.env.SUPER_ADMIN_NAME?.trim() || 'Super Admin'
 
   if (!email || !email.includes('@') || !password) {
-    console.log('[seed] SUPER_ADMIN_EMAIL / SUPER_ADMIN_PASSWORD not set — skipping super-admin seed.')
+    logger.info('SUPER_ADMIN_EMAIL / SUPER_ADMIN_PASSWORD not set — skipping super-admin seed.', { context: 'seed' })
     return
   }
 
@@ -47,7 +48,7 @@ export async function ensureSuperAdmin(
         isPremium: true,
       },
     })
-    console.log(`[seed] ✅ Super Admin created (${email})`)
+    logger.info(`Super Admin created (${email})`, { context: 'seed' })
     return
   }
 
@@ -64,11 +65,11 @@ export async function ensureSuperAdmin(
   }
 
   if (Object.keys(updates).length === 0) {
-    console.log(`[seed] → Super Admin already present (${email})`)
+    logger.info(`Super Admin already present (${email})`, { context: 'seed' })
     return
   }
 
   await db.user.update({ where: { id: existing.id }, data: updates })
   const changed = Object.keys(updates).join(', ')
-  console.log(`[seed] ✅ Super Admin synced (${email}): ${changed}`)
+  logger.info(`Super Admin synced (${email}): ${changed}`, { context: 'seed' })
 }

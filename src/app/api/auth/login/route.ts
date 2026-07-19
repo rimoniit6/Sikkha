@@ -7,6 +7,7 @@ import { validateBody } from '@/lib/api-utils'
 import { handleApiError, AuthenticationError } from '@/lib/errors'
 import { authLimiter, getClientIdentifier, rateLimitHeaders } from '@/lib/rate-limit'
 import { createAuditLog, AuditActions, getClientIP } from '@/lib/audit'
+import logger from '@/lib/logger'
 
 export async function POST(request: Request) {
   try {
@@ -63,6 +64,8 @@ export async function POST(request: Request) {
     const ipAddress = getClientIP(request)
     const userAgent = request.headers.get('user-agent') || undefined
     await createAuditLog({ adminId: user.id, action: AuditActions.LOGIN, entityType: 'user', entityId: user.id, ipAddress, userAgent, userName: user.name, userRole: user.role, status: 'success' })
+
+    logger.info('User logged in', { userId: user.id, route: '/api/auth/login', method: 'POST' })
 
     return response
   } catch (error) {

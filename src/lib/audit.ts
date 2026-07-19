@@ -1,5 +1,6 @@
 import { db } from '@/lib/db'
 import { parseUserAgent } from '@/lib/user-agent-parser'
+import logger from '@/lib/logger'
 
 // ─── Input Types ───
 
@@ -67,7 +68,7 @@ export async function createAuditLog(input: AuditLogInput): Promise<void> {
       },
     })
   } catch (error) {
-    console.error('[AuditLog] Failed to create audit log:', error)
+    logger.error('Failed to create audit log', error, { context: 'audit' })
   }
 }
 
@@ -99,7 +100,7 @@ export async function createBatchAuditLogs(input: BatchAuditLogInput): Promise<v
       })),
     })
   } catch (error) {
-    console.error('[AuditLog] Failed to create batch audit logs:', error)
+    logger.error('Failed to create batch audit logs', error, { context: 'audit' })
   }
 }
 

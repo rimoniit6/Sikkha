@@ -4,6 +4,7 @@ import type { NextRequest } from 'next/server'
 import { csrfMiddleware } from '@/lib/csrf'
 import { db } from '@/lib/db'
 import { verifyToken, getSessionCookieName } from '@/lib/auth/jwt'
+import { generateRequestId } from '@/lib/request-id'
 
 function generateNonce(): string {
   const buffer = new Uint8Array(16)
@@ -84,6 +85,7 @@ function isPublicPageRoute(pathname: string): boolean {
 }
 
 function addSecurityHeaders(response: NextResponse, nonce?: string): NextResponse {
+  response.headers.set('X-Request-ID', generateRequestId())
   const cspNonce = nonce || generateNonce()
   const scriptSrc = `'self' 'nonce-${cspNonce}' https://cdn.jsdelivr.net`
 
@@ -203,12 +205,16 @@ export async function proxy(request: NextRequest) {
   if (!auth) {
     const loginUrl = new URL('/login', request.url)
     loginUrl.searchParams.set('redirect', pathname)
-    return NextResponse.redirect(loginUrl)
+    const redirect = NextResponse.redirect(loginUrl)
+    redirect.headers.set('X-Request-ID', generateRequestId())
+    return redirect
   }
 
   if (pathname.startsWith('/admin/')) {
     if (auth.role !== 'ADMIN' && auth.role !== 'SUPER_ADMIN') {
-      return NextResponse.redirect(new URL('/', request.url))
+      const redirect = NextResponse.redirect(new URL('/', request.url))
+      redirect.headers.set('X-Request-ID', generateRequestId())
+      return redirect
     }
   }
 
