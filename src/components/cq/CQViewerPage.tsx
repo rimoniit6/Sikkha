@@ -61,8 +61,9 @@ export default function CQViewerPage() {
   const [paymentStatus, setPaymentStatus] = useState<{
     purchased: boolean
     pendingPayment: boolean
+    rejected: boolean
     checked: boolean
-  }>({ purchased: false, pendingPayment: false, checked: false })
+  }>({ purchased: false, pendingPayment: false, rejected: false, checked: false })
   const [_isBookmarked, setIsBookmarked] = useState(false)
 
   useEffect(() => {
@@ -162,13 +163,14 @@ export default function CQViewerPage() {
           setPaymentStatus({
             purchased: data.purchased || false,
             pendingPayment: data.pendingPayment || false,
+            rejected: data.rejected || false,
             checked: true,
           })
         } else {
-          setPaymentStatus({ purchased: false, pendingPayment: false, checked: true })
+          setPaymentStatus({ purchased: false, pendingPayment: false, rejected: false, checked: true })
         }
       } catch {
-        setPaymentStatus({ purchased: false, pendingPayment: false, checked: true })
+        setPaymentStatus({ purchased: false, pendingPayment: false, rejected: false, checked: true })
       }
     }
 
@@ -342,6 +344,7 @@ export default function CQViewerPage() {
             <PremiumLock
               purchased={paymentStatus.purchased}
               pendingPayment={paymentStatus.pendingPayment}
+              rejected={paymentStatus.rejected}
               price={cqData.price}
               contentType="cq"
               contentId={cqData.id}

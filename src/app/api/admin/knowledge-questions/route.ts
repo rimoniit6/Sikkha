@@ -1,9 +1,11 @@
 import { db } from '@/lib/db'
-import { apiResponse, paginatedApiResponse, apiError, withAdmin, validateBody } from '@/lib/api-utils'
+import { apiResponse, paginatedApiResponse, apiError, withAdmin, validateBody, withCsrf, getClientIP } from '@/lib/api-utils'
 import { handleApiError } from '@/lib/errors'
 import { deriveIsPremium } from '@/lib/premium'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
+import { softDelete } from '@/lib/soft-delete'
+import { createVersion } from '@/lib/version-history'
 
 const createKnowledgeQuestionSchema = z.object({
   chapterId: z.string().min(1, 'chapterId is required'),
@@ -87,6 +89,9 @@ export async function POST(request: Request) {
   const auth = await withAdmin(request)
   if (auth instanceof NextResponse) return auth
 
+  const csrfCheck = await withCsrf(request)
+  if ('error' in csrfCheck) return csrfCheck.error
+
   try {
     const body = await request.json()
     const validation = validateBody(createKnowledgeQuestionSchema, body)
@@ -123,6 +128,9 @@ export async function PUT(request: Request) {
   const auth = await withAdmin(request)
   if (auth instanceof NextResponse) return auth
 
+  const csrfCheck = await withCsrf(request)
+  if ('error' in csrfCheck) return csrfCheck.error
+
   try {
     const body = await request.json()
     const { id, chapterId, type, question, answer, questionImage, answerImage, isPremium, price, order, isActive } = body
@@ -151,12 +159,33 @@ export async function PUT(request: Request) {
     if (order !== undefined) updateData.order = order
     if (isActive !== undefined) updateData.isActive = isActive
 
-    const data = await db.knowledgeQuestion.update({
-      where: { id },
-      data: updateData,
-      include: {
-        chapter: { select: { id: true, name: true, slug: true } },
-      },
+    // Determine which fields actually changed
+    const changedFields = Object.keys(updateData).filter(
+      key => JSON.stringify(updateData[key]) !== JSON.stringify(existing[key as keyof typeof existing])
+    )
+
+    // Create version snapshot + update in single transaction
+    const ipAddress = getClientIP(request)
+    const userAgent = request.headers.get('user-agent') || undefined
+
+    const data = await db.$transaction(async (tx) => {
+      // Create version snapshot of current state BEFORE update
+      await createVersion(tx, 'knowledgeQuestion', id, { ...existing }, auth.user.id, changedFields, {
+        ipAddress,
+        userAgent,
+      })
+
+      // Perform the actual update
+      return tx.knowledgeQuestion.update({
+        where: { id },
+        data: updateData,
+        include: {
+          chapter: { select: { id: true, name: true, slug: true } },
+        },
+      })
+    }, {
+      maxWait: 10000,
+      timeout: 30000,
     })
 
     return apiResponse(data)
@@ -169,6 +198,9 @@ export async function DELETE(request: Request) {
   const auth = await withAdmin(request)
   if (auth instanceof NextResponse) return auth
 
+  const csrfCheck = await withCsrf(request)
+  if ('error' in csrfCheck) return csrfCheck.error
+
   try {
     const { searchParams } = new URL(request.url)
     const id = searchParams.get('id')
@@ -177,11 +209,13 @@ export async function DELETE(request: Request) {
     if (id) {
       const existing = await db.knowledgeQuestion.findUnique({ where: { id } })
       if (!existing) return apiError('Knowledge question not found', 404)
-      await db.knowledgeQuestion.delete({ where: { id } })
+      await softDelete(db, 'knowledgeQuestion', id, auth.user.id)
     } else if (ids) {
       const idArray = ids.split(',').filter(Boolean)
       if (idArray.length === 0) return apiError('No valid IDs provided', 400)
-      await db.knowledgeQuestion.deleteMany({ where: { id: { in: idArray } } })
+      for (const id of idArray) {
+        await softDelete(db, 'knowledgeQuestion', id, auth.user.id)
+      }
     } else {
       return apiError('id or ids is required', 400)
     }

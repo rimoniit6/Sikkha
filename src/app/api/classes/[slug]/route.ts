@@ -63,6 +63,7 @@ export async function GET(
         INNER JOIN "Chapter" ch ON ch.id = l."chapterId"
         WHERE ch."subjectId" IN (${Prisma.join(subjectIds)})
           AND l."isActive" = true
+          AND l."deletedAt" IS NULL
           AND ch."isActive" = true
         GROUP BY ch."subjectId"
       `),
@@ -71,7 +72,7 @@ export async function GET(
                COUNT(*) AS total,
                COUNT(*) FILTER (WHERE "board" IS NOT NULL AND "year" IS NOT NULL) AS board
         FROM "MCQ"
-        WHERE "subjectId" IN (${Prisma.join(subjectIds)}) AND "isActive" = true
+        WHERE "subjectId" IN (${Prisma.join(subjectIds)}) AND "isActive" = true AND "deletedAt" IS NULL
         GROUP BY "subjectId"
       `),
       db.$queryRaw<Array<{ subject_id: string; total: number; board: number }>>(Prisma.sql`
@@ -79,7 +80,7 @@ export async function GET(
                COUNT(*) AS total,
                COUNT(*) FILTER (WHERE "board" IS NOT NULL AND "year" IS NOT NULL) AS board
         FROM "CQ"
-        WHERE "subjectId" IN (${Prisma.join(subjectIds)}) AND "isActive" = true
+        WHERE "subjectId" IN (${Prisma.join(subjectIds)}) AND "isActive" = true AND "deletedAt" IS NULL
         GROUP BY "subjectId"
       `),
     ])

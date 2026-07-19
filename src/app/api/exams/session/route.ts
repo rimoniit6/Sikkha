@@ -1,6 +1,6 @@
 import { verifyAuth } from '@/lib/auth'
 import { NextResponse } from 'next/server'
-import { apiError, applyRateLimit } from '@/lib/api-utils'
+import { apiError, applyRateLimit, withCsrf } from '@/lib/api-utils'
 import { apiLimiter } from '@/lib/rate-limit'
 import { startExamSession, ExamError } from '@/services/exam-service'
 
@@ -16,6 +16,9 @@ export async function POST(request: Request) {
     if (!auth?.user?.id) {
       return apiError('অনুগ্রহ করে লগইন করুন', 401)
     }
+
+    const csrfCheck = await withCsrf(request)
+    if ('error' in csrfCheck) return csrfCheck.error
 
     const body = await request.json()
     const { examId } = body

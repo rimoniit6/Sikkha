@@ -1,11 +1,13 @@
 import { db } from '@/lib/db'
-import { apiResponse, apiError, withAdmin, withCsrf } from '@/lib/api-utils'
+import { apiResponse, apiError, withAdmin, withCsrf, getClientIP } from '@/lib/api-utils'
 import { handleApiError } from '@/lib/errors'
 import { deriveIsPremium } from '@/lib/premium'
 import { NextResponse } from 'next/server'
 import { toDecimal } from '@/lib/decimal'
 import { z } from 'zod'
 import { guardDeleteDependencies } from '@/lib/delete-guard'
+import { softDelete } from '@/lib/soft-delete'
+import { createVersion } from '@/lib/version-history'
 
 const COURSE_STATUSES = ['DRAFT', 'PUBLISHED'] as const
 
@@ -479,7 +481,29 @@ export async function POST(request: Request) {
           if (!sub) return apiError('Invalid subject', 400, 'INVALID_FOREIGN_KEY')
         }
 
-        const course = await db.course.update({ where: { id }, data: updateData })
+        // Determine which fields actually changed
+        const changedFields = Object.keys(updateData).filter(
+          key => JSON.stringify(updateData[key]) !== JSON.stringify(existing[key as keyof typeof existing])
+        )
+
+        // Create version snapshot + update in single transaction
+        const ipAddress = getClientIP(request)
+        const userAgent = request.headers.get('user-agent') || undefined
+
+        const course = await db.$transaction(async (tx) => {
+          // Create version snapshot of current state BEFORE update
+          await createVersion(tx, 'course', id, { ...existing }, auth.user.id, changedFields, {
+            ipAddress,
+            userAgent,
+          })
+
+          // Perform the actual update
+          return tx.course.update({ where: { id }, data: updateData })
+        }, {
+          maxWait: 10000,
+          timeout: 30000,
+        })
+
         return apiResponse({ course })
       }
 
@@ -490,9 +514,12 @@ export async function POST(request: Request) {
         if (!guard.ok) return guard.response
         await db.lessonProgress.deleteMany({ where: { courseId: id } })
         await db.coursePurchase.deleteMany({ where: { courseId: id } })
-        await db.courseLesson.deleteMany({ where: { courseId: id } })
+        const lessons = await db.courseLesson.findMany({ where: { courseId: id }, select: { id: true } })
+        for (const lesson of lessons) {
+          await softDelete(db, 'courseLesson', lesson.id, auth.user.id)
+        }
         await db.courseExamSchedule.deleteMany({ where: { courseId: id } })
-        await db.course.delete({ where: { id } })
+        await softDelete(db, 'course', id, auth.user.id)
         return apiResponse({ success: true })
       }
 

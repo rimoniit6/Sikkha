@@ -67,7 +67,7 @@ export async function GET(request: Request) {
                 la.deadline, la.attachment, la."displayOrder"
          FROM "CourseLesson" cl
          LEFT JOIN "LessonAssignment" la ON la."lessonId" = cl.id
-         WHERE cl."courseId" = $1
+         WHERE cl."courseId" = $1 AND cl."deletedAt" IS NULL
          ORDER BY cl."displayOrder" ASC, la."displayOrder" ASC`,
         courseId,
       )

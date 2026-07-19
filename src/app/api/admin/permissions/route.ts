@@ -51,15 +51,19 @@ export async function PUT(request: Request) {
     if ('error' in validation) return validation.error
     const { permissionId, roles } = validation.data
 
-    // Remove existing mappings
-    await db.rolePermission.deleteMany({ where: { permissionId } })
-
-    // Add new mappings
-    for (const role of roles) {
-      await db.rolePermission.create({
-        data: { role: role as any, permissionId },
-      })
-    }
+    // Atomic: delete old + create new in a single transaction
+    // If any create fails, the delete rolls back too — permissions are never left in a partial state
+    await db.$transaction(async (tx) => {
+      await tx.rolePermission.deleteMany({ where: { permissionId } })
+      for (const role of roles) {
+        await tx.rolePermission.create({
+          data: { role: role as any, permissionId },
+        })
+      }
+    }, {
+      maxWait: 5000,
+      timeout: 10000,
+    })
 
     invalidatePermissionCache()
 

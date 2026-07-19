@@ -1,5 +1,5 @@
 import { db } from '@/lib/db'
-import { apiError, withAdmin } from '@/lib/api-utils'
+import { apiError, withAdmin, withCsrf } from '@/lib/api-utils'
 import { NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
 import { safeParseExcelFromFile, ExcelParseError } from '@/lib/excel-parse'
@@ -45,6 +45,10 @@ export async function POST(request: Request) {
   try {
     const auth = await withAdmin(request)
     if (auth instanceof NextResponse) return auth
+
+    const csrfCheck = await withCsrf(request)
+    if ('error' in csrfCheck) return csrfCheck.error
+
     const formData = await request.formData()
     const file = formData.get('file') as File
     const classLevel = formData.get('classLevel') as string
@@ -69,7 +73,6 @@ export async function POST(request: Request) {
     // Resolve subjectId — if "all" or not provided, look up from subject name
     let resolvedSubjectId = subjectId
     if (!resolvedSubjectId || resolvedSubjectId === 'all') {
-      // Try to find subject from first row's subjectName
       const firstSubjectName = rows[0][Object.keys(rows[0]).find(k => COLUMN_MAP[k] === 'subjectName') || '']
       if (firstSubjectName) {
         const subject = await db.subject.findFirst({
@@ -79,22 +82,25 @@ export async function POST(request: Request) {
       }
     }
 
-    // Build chapter name → id lookup
+    // Build chapter name → id lookup (read-only, outside transaction)
     const chapters = await db.chapter.findMany({
       where: { subjectId: resolvedSubjectId || undefined, isActive: true },
-      select: { id: true, name: true },
+      select: { id: true, name: true, subjectId: true },
     })
     const chapterMap = new Map(chapters.map(c => [c.name.trim().toLowerCase(), c.id]))
-
-    // Also build slug-based lookup for fuzzy matching
     const chapterSlugMap = new Map(chapters.map(c => [c.name.replace(/\s+/g, '-').toLowerCase(), c.id]))
+    const chapterSubjectMap = new Map(chapters.map(c => [c.id, c.subjectId]))
 
-    const results = { success: 0, failed: 0, errors: [] as string[], createdIds: [] as string[] }
+    const validationErrors: string[] = []
+
+    // ── Phase 1: Validate ALL rows and build insert payloads ──
+    // No DB writes happen here — pure validation + lookups
+    const insertPayloads: Array<{ data: Record<string, unknown> }> = []
 
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i]
+      const rowNum = i + 2
 
-      // Map columns using the column map
       const mapped: Record<string, string> = {}
       for (const [header, value] of Object.entries(row)) {
         const dbField = COLUMN_MAP[header]
@@ -103,28 +109,22 @@ export async function POST(request: Request) {
         }
       }
 
-      // Validate required fields
       if (!mapped.question || !mapped.optionA || !mapped.optionB || !mapped.optionC || !mapped.optionD || !mapped.correctAnswer) {
-        results.failed++
-        results.errors.push(`সারি ${i + 2}: প্রয়োজনীয় ফিল্ড অনুপস্থিত (প্রশ্ন, ৪টি অপশন, সঠিক উত্তর)`)
+        validationErrors.push(`সারি ${rowNum}: প্রয়োজনীয় ফিল্ড অনুপস্থিত (প্রশ্ন, ৪টি অপশন, সঠিক উত্তর)`)
         continue
       }
 
-      // Normalize correct answer
       const correctAnswer = mapped.correctAnswer.toUpperCase().trim()
       if (!['A', 'B', 'C', 'D'].includes(correctAnswer)) {
-        results.failed++
-        results.errors.push(`সারি ${i + 2}: সঠিক উত্তর A/B/C/D হতে হবে (পাওয়া গেছে: "${mapped.correctAnswer}")`)
+        validationErrors.push(`সারি ${rowNum}: সঠিক উত্তর A/B/C/D হতে হবে (পাওয়া গেছে: "${mapped.correctAnswer}")`)
         continue
       }
 
-      // Resolve chapterId
       let chapterId: string | undefined
       if (mapped.chapterName) {
         const key = mapped.chapterName.trim().toLowerCase()
         chapterId = chapterMap.get(key) || chapterSlugMap.get(key.replace(/\s+/g, '-'))
         if (!chapterId) {
-          // Fuzzy match: check if chapter name contains the key or vice versa
           for (const [name, id] of chapterMap) {
             if (name.includes(key) || key.includes(name)) {
               chapterId = id
@@ -135,56 +135,90 @@ export async function POST(request: Request) {
       }
 
       if (!chapterId && chapters.length > 0) {
-        // Use first chapter as fallback if no chapter specified
         chapterId = chapters[0].id
       }
 
       if (!chapterId) {
-        results.failed++
-        results.errors.push(`সারি ${i + 2}: অধ্যায় পাওয়া যায়নি "${mapped.chapterName || '(নেই)'}"`)
+        validationErrors.push(`সারি ${rowNum}: অধ্যায় পাওয়া যায়নি "${mapped.chapterName || '(নেই)'}"`)
         continue
       }
 
-      // Resolve subjectId from chapter
-      const chapter = await db.chapter.findUnique({ where: { id: chapterId }, select: { subjectId: true } })
-      const finalSubjectId = chapter?.subjectId || resolvedSubjectId
+      const finalSubjectId = chapterSubjectMap.get(chapterId) || resolvedSubjectId
 
-      try {
-        const created = await db.mCQ.create({
-          data: {
-            question: mapped.question,
-            optionA: mapped.optionA,
-            optionB: mapped.optionB,
-            optionC: mapped.optionC,
-            optionD: mapped.optionD,
-            correctAnswer: correctAnswer as 'A' | 'B' | 'C' | 'D',
-            explanation: mapped.explanation || null,
-            chapterId,
-            classLevel: mapped.classLevel || classLevel,
-            subjectId: finalSubjectId || '',
-            board: mapped.board || null,
-            year: mapped.year || null,
-            topic: mapped.topic || null,
-            difficulty: (mapped.difficulty || 'MEDIUM').toUpperCase() as 'EASY' | 'MEDIUM' | 'HARD',
-            isPremium: mapped.isPremium === 'true' || mapped.isPremium === '1' || mapped.isPremium === 'হ্যাঁ',
-            price: 0,
-            tags: mapped.tags || null,
-            isActive: true,
-          },
-        })
-        results.success++
-        results.createdIds.push(created.id)
-      } catch (err) {
-        results.failed++
-        results.errors.push(`সারি ${i + 2}: ডাটাবেস ত্রুটি - ${err instanceof Error ? err.message : 'অজানা'}`)
-      }
+      insertPayloads.push({
+        data: {
+          question: mapped.question,
+          optionA: mapped.optionA,
+          optionB: mapped.optionB,
+          optionC: mapped.optionC,
+          optionD: mapped.optionD,
+          correctAnswer: correctAnswer as 'A' | 'B' | 'C' | 'D',
+          explanation: mapped.explanation || null,
+          chapterId,
+          classLevel: mapped.classLevel || classLevel,
+          subjectId: finalSubjectId || '',
+          board: mapped.board || null,
+          year: mapped.year || null,
+          topic: mapped.topic || null,
+          difficulty: (mapped.difficulty || 'MEDIUM').toUpperCase() as 'EASY' | 'MEDIUM' | 'HARD',
+          isPremium: mapped.isPremium === 'true' || mapped.isPremium === '1' || mapped.isPremium === 'হ্যাঁ',
+          price: 0,
+          tags: mapped.tags || null,
+          isActive: true,
+        },
+      })
+    }
+
+    if (insertPayloads.length === 0) {
+      return NextResponse.json({
+        success: true,
+        data: {
+          message: 'কোনো বৈধ প্রশ্ন পাওয়া যায়নি',
+          success: 0,
+          failed: validationErrors.length,
+          errors: validationErrors,
+          createdIds: [] as string[],
+        },
+      })
+    }
+
+    // ── Phase 2: Insert ALL valid records in a single transaction ──
+    const createdIds: string[] = []
+    try {
+      await db.$transaction(async (tx) => {
+        for (const payload of insertPayloads) {
+          const created = await tx.mCQ.create({ data: payload.data as any })
+          createdIds.push(created.id)
+        }
+      }, {
+        maxWait: 10000,
+        timeout: 120000, // 2min for bulk inserts
+      })
+    } catch (insertError) {
+      // Transaction rolled back — no partial data in DB
+      createdIds.length = 0
+      console.error('[MCQ Bulk Upload] Transaction rolled back:', insertError)
+      return NextResponse.json({
+        success: true,
+        data: {
+          message: `বাল্ক আপলোড ব্যর্থ হয়েছে — কোনো প্রশ্ন সংরক্ষিত হয়নি: ${insertError instanceof Error ? insertError.message : 'অজানা ত্রুটি'}`,
+          success: 0,
+          failed: validationErrors.length + insertPayloads.length,
+          errors: [...validationErrors, `ডাটাবেস ত্রুটি: ${insertError instanceof Error ? insertError.message : 'অজানা'}`],
+          createdIds: [] as string[],
+          rolledBack: true,
+        },
+      })
     }
 
     return NextResponse.json({
       success: true,
       data: {
-        message: `${results.success}টি প্রশ্ন সফলভাবে যোগ হয়েছে${results.failed > 0 ? `, ${results.failed}টি ব্যর্থ` : ''}`,
-        ...results,
+        message: `${createdIds.length}টি প্রশ্ন সফলভাবে যোগ হয়েছে${validationErrors.length > 0 ? `, ${validationErrors.length}টি ব্যর্থ` : ''}`,
+        success: createdIds.length,
+        failed: validationErrors.length,
+        errors: validationErrors,
+        createdIds,
       },
     })
   } catch (error) {

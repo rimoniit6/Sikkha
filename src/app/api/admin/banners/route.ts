@@ -1,10 +1,11 @@
 import { db } from '@/lib/db'
-import { apiResponse, apiError, withAdmin, parseIdsParam, validateBody } from '@/lib/api-utils'
+import { apiResponse, apiError, withAdmin, parseIdsParam, validateBody, withCsrf } from '@/lib/api-utils'
 import { handleApiError } from '@/lib/errors'
 import { invalidateContentCache } from '@/lib/cache-invalidate'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { auditFromRequest, AuditActions } from '@/lib/audit'
+import { softDelete } from '@/lib/soft-delete'
 
 const createBannerSchema = z.object({
   title: z.string().min(1, 'ব্যানার শিরোনাম আবশ্যক'),
@@ -44,6 +45,9 @@ export async function POST(request: Request) {
   const auth = await withAdmin(request)
   if (auth instanceof NextResponse) return auth
 
+  const csrfCheck = await withCsrf(request)
+  if ('error' in csrfCheck) return csrfCheck.error
+
   try {
     const body = await request.json()
     const validated = validateBody(createBannerSchema, body)
@@ -76,6 +80,9 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
   const auth = await withAdmin(request)
   if (auth instanceof NextResponse) return auth
+
+  const csrfCheck = await withCsrf(request)
+  if ('error' in csrfCheck) return csrfCheck.error
 
   try {
     const body = await request.json()
@@ -135,15 +142,20 @@ export async function DELETE(request: Request) {
   const auth = await withAdmin(request)
   if (auth instanceof NextResponse) return auth
 
+  const csrfCheck = await withCsrf(request)
+  if ('error' in csrfCheck) return csrfCheck.error
+
   try {
     const { searchParams } = new URL(request.url)
 
     const ids = parseIdsParam(searchParams)
     if (ids) {
-      const result = await db.banner.deleteMany({ where: { id: { in: ids } } })
+      for (const id of ids) {
+        await softDelete(db, 'banner', id, auth.user.id)
+      }
       await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_DELETE, 'banner', 'bulk:' + ids.join(','))
       await invalidateContentCache('banner')
-      return apiResponse({ deleted: result.count }, `${result.count}টি সফলভাবে মুছে ফেলা হয়েছে`)
+      return apiResponse({ deleted: ids.length }, `${ids.length}টি সফলভাবে মুছে ফেলা হয়েছে`)
     }
 
     const idFromQuery = searchParams.get('id')
@@ -168,7 +180,7 @@ export async function DELETE(request: Request) {
       return apiError('ব্যানার খুঁজে পাওয়া যায়নি', 404)
     }
 
-    await db.banner.delete({ where: { id } })
+    await softDelete(db, 'banner', id, auth.user.id)
 
     await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_DELETE, 'banner', id)
 

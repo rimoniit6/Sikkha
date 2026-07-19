@@ -1,5 +1,5 @@
 import { db } from '@/lib/db'
-import { apiResponse, withAdmin } from '@/lib/api-utils'
+import { apiResponse, withAdmin, withCsrf } from '@/lib/api-utils'
 import { handleApiError } from '@/lib/errors'
 import { NextResponse } from 'next/server'
 import { toDecimal } from '@/lib/decimal'
@@ -63,6 +63,9 @@ const SECTION_QUERIES: Record<string, (from: Date, to: Date) => Promise<Record<s
 export async function POST(request: Request) {
   const auth = await withAdmin(request)
   if (auth instanceof NextResponse) return auth
+
+  const csrfCheck = await withCsrf(request)
+  if ('error' in csrfCheck) return csrfCheck.error
 
   try {
     const body = await request.json()

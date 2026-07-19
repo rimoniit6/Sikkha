@@ -1,23 +1,37 @@
 'use client'
 
-import { BookOpen, Clock, Lock, CheckCircle2, Eye, Play } from 'lucide-react'
+import { BookOpen, Clock, Play } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import PremiumBadge from '@/components/shared/PremiumBadge'
 import type { LectureItem } from '@/hooks/use-chapter-content'
+import type { AccessStatus } from '@/components/shared/PremiumBadge'
 
 interface LectureCardProps {
   lecture: LectureItem
   index: number
   isPurchased?: boolean
   isLocked?: boolean
+  pendingPayment?: boolean
+  rejected?: boolean
   onUnlock?: () => void
   onContinue?: () => void
 }
 
-export function LectureCard({ lecture, index, isPurchased, isLocked, onUnlock, onContinue }: LectureCardProps) {
-  const status = isLocked ? 'locked' : isPurchased ? 'purchased' : 'free'
+function getAccessStatus(isPurchased: boolean, isLocked: boolean, pendingPayment: boolean, rejected: boolean): AccessStatus {
+  if (isPurchased) return 'purchased'
+  if (pendingPayment) return 'pending'
+  if (rejected) return 'rejected'
+  if (isLocked) return 'locked'
+  return 'free'
+}
+
+export function LectureCard({ lecture, index, isPurchased = false, isLocked = false, pendingPayment = false, rejected = false, onUnlock, onContinue }: LectureCardProps) {
+  const accessStatus = getAccessStatus(isPurchased, isLocked, pendingPayment, rejected)
+  const isFree = accessStatus === 'free'
+  const isPending = accessStatus === 'pending'
+  const isRejected = accessStatus === 'rejected'
 
   return (
     <div className="animate-fade-in-up" style={{ animationDelay: `${index * 0.05}s` }}>
@@ -27,14 +41,16 @@ export function LectureCard({ lecture, index, isPurchased, isLocked, onUnlock, o
             <div className="flex items-start gap-3 flex-1 min-w-0">
               <div className={cn(
                 'p-2.5 rounded-xl shrink-0',
-                status === 'free' ? 'bg-emerald-50 dark:bg-emerald-950/30' :
-                status === 'purchased' ? 'bg-blue-50 dark:bg-blue-950/30' :
+                isFree ? 'bg-emerald-50 dark:bg-emerald-950/30' :
+                accessStatus === 'purchased' ? 'bg-blue-50 dark:bg-blue-950/30' :
+                isRejected ? 'bg-rose-50 dark:bg-rose-950/30' :
                 'bg-amber-50 dark:bg-amber-950/30',
               )}>
                 <BookOpen className={cn(
                   'h-5 w-5',
-                  status === 'free' ? 'text-emerald-600 dark:text-emerald-400' :
-                  status === 'purchased' ? 'text-blue-600 dark:text-blue-400' :
+                  isFree ? 'text-emerald-600 dark:text-emerald-400' :
+                  accessStatus === 'purchased' ? 'text-blue-600 dark:text-blue-400' :
+                  isRejected ? 'text-rose-600 dark:text-rose-400' :
                   'text-amber-600 dark:text-amber-400',
                 )} />
               </div>
@@ -51,28 +67,28 @@ export function LectureCard({ lecture, index, isPurchased, isLocked, onUnlock, o
               </div>
             </div>
 
-            <div className="flex items-center gap-2 shrink-0">
-              <Badge className={cn(
-                'text-[10px] px-1.5 py-0 gap-1',
-                status === 'free' && 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800',
-                status === 'purchased' && 'bg-blue-50 text-blue-700 dark:bg-blue-950/30 dark:text-blue-400 border-blue-200 dark:border-blue-800',
-                status === 'locked' && 'bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400 border-amber-200 dark:border-amber-800',
-              )} variant="outline">
-                {status === 'locked' ? <><Lock className="h-2.5 w-2.5" /> Locked</> :
-                 status === 'purchased' ? <><CheckCircle2 className="h-2.5 w-2.5" /> Purchased</> :
-                 <><Eye className="h-2.5 w-2.5" /> Free</>}
-              </Badge>
-            </div>
+            <PremiumBadge status={accessStatus} size="sm" />
           </div>
 
           <div className="flex gap-2 mt-4">
-            {status === 'locked' ? (
+            {accessStatus === 'locked' && (
               <Button size="sm" variant="outline" onClick={onUnlock} className="rounded-lg text-xs h-8">
-                <Lock className="h-3 w-3 mr-1" /> Unlock
+                কিনুন
               </Button>
-            ) : (
+            )}
+            {isPending && (
+              <Button size="sm" variant="outline" disabled className="rounded-lg text-xs h-8">
+                যাচাই চলছে
+              </Button>
+            )}
+            {isRejected && (
+              <Button size="sm" variant="outline" onClick={onUnlock} className="rounded-lg text-xs h-8">
+                আবার পেমেন্ট করুন
+              </Button>
+            )}
+            {(accessStatus === 'free' || accessStatus === 'purchased') && (
               <Button size="sm" onClick={onContinue} className="rounded-lg text-xs h-8">
-                <Play className="h-3 w-3 mr-1" /> Continue
+                <Play className="h-3 w-3 mr-1" /> পড়া শুরু করুন
               </Button>
             )}
           </div>

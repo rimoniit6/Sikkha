@@ -56,7 +56,6 @@ const PUBLIC_API_ROUTES = [
   '/api/content-types',
   '/api/content-types/seed',
   '/api/uploadthing',
-  '/api/local-upload',
   '/api/csrf-token',
   '/api/health',
   '/api/navigation',
@@ -184,6 +183,11 @@ export async function proxy(request: NextRequest) {
       }
     }
 
+    // SECURITY: These headers originate from verified server-side auth.
+    // They are set AFTER JWT verification and DB role lookup.
+    // NO downstream handler should trust these headers for authorization.
+    // Always call verifyAuth() in the handler to re-verify.
+    // These headers exist for logging/debugging only.
     request.headers.set('x-user-id', auth.userId)
     request.headers.set('x-user-role', auth.role)
     request.headers.set('x-csp-nonce', cspNonce)

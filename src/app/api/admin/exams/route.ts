@@ -1,10 +1,13 @@
 import { db } from '@/lib/db'
-import { apiResponse, paginatedApiResponse, apiError, withAdmin, parseIdsParam, validateBody } from '@/lib/api-utils'
+import { apiResponse, paginatedApiResponse, apiError, withAdmin, parseIdsParam, validateBody, withCsrf } from '@/lib/api-utils'
 import { handleApiError } from '@/lib/errors'
 import { deriveIsPremium } from '@/lib/premium'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { toDecimal } from '@/lib/decimal'
+import { softDelete } from '@/lib/soft-delete'
+import { createVersion } from '@/lib/version-history'
+import { getClientIP } from '@/lib/audit'
 
 const createExamSchema = z.object({
   title: z.string().min(1, 'পরীক্ষার নাম আবশ্যক'),
@@ -85,6 +88,9 @@ export async function POST(request: Request) {
   const auth = await withAdmin(request)
   if (auth instanceof NextResponse) return auth
 
+  const csrfCheck = await withCsrf(request)
+  if ('error' in csrfCheck) return csrfCheck.error
+
   try {
     const body = await request.json()
     const validation = validateBody(createExamSchema, body)
@@ -127,6 +133,9 @@ export async function PUT(request: Request) {
   const auth = await withAdmin(request)
   if (auth instanceof NextResponse) return auth
 
+  const csrfCheck = await withCsrf(request)
+  if ('error' in csrfCheck) return csrfCheck.error
+
   try {
     const body = await request.json()
     const { id, questions, ...updateData } = body
@@ -158,21 +167,40 @@ export async function PUT(request: Request) {
     if (updateData.endsAt !== undefined) updateFields.endsAt = updateData.endsAt ? new Date(updateData.endsAt) : null
 
     if (questions !== undefined) {
-      await db.examQuestion.deleteMany({ where: { examId: id } })
-      if (Array.isArray(questions) && questions.length > 0) {
-        updateFields.questions = {
-          create: questions.map((q: { questionType: string; questionId: string; marks: number; order?: number }) => ({
-            questionType: q.questionType, questionId: q.questionId, marks: q.marks || 0, order: q.order || 0,
-          })),
-        }
-        updateFields.totalMarks = questions.reduce((sum: number, q: { marks: number }) => sum + toDecimal(q.marks || 0), 0)
+      updateFields.questions = {
+        deleteMany: { examId: id },
+        create: questions.map((q: { questionType: string; questionId: string; marks: number; order?: number }) => ({
+          questionType: q.questionType, questionId: q.questionId, marks: q.marks || 0, order: q.order || 0,
+        })),
       }
+      updateFields.totalMarks = questions.reduce((sum: number, q: { marks: number }) => sum + toDecimal(q.marks || 0), 0)
     }
 
-    const updated = await db.exam.update({
-      where: { id },
-      data: updateFields,
-      include: { questions: true },
+    // Determine which fields actually changed
+    const changedFields = Object.keys(updateFields).filter(
+      key => JSON.stringify(updateFields[key]) !== JSON.stringify(existing[key as keyof typeof existing])
+    )
+
+    // Create version snapshot + update in single transaction
+    const ipAddress = getClientIP(request)
+    const userAgent = request.headers.get('user-agent') || undefined
+
+    const updated = await db.$transaction(async (tx) => {
+      // Create version snapshot of current state BEFORE update
+      await createVersion(tx, 'exam', id, { ...existing }, auth.user.id, changedFields, {
+        ipAddress,
+        userAgent,
+      })
+
+      // Perform the actual update
+      return tx.exam.update({
+        where: { id },
+        data: updateFields,
+        include: { questions: true },
+      })
+    }, {
+      maxWait: 10000,
+      timeout: 30000,
     })
 
     return apiResponse(updated)
@@ -185,12 +213,17 @@ export async function DELETE(request: Request) {
   const auth = await withAdmin(request)
   if (auth instanceof NextResponse) return auth
 
+  const csrfCheck = await withCsrf(request)
+  if ('error' in csrfCheck) return csrfCheck.error
+
   try {
     const { searchParams } = new URL(request.url)
     const ids = parseIdsParam(searchParams)
     if (ids) {
-      const result = await db.exam.deleteMany({ where: { id: { in: ids } } })
-      return apiResponse({ deleted: result.count }, `${result.count}টি সফলভাবে মুছে ফেলা হয়েছে`)
+      for (const id of ids) {
+        await softDelete(db, 'exam', id, auth.user.id)
+      }
+      return apiResponse({ deleted: ids.length }, `${ids.length}টি সফলভাবে মুছে ফেলা হয়েছে`)
     }
     const id = searchParams.get('id')
 
@@ -199,7 +232,7 @@ export async function DELETE(request: Request) {
     const existing = await db.exam.findUnique({ where: { id } })
     if (!existing) return apiError('পরীক্ষা খুঁজে পাওয়া যায়নি', 404)
 
-    await db.exam.delete({ where: { id } })
+    await softDelete(db, 'exam', id, auth.user.id)
     return apiResponse({ id }, 'পরীক্ষা সফলভাবে মুছে ফেলা হয়েছে')
   } catch (error) {
     return handleApiError(error, 'Admin Delete Exam')

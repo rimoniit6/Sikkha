@@ -1,4 +1,4 @@
-import { apiResponse, withAdmin } from '@/lib/api-utils'
+import { apiResponse, withAdmin, withCsrf } from '@/lib/api-utils'
 import { handleApiError } from '@/lib/errors'
 import { NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
@@ -6,6 +6,9 @@ import * as XLSX from 'xlsx'
 export async function POST(request: Request) {
   const auth = await withAdmin(request)
   if (auth instanceof NextResponse) return auth
+
+  const csrfCheck = await withCsrf(request)
+  if ('error' in csrfCheck) return csrfCheck.error
 
   try {
     const body = await request.json()

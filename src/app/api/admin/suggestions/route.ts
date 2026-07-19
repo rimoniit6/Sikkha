@@ -1,11 +1,13 @@
-import { apiResponse,parseIdsParam,validateBody,withAdmin } from '@/lib/api-utils'
+import { apiResponse,parseIdsParam,validateBody,withAdmin,withCsrf,getClientIP } from '@/lib/api-utils'
 import { guardDeleteDependencies } from '@/lib/delete-guard'
+import { softDelete } from '@/lib/soft-delete'
 import { invalidateContentCache } from '@/lib/cache-invalidate'
 import { deriveIsPremium } from '@/lib/premium'
 import { db } from '@/lib/db'
 import { handleApiError } from '@/lib/errors'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
+import { createVersion } from '@/lib/version-history'
 
 const createSuggestionSchema = z.object({
   title: z.string().min(1, 'শিরোনাম আবশ্যক'),
@@ -107,6 +109,9 @@ export async function POST(request: Request) {
   const auth = await withAdmin(request)
   if (auth instanceof NextResponse) return auth
 
+  const csrfCheck = await withCsrf(request)
+  if ('error' in csrfCheck) return csrfCheck.error
+
   try {
     const body = await request.json()
     const validation = validateBody(createSuggestionSchema, body)
@@ -143,6 +148,9 @@ export async function PUT(request: Request) {
   const auth = await withAdmin(request)
   if (auth instanceof NextResponse) return auth
 
+  const csrfCheck = await withCsrf(request)
+  if ('error' in csrfCheck) return csrfCheck.error
+
   try {
     const body = await request.json()
     const { id, ...updateData } = body
@@ -174,9 +182,30 @@ export async function PUT(request: Request) {
       data.isPremium = deriveIsPremium(updateData.price)
     }
 
-    const updated = await db.suggestion.update({
-      where: { id },
-      data: data as never,
+    // Determine which fields actually changed
+    const changedFields = Object.keys(data).filter(
+      key => JSON.stringify(data[key]) !== JSON.stringify(existing[key as keyof typeof existing])
+    )
+
+    // Create version snapshot + update in single transaction
+    const ipAddress = getClientIP(request)
+    const userAgent = request.headers.get('user-agent') || undefined
+
+    const updated = await db.$transaction(async (tx) => {
+      // Create version snapshot of current state BEFORE update
+      await createVersion(tx, 'suggestion', id, { ...existing }, auth.user.id, changedFields, {
+        ipAddress,
+        userAgent,
+      })
+
+      // Perform the actual update
+      return tx.suggestion.update({
+        where: { id },
+        data: data as never,
+      })
+    }, {
+      maxWait: 10000,
+      timeout: 30000,
     })
 
     await invalidateContentCache('suggestion')
@@ -190,14 +219,19 @@ export async function DELETE(request: Request) {
   const auth = await withAdmin(request)
   if (auth instanceof NextResponse) return auth
 
+  const csrfCheck = await withCsrf(request)
+  if ('error' in csrfCheck) return csrfCheck.error
+
   try {
     const { searchParams } = new URL(request.url)
 
     const ids = parseIdsParam(searchParams)
     if (ids) {
-      const result = await db.suggestion.deleteMany({ where: { id: { in: ids } } })
+      for (const id of ids) {
+        await softDelete(db, 'suggestion', id, auth.user.id)
+      }
       await invalidateContentCache('suggestion')
-      return apiResponse({ deleted: result.count }, `${result.count}টি সফলভাবে মুছে ফেলা হয়েছে`)
+      return apiResponse({ deleted: ids.length }, `${ids.length}টি সফলভাবে মুছে ফেলা হয়েছে`)
     }
 
     const idFromQuery = searchParams.get('id')
@@ -225,7 +259,7 @@ export async function DELETE(request: Request) {
     const guard = await guardDeleteDependencies('suggestions', id)
     if (!guard.ok) return guard.response
 
-    await db.suggestion.delete({ where: { id } })
+    await softDelete(db, 'suggestion', id, auth.user.id)
 
     await invalidateContentCache('suggestion')
     return apiResponse({ id }, 'সাজেশন সফলভাবে মুছে ফেলা হয়েছে')

@@ -4,6 +4,7 @@ import { join } from 'path'
 import { PrismaClient } from '@prisma/client'
 import { PrismaLibSql } from '@prisma/adapter-libsql'
 import { sanitizeForStorage } from './sanitize'
+import { SOFT_DELETE_MODELS } from './soft-delete'
 
 type ExtendedPrismaClient = ReturnType<typeof createPrismaClient>
 
@@ -34,6 +35,25 @@ function sanitizeData(data: Record<string, unknown>, fields: string[]): void {
   }
 }
 
+/**
+ * Inject `deletedAt: null` into WHERE clauses for soft-delete models.
+ * Bypassed when `includeDeleted: true` is present in args.
+ */
+function injectSoftDeleteFilter(args: Record<string, unknown>): void {
+  if (args.includeDeleted) {
+    delete args.includeDeleted
+    return
+  }
+
+  // Inject into top-level where
+  if (args.where && typeof args.where === 'object') {
+    const where = args.where as Record<string, unknown>
+    if (where.deletedAt === undefined) {
+      where.deletedAt = null
+    }
+  }
+}
+
 const isProduction = process.env.NODE_ENV === 'production'
 
 // Create libSQL adapter for SQLite - PrismaLibSql is a factory in v7
@@ -53,9 +73,12 @@ function createPrismaClient() {
       $allModels: {
         async $allOperations({ model, args: queryArgs, query }) {
           const modelName = model?.toLowerCase() || ''
+          const args = queryArgs as Record<string, unknown>
+
+          // 1. HTML sanitization for write operations
           if (MODELS_WITH_HTML.has(modelName)) {
             const fields = HTML_FIELDS[modelName]
-            const data = (queryArgs as Record<string, unknown>).data
+            const data = args.data
             if (data) {
               const items = Array.isArray(data) ? data : [data]
               for (const item of items) {
@@ -63,7 +86,18 @@ function createPrismaClient() {
               }
             }
           }
-          return query(queryArgs as never)
+
+          // 2. Soft delete auto-filter for Category A models (read operations only)
+          if (SOFT_DELETE_MODELS.has(modelName)) {
+            const operation = args
+            // Only filter on read operations: findMany, findFirst, findUnique, count
+            // Skip: create, update, delete, upsert, aggregate
+            if ('where' in args || 'include' in args || 'select' in args) {
+              injectSoftDeleteFilter(args)
+            }
+          }
+
+          return query(args as never)
         },
       },
     },

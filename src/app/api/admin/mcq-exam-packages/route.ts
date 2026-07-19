@@ -1,5 +1,5 @@
 import { db } from '@/lib/db'
-import { apiResponse, apiError, withAdmin, validateBody } from '@/lib/api-utils'
+import { apiResponse, apiError, withAdmin, withCsrf, validateBody } from '@/lib/api-utils'
 import { handleApiError } from '@/lib/errors'
 import { toBengaliNumerals } from '@/lib/utils'
 import { deriveIsPremium } from '@/lib/premium'
@@ -7,6 +7,9 @@ import { NextResponse } from 'next/server'
 import { toDecimal } from '@/lib/decimal'
 import { z } from 'zod'
 import { guardDeleteDependencies } from '@/lib/delete-guard'
+import { softDelete } from '@/lib/soft-delete'
+import { getClientIP } from '@/lib/audit'
+import { createVersion } from '@/lib/version-history'
 
 const createMcqPackageSchema = z.object({
   action: z.literal('create-package'),
@@ -341,6 +344,9 @@ export async function POST(request: Request) {
   const auth = await withAdmin(request)
   if (auth instanceof NextResponse) return auth
 
+  const csrfCheck = await withCsrf(request)
+  if ('error' in csrfCheck) return csrfCheck.error
+
   try {
     const body = await request.json()
     const { action } = body
@@ -544,32 +550,44 @@ export async function POST(request: Request) {
         const startOrder = (maxOrderResult?.order ?? -1) + 1
 
         const baseDate = new Date(startDate)
+
+        // Atomic: create all sets + update package total in a single transaction
         const createdSets: any[] = []
+        await db.$transaction(async (tx) => {
+          for (let i = 0; i < setCount; i++) {
+            const scheduledDate = new Date(baseDate)
+            scheduledDate.setDate(scheduledDate.getDate() + i * interval)
+            const title = `${prefix} ${toBengaliNumerals(i + 1)}`
 
-        for (let i = 0; i < setCount; i++) {
-          const scheduledDate = new Date(baseDate)
-          scheduledDate.setDate(scheduledDate.getDate() + i * interval)
-          const title = `${prefix} ${toBengaliNumerals(i + 1)}`
+            const examSet = await tx.mCQExamSet.create({
+              data: {
+                packageId,
+                title,
+                scheduledDate,
+                startTime: setStartTime,
+                endTime: setEndTime,
+                duration: setDuration,
+                marksPerQ: setMarksPerQ,
+                negativeMarks: setNegativeMarks,
+                totalMarks: 0,
+                totalQuestions: 0,
+                order: startOrder + i,
+              },
+            })
+            createdSets.push(examSet)
+          }
 
-          const examSet = await db.mCQExamSet.create({
-            data: {
-              packageId,
-              title,
-              scheduledDate,
-              startTime: setStartTime,
-              endTime: setEndTime,
-              duration: setDuration,
-              marksPerQ: setMarksPerQ,
-              negativeMarks: setNegativeMarks,
-              totalMarks: 0,
-              totalQuestions: 0,
-              order: startOrder + i,
-            },
+          // Update package totalSets inside the transaction
+          const count = await tx.mCQExamSet.count({ where: { packageId } })
+          await tx.mCQExamPackage.update({
+            where: { id: packageId },
+            data: { totalSets: count },
           })
-          createdSets.push(examSet)
-        }
+        }, {
+          maxWait: 10000,
+          timeout: 30000,
+        })
 
-        await recalculatePackageTotalSets(packageId)
         return apiResponse({ sets: createdSets, count: createdSets.length }, 201)
       }
 
@@ -587,6 +605,9 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
   const auth = await withAdmin(request)
   if (auth instanceof NextResponse) return auth
+
+  const csrfCheck = await withCsrf(request)
+  if ('error' in csrfCheck) return csrfCheck.error
 
   try {
     const body = await request.json()
@@ -622,14 +643,27 @@ export async function PUT(request: Request) {
           data.isPremium = deriveIsPremium(updateData.price)
         }
 
-        const updated = await db.mCQExamPackage.update({
-          where: { id },
-          data,
-          include: {
-            class: { select: { id: true, name: true, slug: true } },
-            _count: { select: { examSets: true, purchases: true } },
-          },
-        })
+        const ipAddress = getClientIP(request)
+        const userAgent = request.headers.get('user-agent') || undefined
+
+        const changedFields = Object.keys(data).filter(
+          key => JSON.stringify(data[key]) !== JSON.stringify(existing[key as keyof typeof existing])
+        )
+
+        const updated = await db.$transaction(async (tx) => {
+          await createVersion(tx, 'mCQExamPackage', id, { ...existing }, auth.user.id, changedFields, {
+            ipAddress, userAgent,
+          })
+          return tx.mCQExamPackage.update({
+            where: { id },
+            data,
+            include: {
+              class: { select: { id: true, name: true, slug: true } },
+              _count: { select: { examSets: true, purchases: true } },
+            },
+          })
+        }, { maxWait: 10000, timeout: 30000 })
+
         return apiResponse({ package: updated })
       }
 
@@ -814,6 +848,9 @@ export async function DELETE(request: Request) {
   const auth = await withAdmin(request)
   if (auth instanceof NextResponse) return auth
 
+  const csrfCheck = await withCsrf(request)
+  if ('error' in csrfCheck) return csrfCheck.error
+
   try {
     const { searchParams } = new URL(request.url)
     const action = searchParams.get('action')
@@ -824,7 +861,7 @@ export async function DELETE(request: Request) {
         if (!id) return apiError('Package ID required', 400)
         const guard = await guardDeleteDependencies('mcq-exam-packages', id)
         if (!guard.ok) return guard.response
-        await db.mCQExamPackage.delete({ where: { id } })
+        await softDelete(db, 'mcqExamPackage', id, auth.user.id)
         return apiResponse({ message: 'Package deleted' })
       }
 

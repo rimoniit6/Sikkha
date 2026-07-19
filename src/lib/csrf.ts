@@ -2,26 +2,86 @@ import { SignJWT, jwtVerify } from 'jose'
 import { cookies } from 'next/headers'
 
 /**
- * Master switch for the CSRF protection system.
+ * CSRF Protection — configurable via Admin Settings.
  *
- * Disabled for local development so the app runs without a CSRF token.
- * Re-enable in any environment by setting ENABLE_CSRF=true.
+ * Production: CSRF is ALWAYS enabled (hardcoded safety).
+ * Development: CSRF follows the admin setting (enableCsrfProtection).
+ *              Default: disabled (backward-compatible with existing dev behavior).
  *
- * Resolution order:
- *   - ENABLE_CSRF set  -> explicit true/false wins
- *   - otherwise          -> enabled everywhere EXCEPT NODE_ENV==='development'
+ * Architecture:
+ *   - Single source of truth: SiteSetting table (key: 'enableCsrfProtection')
+ *   - In-memory cache with 30s TTL to reduce database reads
+ *   - Cache auto-invalidates when admin saves settings
+ *   - Production always returns true regardless of setting
  */
-const CSRF_ENABLED =
+
+// Environment-based default (for development fallback when DB is unavailable)
+const CSRF_ENV_DEFAULT =
   process.env.ENABLE_CSRF !== undefined
     ? process.env.ENABLE_CSRF === 'true'
     : process.env.NODE_ENV !== 'development'
 
-export const isCsrfEnabled = (): boolean => CSRF_ENABLED
+// In-memory cache with TTL
+const CACHE_TTL_MS = 30_000 // 30 seconds
+let _csrfCache: { enabled: boolean; timestamp: number } | null = null
+
+/**
+ * Read CSRF setting from database with cache.
+ * Falls back to env var if database is unavailable.
+ */
+async function readCsrfSettingFromDB(): Promise<boolean> {
+  try {
+    // Dynamic import to avoid circular dependencies
+    const { db } = await import('@/lib/db')
+    const setting = await db.siteSetting.findUnique({
+      where: { key: 'enableCsrfProtection' },
+      select: { value: true },
+    })
+    return setting?.value === 'true'
+  } catch {
+    // Database unavailable — fall back to env var
+    return CSRF_ENV_DEFAULT
+  }
+}
+
+/**
+ * Get effective CSRF state (async, database-backed).
+ *
+ * Resolution order:
+ *   1. Production → always true (hardcoded safety)
+ *   2. Cache hit (within TTL) → return cached value
+ *   3. Database → read from SiteSetting, cache result
+ *   4. Database failure → fall back to env var
+ */
+export async function isCsrfEnabled(): Promise<boolean> {
+  // Production: always enabled — no override possible
+  if (process.env.NODE_ENV === 'production') return true
+
+  // Check cache
+  if (_csrfCache && Date.now() - _csrfCache.timestamp < CACHE_TTL_MS) {
+    return _csrfCache.enabled
+  }
+
+  // Read from database
+  const enabled = await readCsrfSettingFromDB()
+
+  // Update cache
+  _csrfCache = { enabled, timestamp: Date.now() }
+
+  return enabled
+}
+
+/**
+ * Invalidate CSRF cache. Called after admin saves settings.
+ * Forces next request to re-read from database.
+ */
+export function invalidateCsrfCache(): void {
+  _csrfCache = null
+}
 
 function getCsrfSecret(): Uint8Array {
   const secret = process.env.CSRF_SECRET
   if (!secret || secret.length < 32) {
-    // In development, use a fallback secret instead of crashing
     if (process.env.NODE_ENV !== 'production') {
       return new TextEncoder().encode('dev-fallback-csrf-secret-that-is-long-enough-32ch!')
     }
@@ -30,7 +90,6 @@ function getCsrfSecret(): Uint8Array {
   return new TextEncoder().encode(secret)
 }
 
-// Lazy initialization to avoid top-level crashes
 let _csrfSecret: Uint8Array | null = null
 function getCsrfSecretCached(): Uint8Array {
   if (!_csrfSecret) {
@@ -43,7 +102,7 @@ const CSRF_COOKIE_NAME = 'csrf_token'
 const CSRF_HEADER_NAME = 'x-csrf-token'
 
 export async function generateCsrfToken(): Promise<string> {
-  if (!CSRF_ENABLED) return ''
+  if (!(await isCsrfEnabled())) return ''
   const token = await new SignJWT({})
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
@@ -53,13 +112,13 @@ export async function generateCsrfToken(): Promise<string> {
 }
 
 export async function setCsrfCookie(token: string) {
-  if (!CSRF_ENABLED) return
+  if (!(await isCsrfEnabled())) return
   const cookieStore = await cookies()
   cookieStore.set(CSRF_COOKIE_NAME, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'strict',
-    maxAge: 60 * 60, // 1 hour
+    maxAge: 60 * 60,
     path: '/',
   })
 }
@@ -70,7 +129,7 @@ export async function getCsrfToken(): Promise<string | null> {
 }
 
 export async function validateCsrfToken(token: string): Promise<boolean> {
-  if (!CSRF_ENABLED) return true
+  if (!(await isCsrfEnabled())) return true
   try {
     await jwtVerify(token, getCsrfSecretCached())
     return true
@@ -80,14 +139,12 @@ export async function validateCsrfToken(token: string): Promise<boolean> {
 }
 
 export async function verifyCsrfFromRequest(request: Request): Promise<boolean> {
-  if (!CSRF_ENABLED) return true
-  // Check header first
+  if (!(await isCsrfEnabled())) return true
   const headerToken = request.headers.get(CSRF_HEADER_NAME)
   if (headerToken && await validateCsrfToken(headerToken)) {
     return true
   }
 
-  // Check form data for mutating requests
   if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method)) {
     const contentType = request.headers.get('content-type')
     if (contentType?.includes('application/json')) {
@@ -106,9 +163,8 @@ export async function verifyCsrfFromRequest(request: Request): Promise<boolean> 
 }
 
 export async function csrfMiddleware(request: Request): Promise<{ valid: boolean; token?: string }> {
-  if (!CSRF_ENABLED) return { valid: true }
+  if (!(await isCsrfEnabled())) return { valid: true }
   const isValid = await verifyCsrfFromRequest(request)
-  // Ensure cookie exists for subsequent requests
   const existingToken = await getCsrfToken()
   if (!existingToken) {
     const newToken = await generateCsrfToken()

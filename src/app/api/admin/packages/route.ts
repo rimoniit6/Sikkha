@@ -4,6 +4,9 @@ import { db } from '@/lib/db'
 import { handleApiError } from '@/lib/errors'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
+import { softDelete } from '@/lib/soft-delete'
+import { createVersion } from '@/lib/version-history'
+import { getClientIP } from '@/lib/audit'
 
 const createPackageSchema = z.object({
   title: z.string().min(1, 'শিরোনাম প্রদান করুন'),
@@ -167,9 +170,39 @@ export async function PUT(request: Request) {
     if (Array.isArray(ids) && ids.length > 0) {
       const updateData: Record<string, unknown> = {}
       if (isActive !== undefined) updateData.isActive = isActive
-      const result = await db.contentPackage.updateMany({ where: { id: { in: ids } }, data: updateData })
+
+      // Bulk update: create version for each affected entity
+      const ipAddress = getClientIP(request)
+      const userAgent = request.headers.get('user-agent') || undefined
+
+      await db.$transaction(async (tx) => {
+        // Fetch all records to snapshot before updating
+        const records = await tx.contentPackage.findMany({
+          where: { id: { in: ids } },
+        })
+
+        // Create version for each record
+        for (const record of records) {
+          const changedFields = Object.keys(updateData).filter(
+            key => JSON.stringify(updateData[key]) !== JSON.stringify(record[key as keyof typeof record])
+          )
+          if (changedFields.length > 0) {
+            await createVersion(tx, 'contentPackage', record.id, { ...record }, auth.user.id, changedFields, {
+              ipAddress,
+              userAgent,
+            })
+          }
+        }
+
+        // Perform the bulk update
+        await tx.contentPackage.updateMany({ where: { id: { in: ids } }, data: updateData })
+      }, {
+        maxWait: 10000,
+        timeout: 30000,
+      })
+
       await invalidateContentCache('package')
-      return apiResponse({ updated: result.count }, `${result.count}টি আপডেট হয়েছে`)
+      return apiResponse({ updated: ids.length }, `${ids.length}টি আপডেট হয়েছে`)
     }
 
     if (!id) {
@@ -193,9 +226,30 @@ export async function PUT(request: Request) {
     if (isActive !== undefined) updateData.isActive = isActive
     if (order !== undefined) updateData.order = order
 
-    const updated = await db.contentPackage.update({
-      where: { id },
-      data: updateData,
+    // Determine which fields actually changed
+    const changedFields = Object.keys(updateData).filter(
+      key => JSON.stringify(updateData[key]) !== JSON.stringify(existing[key as keyof typeof existing])
+    )
+
+    // Create version snapshot + update in single transaction
+    const ipAddress = getClientIP(request)
+    const userAgent = request.headers.get('user-agent') || undefined
+
+    const updated = await db.$transaction(async (tx) => {
+      // Create version snapshot of current state BEFORE update
+      await createVersion(tx, 'contentPackage', id, { ...existing }, auth.user.id, changedFields, {
+        ipAddress,
+        userAgent,
+      })
+
+      // Perform the actual update
+      return tx.contentPackage.update({
+        where: { id },
+        data: updateData,
+      })
+    }, {
+      maxWait: 10000,
+      timeout: 30000,
     })
 
     await invalidateContentCache('package')
@@ -215,10 +269,15 @@ export async function DELETE(request: Request) {
     const { searchParams } = new URL(request.url)
     const ids = parseIdsParam(searchParams)
     if (ids) {
-      await db.userSubscription.deleteMany({ where: { packageId: { in: ids } } })
-      const result = await db.contentPackage.deleteMany({ where: { id: { in: ids } } })
+      for (const pkgId of ids) {
+        const subs = await db.userSubscription.findMany({ where: { packageId: pkgId }, select: { id: true } })
+        for (const sub of subs) {
+          await softDelete(db, 'userSubscription', sub.id, auth.user.id)
+        }
+        await softDelete(db, 'contentPackage', pkgId, auth.user.id)
+      }
       await invalidateContentCache('package')
-      return apiResponse({ deleted: result.count }, `${result.count}টি সফলভাবে মুছে ফেলা হয়েছে`)
+      return apiResponse({ deleted: ids.length }, `${ids.length}টি সফলভাবে মুছে ফেলা হয়েছে`)
     }
     const id = searchParams.get('id')
 
@@ -232,8 +291,11 @@ export async function DELETE(request: Request) {
     }
 
     // Delete all subscriptions first (cascade should handle this, but be explicit)
-    await db.userSubscription.deleteMany({ where: { packageId: id } })
-    await db.contentPackage.delete({ where: { id } })
+    const subs = await db.userSubscription.findMany({ where: { packageId: id }, select: { id: true } })
+    for (const sub of subs) {
+      await softDelete(db, 'userSubscription', sub.id, auth.user.id)
+    }
+    await softDelete(db, 'contentPackage', id, auth.user.id)
 
     await invalidateContentCache('package')
     return apiResponse({ id }, 'প্যাকেজ মুছে ফেলা হয়েছে')

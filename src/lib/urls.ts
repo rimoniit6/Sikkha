@@ -100,6 +100,9 @@ const ROUTE_DEFS: Record<RoutePath, RouteDef> = {
   'admin-analytics-geo': { path: '/admin/analytics/geo', queryParams: [] },
   'admin-analytics-realtime': { path: '/admin/analytics/realtime', queryParams: [] },
   'admin-analytics-reports': { path: '/admin/analytics/reports', queryParams: [] },
+  'admin-trash': { path: '/admin/trash', queryParams: [] },
+  'admin-audit-logs': { path: '/admin/audit-logs', queryParams: [] },
+  'admin-version-history': { path: '/admin/version-history', queryParams: [] },
 }
 
 const PARAM_REGEX = /\{(\w+)\}/g

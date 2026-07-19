@@ -1,5 +1,5 @@
 import { db } from '@/lib/db'
-import { apiResponse, paginatedApiResponse, apiError, withAdmin, parseIdsParam, validateBody } from '@/lib/api-utils'
+import { apiResponse, paginatedApiResponse, apiError, withAdmin, parseIdsParam, validateBody, withCsrf, getClientIP } from '@/lib/api-utils'
 import { handleApiError } from '@/lib/errors'
 import { invalidateContentCache } from '@/lib/cache-invalidate'
 import { deriveIsPremium } from '@/lib/premium'
@@ -7,6 +7,8 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { auditFromRequest, AuditActions, EntityTypes } from '@/lib/audit'
 import { guardDeleteDependencies } from '@/lib/delete-guard'
+import { softDelete } from '@/lib/soft-delete'
+import { createVersion } from '@/lib/version-history'
 
 const createLectureSchema = z.object({
   title: z.string().min(1, 'শিরোনাম আবশ্যক'),
@@ -93,6 +95,9 @@ export async function POST(request: Request) {
   const auth = await withAdmin(request)
   if (auth instanceof NextResponse) return auth
 
+  const csrfCheck = await withCsrf(request)
+  if ('error' in csrfCheck) return csrfCheck.error
+
   try {
     const body = await request.json()
     const validated = validateBody(createLectureSchema, body)
@@ -121,6 +126,9 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
   const auth = await withAdmin(request)
   if (auth instanceof NextResponse) return auth
+
+  const csrfCheck = await withCsrf(request)
+  if ('error' in csrfCheck) return csrfCheck.error
 
   try {
     const body = await request.json()
@@ -152,10 +160,30 @@ export async function PUT(request: Request) {
       updateFields.isPremium = deriveIsPremium(updateData.price)
     }
 
-    const updated = await db.lecture.update({ where: { id }, data: updateFields as never })
+    // Determine which fields actually changed
+    const changedFields = Object.keys(updateFields).filter(
+      key => JSON.stringify(updateFields[key]) !== JSON.stringify(existing[key as keyof typeof existing])
+    )
+
+    // Create version snapshot + update in single transaction
+    const ipAddress = getClientIP(request)
+    const userAgent = request.headers.get('user-agent') || undefined
+
+    const updated = await db.$transaction(async (tx) => {
+      // Create version snapshot of current state BEFORE update
+      await createVersion(tx, 'lecture', id, { ...existing }, auth.user.id, changedFields, {
+        ipAddress,
+        userAgent,
+      })
+
+      // Perform the actual update
+      return tx.lecture.update({ where: { id }, data: updateFields as never })
+    }, {
+      maxWait: 10000,
+      timeout: 30000,
+    })
 
     await invalidateContentCache('lecture')
-    await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_UPDATE, EntityTypes.LECTURE, existing.id, { ...existing }, updateData)
     return apiResponse(updated)
   } catch (error) {
     return handleApiError(error, 'Admin Update Lecture')
@@ -166,15 +194,20 @@ export async function DELETE(request: Request) {
   const auth = await withAdmin(request)
   if (auth instanceof NextResponse) return auth
 
+  const csrfCheck = await withCsrf(request)
+  if ('error' in csrfCheck) return csrfCheck.error
+
   try {
     const { searchParams } = new URL(request.url)
 
     const ids = parseIdsParam(searchParams)
     if (ids) {
-      const result = await db.lecture.deleteMany({ where: { id: { in: ids } } })
+      for (const id of ids) {
+        await softDelete(db, 'lecture', id, auth.user.id)
+      }
       await invalidateContentCache('lecture')
       await Promise.all(ids.map(id => auditFromRequest(request, auth.user.id, AuditActions.CONTENT_DELETE, EntityTypes.LECTURE, id)))
-      return apiResponse({ deleted: result.count }, `${result.count}টি লেকচার মুছে ফেলা হয়েছে`)
+      return apiResponse({ deleted: ids.length }, `${ids.length}টি লেকচার মুছে ফেলা হয়েছে`)
     }
 
     const idFromQuery = searchParams.get('id')
@@ -202,7 +235,7 @@ export async function DELETE(request: Request) {
     const guard = await guardDeleteDependencies('lectures', id)
     if (!guard.ok) return guard.response
 
-    await db.lecture.delete({ where: { id } })
+    await softDelete(db, 'lecture', id, auth.user.id)
 
     await invalidateContentCache('lecture')
     await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_DELETE, EntityTypes.LECTURE, id)

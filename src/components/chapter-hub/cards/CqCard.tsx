@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils'
 import { sanitizeHtml } from '@/lib/sanitize'
 import { getDifficultyColor, getDifficultyLabel } from '@/lib/board-utils'
 import { useIsMobile } from '@/hooks/use-mobile'
+import PurchaseStatusBadge from '@/components/shared/PurchaseStatusBadge'
 import { stripBoardPrefix } from '@/lib/board-grouping'
 import { BoardAggregationBadge } from '@/components/shared/BoardAggregationBadge'
 import type { CQListItem } from '@/hooks/use-chapter-content'
@@ -50,9 +51,7 @@ export function CqCard({ cq, index, isPurchased, onUnlock }: CqCardProps) {
               </Badge>
             </div>
             {isLocked && (
-              <Badge className="shrink-0 text-[10px] px-1.5 py-0 gap-1 bg-gradient-to-r from-amber-400 to-orange-500 text-white border-0 shadow-xs">
-                <Crown className="h-2.5 w-2.5" />Premium
-              </Badge>
+              <PurchaseStatusBadge state="NOT_PURCHASED" size="sm" />
             )}
           </div>
 

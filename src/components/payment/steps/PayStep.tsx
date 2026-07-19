@@ -21,6 +21,7 @@ interface PayStepProps {
   uploadingScreenshot: boolean
   screenshotUrl: string | null
   paymentStatus: string
+  csrfEnabled: boolean
   csrfLoading: boolean
   csrfToken: string | null
   handleSubmit: () => void
@@ -38,6 +39,7 @@ export function PayStep({
   uploadingScreenshot,
   screenshotUrl,
   paymentStatus,
+  csrfEnabled,
   csrfLoading,
   csrfToken,
   handleSubmit,
@@ -172,7 +174,7 @@ export function PayStep({
         </Button>
         <Button
           className="flex-1 gap-2"
-          disabled={!transactionId || !paymentNumber || paymentStatus === 'submitting' || csrfLoading || !csrfToken}
+          disabled={!transactionId || !paymentNumber || paymentStatus === 'submitting' || csrfLoading || (csrfEnabled && !csrfToken)}
           onClick={handleSubmit}
         >
           {paymentStatus === 'submitting' ? (

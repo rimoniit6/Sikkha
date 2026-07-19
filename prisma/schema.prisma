@@ -90,9 +90,12 @@ model ClassCategory {
   color       String?
   gradient    String? // Tailwind gradient classes, e.g. "from-emerald-400 to-emerald-600"
   description String?
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  isActive     Boolean  @default(true)
+  deletedAt    DateTime?
+  deletedBy    String?
+  deleteReason String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   subjects        Subject[]
   mcqExamPackages MCQExamPackage[]
@@ -108,17 +111,20 @@ model Subject {
   icon        String?
   color       String?
   description String?
-  order       Int      @default(0)
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  order        Int      @default(0)
+  isActive     Boolean  @default(true)
+  deletedAt    DateTime?
+  deletedBy    String?
+  deleteReason String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   class    ClassCategory @relation(fields: [classId], references: [id], onDelete: Cascade)
   chapters Chapter[]
   Course   Course[]
 
   @@unique([slug, classId])
-  @@index([classId, isActive, order])
+  @@index([classId, isActive, deletedAt, order])
 }
 
 model Chapter {
@@ -126,11 +132,14 @@ model Chapter {
   name        String
   slug        String
   subjectId   String
-  order       Int      @default(0)
-  description String?
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  order        Int      @default(0)
+  description  String?
+  isActive     Boolean  @default(true)
+  deletedAt    DateTime?
+  deletedBy    String?
+  deleteReason String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   subject            Subject             @relation(fields: [subjectId], references: [id], onDelete: Cascade)
   lectures           Lecture[]
@@ -142,7 +151,7 @@ model Chapter {
   topics Topic[]
 
   @@unique([slug, subjectId])
-  @@index([subjectId, isActive, order])
+  @@index([subjectId, isActive, deletedAt, order])
 }
 
 // ============ TOPIC SYSTEM ============
@@ -153,10 +162,13 @@ model Topic {
   slug        String
   chapterId   String
   order       Int      @default(0)
-  description String?
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  description  String?
+  isActive     Boolean  @default(true)
+  deletedAt    DateTime?
+  deletedBy    String?
+  deleteReason String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   chapter Chapter @relation(fields: [chapterId], references: [id], onDelete: Cascade)
 
@@ -178,13 +190,16 @@ model KnowledgeQuestion {
   price         Float         @default(0)
   order         Int           @default(0)
   isActive      Boolean       @default(true)
+  deletedAt     DateTime?
+  deletedBy     String?
+  deleteReason  String?
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
   chapter Chapter @relation(fields: [chapterId], references: [id], onDelete: Cascade)
 
-  @@index([chapterId, type, isActive])
-  @@index([isPremium, isActive])
+  @@index([chapterId, type, isActive, deletedAt])
+  @@index([isPremium, isActive, deletedAt])
 }
 
 // ============ LECTURE SYSTEM ============
@@ -205,14 +220,17 @@ model Lecture {
   price     Float    @default(0)
   viewCount Int      @default(0)
   isActive  Boolean  @default(true)
+  deletedAt DateTime?
+  deletedBy String?
+  deleteReason String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   chapter   Chapter    @relation(fields: [chapterId], references: [id], onDelete: Cascade)
   resources Resource[]
 
-  @@index([chapterId, isActive])
-  @@index([isPremium, isActive])
+  @@index([chapterId, isActive, deletedAt])
+  @@index([isPremium, isActive, deletedAt])
 }
 
 model Resource {
@@ -223,6 +241,9 @@ model Resource {
   url       String
   size      String?
   isActive  Boolean  @default(true)
+  deletedAt DateTime?
+  deletedBy String?
+  deleteReason String?
   createdAt DateTime @default(now())
 
   lecture Lecture @relation(fields: [lectureId], references: [id], onDelete: Cascade)
@@ -258,16 +279,19 @@ model MCQ {
   price            Float    @default(0)
   tags             String? // comma separated
   isActive         Boolean    @default(true)
+  deletedAt        DateTime?
+  deletedBy        String?
+  deleteReason     String?
   createdAt        DateTime   @default(now())
   updatedAt        DateTime   @updatedAt
 
   chapter          Chapter              @relation(fields: [chapterId], references: [id], onDelete: Cascade)
   examSetQuestions MCQExamSetQuestion[]
 
-  @@index([classLevel, subjectId, chapterId, isActive])
-  @@index([chapterId, isActive])
-  @@index([board, year, isActive])
-  @@index([board, year, classLevel, isActive])
+  @@index([classLevel, subjectId, chapterId, isActive, deletedAt])
+  @@index([chapterId, isActive, deletedAt])
+  @@index([board, year, isActive, deletedAt])
+  @@index([board, year, classLevel, isActive, deletedAt])
 }
 
 // ============ CQ SYSTEM ============
@@ -303,6 +327,9 @@ model CQ {
   price          Float    @default(0)
   tags           String?
   isActive       Boolean    @default(true)
+  deletedAt      DateTime?
+  deletedBy      String?
+  deleteReason   String?
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
 
@@ -310,10 +337,10 @@ model CQ {
 
   examSetQuestions CQExamSetQuestion[]
 
-  @@index([classLevel, subjectId, chapterId, isActive])
-  @@index([chapterId, isActive])
-  @@index([board, year, isActive])
-  @@index([board, year, classLevel, isActive])
+  @@index([classLevel, subjectId, chapterId, isActive, deletedAt])
+  @@index([chapterId, isActive, deletedAt])
+  @@index([board, year, isActive, deletedAt])
+  @@index([board, year, classLevel, isActive, deletedAt])
 }
 
 // ============ EXAM SYSTEM ============
@@ -340,6 +367,9 @@ model Exam {
   endsAt            DateTime?
   creatorId         String? // user who created this exam (custom exam builder)
   creator           User?      @relation(fields: [creatorId], references: [id], onDelete: SetNull)
+  deletedAt         DateTime?
+  deletedBy         String?
+  deleteReason      String?
   createdAt         DateTime   @default(now())
   updatedAt         DateTime   @updatedAt
 
@@ -347,11 +377,11 @@ model Exam {
   results   ExamResult[]
   sessions  ExamSession[]
 
-  @@index([classLevel, isActive])
+  @@index([classLevel, isActive, deletedAt])
   @@index([subjectId])
-  @@index([status, isActive])
-  @@index([subjectId, classLevel, isActive])
-  @@index([isActive, createdAt])
+  @@index([status, isActive, deletedAt])
+  @@index([subjectId, classLevel, isActive, deletedAt])
+  @@index([isActive, deletedAt, createdAt])
   @@index([creatorId])
 }
 
@@ -573,6 +603,13 @@ model AuditLog {
   newData    String? // JSON string of new state
   ipAddress  String?
   userAgent  String?
+  userName   String? // Cached user name for display
+  userRole   String? // Cached user role for display
+  status     String? @default("success") // success, failed, pending
+  duration   Int?     // Duration in milliseconds
+  os         String?  // Parsed from user agent: Windows, macOS, Linux, iOS, Android
+  browser    String?  // Parsed from user agent: Chrome, Firefox, Safari, Edge, Opera
+  country    String?  // Country from IP geolocation (if available)
   createdAt  DateTime @default(now())
   deletedAt  DateTime?
 
@@ -580,6 +617,34 @@ model AuditLog {
   @@index([entityType, entityId])
   @@index([action])
   @@index([createdAt])
+  @@index([status])
+  @@index([os, browser])
+}
+
+// ============ CONTENT VERSION HISTORY ============
+
+model ContentVersion {
+  id                String   @id @default(cuid())
+  entityType        String   // "lecture", "mcq", "cq", "course", etc.
+  entityId          String   // ID of the record being versioned
+  versionNumber     Int      // Sequential: 1, 2, 3...
+  snapshot          String   // JSON: full record state at this version
+  changedFields     String?  // JSON: array of field names that changed
+  changeType        String   // "create", "update", "restore", "import"
+  rollbackFromVersion Int?   // If this version was created by rollback, the version it rolled back from
+  rollbackComment   String?  // Reason for rollback
+  performedBy       String   // User ID who made the change
+  performedByName   String?  // Cached user name
+  performedByRole   String?  // Cached user role
+  ipAddress         String?
+  userAgent         String?
+  createdAt         DateTime @default(now())
+
+  @@unique([entityType, entityId, versionNumber])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@index([performedBy])
+  @@index([changeType])
 }
 
 // ============ BANNER ============
@@ -595,10 +660,13 @@ model Banner {
   order      Int       @default(0)
   startDate  DateTime?
   endDate    DateTime?
+  deletedAt  DateTime?
+  deletedBy  String?
+  deleteReason String?
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 
-  @@index([isActive])
+  @@index([isActive, deletedAt])
 }
 
 // ============ SUBSCRIPTION PLAN (REMOVED — per-content pricing only) ============
@@ -612,10 +680,13 @@ model FAQ {
   category  String?
   order     Int      @default(0)
   isActive  Boolean  @default(true)
+  deletedAt DateTime?
+  deletedBy String?
+  deleteReason String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@index([isActive, category])
+  @@index([isActive, deletedAt, category])
 }
 
 // ============ TESTIMONIAL ============
@@ -629,6 +700,9 @@ model Testimonial {
   rating    Int      @default(5)
   isActive  Boolean  @default(true)
   order     Int      @default(0)
+  deletedAt DateTime?
+  deletedBy String?
+  deleteReason String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -648,11 +722,14 @@ model Notice {
   isPinned   Boolean    @default(false) // Pinned to top
   isActive   Boolean    @default(true)
   order      Int        @default(0)
+  deletedAt  DateTime?
+  deletedBy  String?
+  deleteReason String?
   createdAt  DateTime   @default(now())
   updatedAt  DateTime   @updatedAt
 
-  @@index([isActive, type, order, createdAt])
-  @@index([classLevel, isActive])
+  @@index([isActive, deletedAt, type, order, createdAt])
+  @@index([classLevel, isActive, deletedAt])
 }
 
 // ============ SUGGESTION SYSTEM ============
@@ -672,14 +749,17 @@ model Suggestion {
   viewCount Int      @default(0)
   order     Int      @default(0)
   isActive  Boolean  @default(true)
+  deletedAt DateTime?
+  deletedBy String?
+  deleteReason String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   chapter Chapter? @relation("ChapterSuggestions", fields: [chapterId], references: [id])
 
   @@index([chapterId])
-  @@index([isActive, chapterId])
-  @@index([isActive, classId, subjectId])
+  @@index([isActive, deletedAt, chapterId])
+  @@index([isActive, deletedAt, classId, subjectId])
 }
 
 // ============ BOARD & YEAR ============
@@ -691,6 +771,9 @@ model Board {
   color     String   @default("rose") // Dynamic color: rose, emerald, sky, amber, violet, orange, teal, pink, indigo, cyan
   isActive  Boolean  @default(true)
   order     Int      @default(0)
+  deletedAt DateTime?
+  deletedBy String?
+  deleteReason String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -700,6 +783,9 @@ model ExamYear {
   year      String   @unique // 2024, 2023, etc.
   isActive  Boolean  @default(true)
   order     Int      @default(0)
+  deletedAt DateTime?
+  deletedBy String?
+  deleteReason String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -709,6 +795,9 @@ model BoardYear {
   board     String // dhaka, rajshahi, etc. (slug reference to Board)
   year      String // 2024, 2023, etc.
   isActive  Boolean  @default(true)
+  deletedAt DateTime?
+  deletedBy String?
+  deleteReason String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -733,6 +822,9 @@ model ContentType {
   showInChapterDetail Boolean  @default(true) // Whether this content type shows in chapter detail page
   isActive            Boolean  @default(true)
   order               Int      @default(0)
+  deletedAt           DateTime?
+  deletedBy           String?
+  deleteReason        String?
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 }
@@ -749,6 +841,9 @@ model FeaturedContent {
   section     String   @default("homepage") // which homepage section
   isActive    Boolean  @default(true)
   order       Int      @default(0)
+  deletedAt   DateTime?
+  deletedBy   String?
+  deleteReason String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -790,6 +885,9 @@ model Navigation {
   isAuthOnly  Boolean  @default(false) // Show only when authenticated
   isAdminOnly Boolean  @default(false) // Show only for admins
   isActive    Boolean  @default(true)
+  deletedAt   DateTime?
+  deletedBy   String?
+  deleteReason String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
@@ -810,6 +908,9 @@ model ContentBundle {
   type          String         @default("MIXED") // mcq, cq, lecture, board, mixed
   isActive      Boolean         @default(true)
   order         Int             @default(0)
+  deletedAt     DateTime?
+  deletedBy     String?
+  deleteReason  String?
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
 
@@ -846,6 +947,9 @@ model ContentPackage {
   classLevel    String? // optional: package can target a specific class, or null for any class
   isActive      Boolean  @default(true)
   order         Int      @default(0)
+  deletedAt     DateTime?
+  deletedBy     String?
+  deleteReason  String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -862,6 +966,9 @@ model UserSubscription {
   endDate    DateTime // Auto-calculated: startDate + package.duration
   isActive   Boolean  @default(true) // Can be manually deactivated by admin
   paymentId  String? // Link to the approved payment
+  deletedAt  DateTime?
+  deletedBy  String?
+  deleteReason String?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
@@ -890,6 +997,9 @@ model MCQExamPackage {
   status        String        @default("DRAFT") // draft, published, archived
   isActive      Boolean       @default(true)
   order         Int           @default(0)
+  deletedAt     DateTime?
+  deletedBy     String?
+  deleteReason  String?
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
@@ -992,6 +1102,9 @@ model MCQExamPackagePurchase {
   paymentId   String? // Link to Payment record
   purchasedAt DateTime       @default(now())
   isActive    Boolean        @default(true)
+  deletedAt   DateTime?
+  deletedBy   String?
+  deleteReason String?
 
   @@unique([userId, packageId])
   @@index([userId])
@@ -1015,13 +1128,16 @@ model CQExamPackage {
   status        String        @default("DRAFT") // draft, published, archived
   isActive      Boolean       @default(true)
   order         Int           @default(0)
+  deletedAt     DateTime?
+  deletedBy     String?
+  deleteReason  String?
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
   examSets  CQExamSet[]
   purchases CQExamPackagePurchase[]
 
-  @@index([status, isActive, order])
+  @@index([status, isActive, deletedAt, order])
   @@index([classId])
 }
 
@@ -1109,6 +1225,9 @@ model CQExamPackagePurchase {
   paymentId   String? // Link to Payment record
   purchasedAt DateTime      @default(now())
   isActive    Boolean       @default(true)
+  deletedAt   DateTime?
+  deletedBy   String?
+  deleteReason String?
 
   @@unique([userId, packageId])
   @@index([userId])
@@ -1230,6 +1349,9 @@ model TeacherModerator {
   institution String?
   isActive    Boolean  @default(true)
   order       Int      @default(0)
+  deletedAt   DateTime?
+  deletedBy   String?
+  deleteReason String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
@@ -1282,6 +1404,9 @@ model Course {
   // Certificates
   certificates Certificate[]
 
+  deletedAt    DateTime?
+  deletedBy    String?
+  deleteReason String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -1313,6 +1438,9 @@ model CourseLesson {
   // Ordering
   displayOrder Int @default(0)
 
+  deletedAt    DateTime?
+  deletedBy    String?
+  deleteReason String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

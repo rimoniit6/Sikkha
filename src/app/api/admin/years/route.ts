@@ -1,10 +1,11 @@
 import { db } from '@/lib/db'
-import { apiResponse, apiError, withAdmin, validateBody } from '@/lib/api-utils'
+import { apiResponse, apiError, withAdmin, validateBody, withCsrf } from '@/lib/api-utils'
 import { handleApiError } from '@/lib/errors'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { auditFromRequest, AuditActions } from '@/lib/audit'
 import { invalidateContentCache } from '@/lib/cache-invalidate'
+import { softDelete } from '@/lib/soft-delete'
 
 const createYearSchema = z.object({
   year: z.string().min(1, 'সাল আবশ্যক'),
@@ -31,6 +32,9 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const auth = await withAdmin(request)
   if (auth instanceof NextResponse) return auth
+
+  const csrfCheck = await withCsrf(request)
+  if ('error' in csrfCheck) return csrfCheck.error
 
   try {
     const body = await request.json()
@@ -66,6 +70,9 @@ export async function PUT(request: Request) {
   const auth = await withAdmin(request)
   if (auth instanceof NextResponse) return auth
 
+  const csrfCheck = await withCsrf(request)
+  if ('error' in csrfCheck) return csrfCheck.error
+
   try {
     const body = await request.json()
     const { id, year, isActive, order } = body
@@ -97,6 +104,9 @@ export async function DELETE(request: Request) {
   const auth = await withAdmin(request)
   if (auth instanceof NextResponse) return auth
 
+  const csrfCheck = await withCsrf(request)
+  if ('error' in csrfCheck) return csrfCheck.error
+
   try {
     const { searchParams } = new URL(request.url)
     const id = searchParams.get('id')
@@ -105,7 +115,7 @@ export async function DELETE(request: Request) {
       return apiError('সাল ID আবশ্যক', 400)
     }
 
-    await db.examYear.delete({ where: { id } })
+    await softDelete(db, 'examYear', id, auth.user.id)
     await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_DELETE, 'year', id)
     await invalidateContentCache('settings')
     return apiResponse({ id }, 'সাল সফলভাবে মুছে ফেলা হয়েছে')

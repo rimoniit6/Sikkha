@@ -175,6 +175,15 @@ export async function DELETE(request: Request) {
     }
 
     if (ids) {
+      // Find Category A children before the transaction to avoid nested $transaction
+      const [subs, mcqPurchases, cqPurchases] = await Promise.all([
+        db.userSubscription.findMany({ where: { userId: { in: ids } }, select: { id: true } }),
+        db.mCQExamPackagePurchase.findMany({ where: { userId: { in: ids } }, select: { id: true } }),
+        db.cQExamPackagePurchase.findMany({ where: { userId: { in: ids } }, select: { id: true } }),
+      ])
+
+      const now = new Date()
+
       const result = await db.$transaction(async (tx) => {
         await tx.feedbackMessage.deleteMany({ where: { feedback: { userId: { in: ids } } } })
         await tx.cQExamAnswer.deleteMany({ where: { submission: { userId: { in: ids } } } })
@@ -185,9 +194,16 @@ export async function DELETE(request: Request) {
         await tx.note.deleteMany({ where: { userId: { in: ids } } })
         await tx.notification.deleteMany({ where: { userId: { in: ids } } })
         await tx.recentlyViewed.deleteMany({ where: { userId: { in: ids } } })
-        await tx.userSubscription.deleteMany({ where: { userId: { in: ids } } })
-        await tx.mCQExamPackagePurchase.deleteMany({ where: { userId: { in: ids } } })
-        await tx.cQExamPackagePurchase.deleteMany({ where: { userId: { in: ids } } })
+        // Category A: soft-delete instead of hard-delete
+        for (const s of subs) {
+          await tx.userSubscription.update({ where: { id: s.id }, data: { deletedAt: now, deletedBy: auth.user.id } })
+        }
+        for (const p of mcqPurchases) {
+          await tx.mCQExamPackagePurchase.update({ where: { id: p.id }, data: { deletedAt: now, deletedBy: auth.user.id } })
+        }
+        for (const p of cqPurchases) {
+          await tx.cQExamPackagePurchase.update({ where: { id: p.id }, data: { deletedAt: now, deletedBy: auth.user.id } })
+        }
         await tx.cQExamSubmission.deleteMany({ where: { userId: { in: ids } } })
         await tx.userFeedback.deleteMany({ where: { userId: { in: ids } } })
         await tx.mCQExamSetResult.deleteMany({ where: { userId: { in: ids } } })
@@ -206,6 +222,15 @@ export async function DELETE(request: Request) {
       return apiError('ব্যবহারকারী খুঁজে পাওয়া যায়নি', 404)
     }
 
+    // Find Category A children before the transaction to avoid nested $transaction
+    const [subs, mcqPurchases, cqPurchases] = await Promise.all([
+      db.userSubscription.findMany({ where: { userId: id }, select: { id: true } }),
+      db.mCQExamPackagePurchase.findMany({ where: { userId: id }, select: { id: true } }),
+      db.cQExamPackagePurchase.findMany({ where: { userId: id }, select: { id: true } }),
+    ])
+
+    const now = new Date()
+
     // Clean up orphaned records before deleting user
     await db.$transaction(async (tx) => {
       await tx.feedbackMessage.deleteMany({ where: { feedback: { userId: id } } })
@@ -217,9 +242,16 @@ export async function DELETE(request: Request) {
       await tx.note.deleteMany({ where: { userId: id } })
       await tx.notification.deleteMany({ where: { userId: id } })
       await tx.recentlyViewed.deleteMany({ where: { userId: id } })
-      await tx.userSubscription.deleteMany({ where: { userId: id } })
-      await tx.mCQExamPackagePurchase.deleteMany({ where: { userId: id } })
-      await tx.cQExamPackagePurchase.deleteMany({ where: { userId: id } })
+      // Category A: soft-delete instead of hard-delete
+      for (const s of subs) {
+        await tx.userSubscription.update({ where: { id: s.id }, data: { deletedAt: now, deletedBy: auth.user.id } })
+      }
+      for (const p of mcqPurchases) {
+        await tx.mCQExamPackagePurchase.update({ where: { id: p.id }, data: { deletedAt: now, deletedBy: auth.user.id } })
+      }
+      for (const p of cqPurchases) {
+        await tx.cQExamPackagePurchase.update({ where: { id: p.id }, data: { deletedAt: now, deletedBy: auth.user.id } })
+      }
       await tx.cQExamSubmission.deleteMany({ where: { userId: id } })
       await tx.userFeedback.deleteMany({ where: { userId: id } })
       await tx.mCQExamSetResult.deleteMany({ where: { userId: id } })

@@ -76,8 +76,9 @@ export default function LectureViewerPage() {
   const [paymentStatus, setPaymentStatus] = useState<{
     purchased: boolean
     pendingPayment: boolean
+    rejected: boolean
     checked: boolean
-  }>({ purchased: false, pendingPayment: false, checked: false })
+  }>({ purchased: false, pendingPayment: false, rejected: false, checked: false })
   const [_isBookmarked, setIsBookmarked] = useState(false)
   const [fontSize, setFontSize] = useState<'sm' | 'base' | 'lg'>('base')
   const [scrollProgress, setScrollProgress] = useState(0)
@@ -234,13 +235,14 @@ export default function LectureViewerPage() {
           setPaymentStatus({
             purchased: data.purchased || false,
             pendingPayment: data.pendingPayment || false,
+            rejected: data.rejected || false,
             checked: true,
           })
         } else {
-          setPaymentStatus({ purchased: false, pendingPayment: false, checked: true })
+          setPaymentStatus({ purchased: false, pendingPayment: false, rejected: false, checked: true })
         }
       } catch {
-        setPaymentStatus({ purchased: false, pendingPayment: false, checked: true })
+        setPaymentStatus({ purchased: false, pendingPayment: false, rejected: false, checked: true })
       }
     }
 
@@ -616,6 +618,7 @@ export default function LectureViewerPage() {
               <PremiumLock
                 purchased={paymentStatus.purchased}
                 pendingPayment={paymentStatus.pendingPayment}
+                rejected={paymentStatus.rejected}
                 price={lectureData.price}
                 contentType="lecture"
                 contentId={lectureData.id}

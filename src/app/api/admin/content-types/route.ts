@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { handleApiError } from '@/lib/errors'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
+import { softDelete } from '@/lib/soft-delete'
 
 const createContentTypeSchema = z.object({
   key: z.string().min(1, 'key আবশ্যক'),
@@ -101,7 +102,7 @@ export async function DELETE(request: Request) {
       return apiError('id আবশ্যক', 400)
     }
 
-    await db.contentType.delete({ where: { id } })
+    await softDelete(db, 'contentType', id, auth.user.id)
     return apiResponse({ id }, 'কন্টেন্ট টাইপ মুছে ফেলা হয়েছে')
   } catch (error) {
     return handleApiError(error, 'Admin Delete Content Type')

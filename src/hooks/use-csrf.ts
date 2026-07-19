@@ -6,6 +6,7 @@ const CSRF_HEADER = 'x-csrf-token'
 
 export function useCsrf() {
   const [token, setToken] = useState<string | null>(null)
+  const [enabled, setEnabled] = useState<boolean>(true)
   const [loading, setLoading] = useState(true)
   const tokenRef = useRef<string | null>(null)
 
@@ -14,10 +15,16 @@ export function useCsrf() {
       const res = await fetch('/api/csrf-token', { method: 'GET', credentials: 'include' })
       if (res.ok) {
         const data = await res.json()
-        if (data.token) {
-          setToken(data.token)
-          tokenRef.current = data.token
-          return data.token
+        // Track whether CSRF is enabled on the server
+        if (typeof data.enabled === 'boolean') {
+          setEnabled(data.enabled)
+        }
+        // Always store the returned token — even if empty string (CSRF disabled)
+        if ('token' in data) {
+          const value = data.token || null
+          setToken(value)
+          tokenRef.current = value
+          return value
         }
       }
     } catch {
@@ -36,7 +43,7 @@ export function useCsrf() {
     return fetchCsrfToken()
   }, [fetchCsrfToken])
 
-  return { token, loading, refreshToken, tokenRef }
+  return { token, enabled, loading, refreshToken, tokenRef }
 }
 
 export function withCsrfHeaders(token: string | null, headers: Record<string, string> = {}): Record<string, string> {

@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { apiResponse, apiError, withAdmin, validateBody } from '@/lib/api-utils'
+import { apiResponse, apiError, withAdmin, validateBody, withCsrf } from '@/lib/api-utils'
 import { handleApiError } from '@/lib/errors'
 import { z } from 'zod'
 import { auditFromRequest, AuditActions } from '@/lib/audit'
 import { guardDeleteDependencies } from '@/lib/delete-guard'
 import { invalidateContentCache } from '@/lib/cache-invalidate'
+import { softDelete } from '@/lib/soft-delete'
 
 const createBoardSchema = z.object({
   name: z.string().min(1, 'বোর্ডের নাম আবশ্যক'),
@@ -31,6 +32,9 @@ export async function GET(request: Request) {
 export async function POST(req: NextRequest) {
   const auth = await withAdmin(req)
   if (auth instanceof NextResponse) return auth
+
+  const csrfCheck = await withCsrf(req)
+  if ('error' in csrfCheck) return csrfCheck.error
 
   try {
     const body = await req.json()
@@ -67,6 +71,9 @@ export async function POST(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   const auth = await withAdmin(req)
   if (auth instanceof NextResponse) return auth
+
+  const csrfCheck = await withCsrf(req)
+  if ('error' in csrfCheck) return csrfCheck.error
 
   try {
     const body = await req.json()
@@ -111,6 +118,9 @@ export async function DELETE(req: NextRequest) {
   const auth = await withAdmin(req)
   if (auth instanceof NextResponse) return auth
 
+  const csrfCheck = await withCsrf(req)
+  if ('error' in csrfCheck) return csrfCheck.error
+
   try {
     const { searchParams } = new URL(req.url)
     const id = searchParams.get('id')
@@ -127,7 +137,7 @@ export async function DELETE(req: NextRequest) {
     const guard = await guardDeleteDependencies('boards', id, existing.slug)
     if (!guard.ok) return guard.response
 
-    await db.board.delete({ where: { id } })
+    await softDelete(db, 'board', id, auth.user.id)
     await auditFromRequest(req, auth.user.id, AuditActions.CONTENT_DELETE, 'board', id)
     await invalidateContentCache('board')
     return apiResponse({ id }, 'বোর্ড সফলভাবে মুছে ফেলা হয়েছে')

@@ -99,6 +99,9 @@ export type RoutePath =
   | 'admin-analytics-geo'
   | 'admin-analytics-realtime'
   | 'admin-analytics-reports'
+  | 'admin-trash'
+  | 'admin-audit-logs'
+  | 'admin-version-history'
 
 // Single source of truth for admin routes — used by AppShell, page.tsx, and AdminLayout
 export const ADMIN_ROUTES: Set<RoutePath> = new Set([
@@ -153,6 +156,9 @@ export const ADMIN_ROUTES: Set<RoutePath> = new Set([
   'admin-analytics-geo',
   'admin-analytics-realtime',
   'admin-analytics-reports',
+  'admin-trash',
+  'admin-audit-logs',
+  'admin-version-history',
 ])
 
 export function isAdminRoute(route: RoutePath): boolean {

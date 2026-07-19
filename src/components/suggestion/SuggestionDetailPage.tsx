@@ -58,8 +58,9 @@ export default function SuggestionDetailPage() {
   const [paymentStatus, setPaymentStatus] = useState<{
     purchased: boolean
     pendingPayment: boolean
+    rejected: boolean
     checked: boolean
-  }>({ purchased: false, pendingPayment: false, checked: false })
+  }>({ purchased: false, pendingPayment: false, rejected: false, checked: false })
   const [showPurchaseModal, setShowPurchaseModal] = useState(false)
 
   const isPremiumUser = user?.isPremium && !!user?.premiumExpiry && new Date(user.premiumExpiry) > new Date()
@@ -132,13 +133,14 @@ export default function SuggestionDetailPage() {
           setPaymentStatus({
             purchased: data.purchased || false,
             pendingPayment: data.pendingPayment || false,
+            rejected: data.rejected || false,
             checked: true,
           })
         } else {
-          setPaymentStatus({ purchased: false, pendingPayment: false, checked: true })
+          setPaymentStatus({ purchased: false, pendingPayment: false, rejected: false, checked: true })
         }
       } catch {
-        setPaymentStatus({ purchased: false, pendingPayment: false, checked: true })
+        setPaymentStatus({ purchased: false, pendingPayment: false, rejected: false, checked: true })
       }
     }
 
@@ -380,6 +382,7 @@ export default function SuggestionDetailPage() {
             <PremiumLock
               purchased={paymentStatus.purchased}
               pendingPayment={paymentStatus.pendingPayment}
+              rejected={paymentStatus.rejected}
               price={suggestionData.price || 0}
               contentType="suggestion"
               contentId={suggestionData.id}

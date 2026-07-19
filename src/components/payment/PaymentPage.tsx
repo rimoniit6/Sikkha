@@ -37,7 +37,7 @@ export default function PaymentPage() {
   const { config } = useSiteConfig()
   const metadata = useHierarchyMetadata()
   const { getLabel, getIcon } = useContentTypes()
-  const { token: csrfToken, loading: csrfLoading, refreshToken, tokenRef } = useCsrf()
+  const { token: csrfToken, enabled: csrfEnabled, loading: csrfLoading, refreshToken, tokenRef } = useCsrf()
 
   const renderTypeIcon = (type: string, className: string = 'size-5') => {
     const Icon = getIcon(type)
@@ -522,6 +522,7 @@ export default function PaymentPage() {
             uploadingScreenshot={uploadingScreenshot}
             screenshotUrl={screenshotUrl}
             paymentStatus={paymentStatus}
+            csrfEnabled={csrfEnabled}
             csrfLoading={csrfLoading}
             csrfToken={csrfToken}
             handleSubmit={handleSubmit}

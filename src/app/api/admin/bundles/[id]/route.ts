@@ -2,6 +2,7 @@ import { db } from '@/lib/db'
 import { apiError, withAdmin, withCsrf } from '@/lib/api-utils'
 import { handleApiError } from '@/lib/errors'
 import { NextResponse } from 'next/server'
+import { softDelete } from '@/lib/soft-delete'
 
 // GET /api/admin/bundles/[id] — Get bundle by ID with all items
 export async function GET(
@@ -130,7 +131,7 @@ export async function DELETE(
     }
 
     // BundleItem will be cascade deleted
-    await db.contentBundle.delete({ where: { id } })
+    await softDelete(db, 'contentBundle', id, auth.user.id)
 
     return NextResponse.json({
       success: true,

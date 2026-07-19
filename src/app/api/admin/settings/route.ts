@@ -1,9 +1,11 @@
 import { db } from '@/lib/db'
-import { apiResponse, apiError, withAdmin, validateBody, withCsrf } from '@/lib/api-utils'
+import { apiResponse, apiError, withAdmin, validateBody, withCsrf, getClientIP } from '@/lib/api-utils'
 import { handleApiError } from '@/lib/errors'
 import { invalidateContentCache } from '@/lib/cache-invalidate'
+import { invalidateCsrfCache } from '@/lib/csrf'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
+import { createVersion } from '@/lib/version-history'
 
 const createSettingSchema = z.object({
   key: z.string().min(1, 'কী আবশ্যক'),
@@ -101,13 +103,35 @@ export async function PUT(request: Request) {
       return apiError('সেটিং খুঁজে পাওয়া যায়নি, নতুন তৈরি করতে POST ব্যবহার করুন', 404)
     }
 
-    const data = await db.siteSetting.update({
-      where: { key },
-      data: {
-        value,
-        ...(group !== undefined ? { group } : {}),
-        ...(label !== undefined ? { label } : {}),
-      },
+    const updateData: Record<string, unknown> = {}
+    if (value !== undefined) updateData.value = value
+    if (group !== undefined) updateData.group = group
+    if (label !== undefined) updateData.label = label
+
+    // Determine which fields actually changed
+    const changedFields = Object.keys(updateData).filter(
+      k => JSON.stringify(updateData[k]) !== JSON.stringify(existing[k as keyof typeof existing])
+    )
+
+    // Create version snapshot + update in single transaction
+    const ipAddress = getClientIP(request)
+    const userAgent = request.headers.get('user-agent') || undefined
+
+    const data = await db.$transaction(async (tx) => {
+      // Create version snapshot of current state BEFORE update
+      await createVersion(tx, 'siteSetting', key, { ...existing }, auth.user.id, changedFields, {
+        ipAddress,
+        userAgent,
+      })
+
+      // Perform the actual update
+      return tx.siteSetting.update({
+        where: { key },
+        data: updateData,
+      })
+    }, {
+      maxWait: 10000,
+      timeout: 30000,
     })
 
     await invalidateContentCache('settings')
@@ -157,6 +181,13 @@ export async function PATCH(request: Request) {
     )
 
     invalidateContentCache('settings')
+
+    // Invalidate CSRF cache if the setting was updated
+    const csrfSetting = settings.find((s) => s.key === 'enableCsrfProtection')
+    if (csrfSetting) {
+      invalidateCsrfCache()
+    }
+
     return apiResponse({ data: { updated: settings.length } })
   } catch (error) {
     return handleApiError(error, 'Admin Batch Update Settings')

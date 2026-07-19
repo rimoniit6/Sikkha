@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { sanitizeHtml } from '@/lib/sanitize'
 import { Crown, HelpCircle, Sparkles, XCircle, CheckCircle2, ChevronDown } from 'lucide-react'
+import PurchaseStatusBadge from '@/components/shared/PurchaseStatusBadge'
 
 export interface McqItem {
   id: string
@@ -66,9 +67,7 @@ export function McqCard({ item, isPurchased, onUnlock }: McqCardProps) {
               )}
             </div>
             {isLocked && (
-              <Badge className="shrink-0 text-[10px] px-1.5 py-0 gap-1 bg-gradient-to-r from-amber-400 to-orange-500 text-white border-0 shadow-xs">
-                <Crown className="h-2.5 w-2.5" />Premium
-              </Badge>
+              <PurchaseStatusBadge state="NOT_PURCHASED" size="sm" />
             )}
           </div>
 

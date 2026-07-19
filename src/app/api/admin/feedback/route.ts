@@ -1,5 +1,5 @@
 import { db } from '@/lib/db'
-import { apiError, validateBody, withAdmin } from '@/lib/api-utils'
+import { apiError, validateBody, withAdmin, withCsrf } from '@/lib/api-utils'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 
@@ -64,6 +64,9 @@ export async function PUT(request: Request) {
   try {
     const auth = await withAdmin(request)
     if (auth instanceof NextResponse) return auth
+
+    const csrfCheck = await withCsrf(request)
+    if ('error' in csrfCheck) return csrfCheck.error
 
     const body = await request.json()
     const validation = validateBody(updateFeedbackSchema, body)

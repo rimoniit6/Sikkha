@@ -1,5 +1,5 @@
 import { db } from '@/lib/db'
-import { apiError } from '@/lib/api-utils'
+import { apiError, withCsrf } from '@/lib/api-utils'
 import { requireSuperAdmin } from '@/lib/auth'
 import { NextResponse } from 'next/server'
 
@@ -36,6 +36,9 @@ export async function POST(request: Request) {
     if (!auth) {
       return apiError('অনুমতি নেই', 403)
     }
+
+    const csrfCheck = await withCsrf(request)
+    if ('error' in csrfCheck) return csrfCheck.error
 
     let created = 0
     let skipped = 0

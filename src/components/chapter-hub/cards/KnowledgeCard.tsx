@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils'
 import { sanitizeHtml } from '@/lib/sanitize'
 import { useIsMobile } from '@/hooks/use-mobile'
 import type { KnowledgeItem } from '@/hooks/use-chapter-content'
+import PurchaseStatusBadge from '@/components/shared/PurchaseStatusBadge'
 import { Brain, CheckCircle2, Crown, Sparkles } from 'lucide-react'
 
 interface KnowledgeCardProps {
@@ -45,9 +46,7 @@ export function KnowledgeCard({ item, index, isPurchased, onUnlock }: KnowledgeC
               </Badge>
             </div>
             {isLocked && (
-              <Badge className="shrink-0 text-[10px] px-1.5 py-0 gap-1 bg-gradient-to-r from-amber-400 to-orange-500 text-white border-0 shadow-xs">
-                <Crown className="h-2.5 w-2.5" />Premium
-              </Badge>
+              <PurchaseStatusBadge state="NOT_PURCHASED" size="sm" />
             )}
           </div>
 

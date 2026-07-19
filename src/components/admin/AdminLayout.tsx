@@ -40,6 +40,9 @@ import {
   GraduationCap,
   BarChart3,
   Mail,
+  Trash2,
+  Activity,
+  History,
 } from 'lucide-react'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { useRouterStore, RoutePath, isAdminRoute } from '@/store/router'
@@ -110,6 +113,15 @@ const AdminPages = {
   
   // Settings
   'admin-settings': lazy(() => import('./AdminSettingsPage')),
+
+  // Trash
+  'admin-trash': lazy(() => import('./AdminTrashPage')),
+
+  // Audit Logs
+  'admin-audit-logs': lazy(() => import('./AdminAuditLogsPage')),
+
+  // Version History
+  'admin-version-history': lazy(() => import('./AdminVersionHistoryPage')),
 
   // Analytics
   'admin-analytics': lazy(() => import('@/components/analytics/AnalyticsPage')),
@@ -188,6 +200,9 @@ const sidebarItems: SidebarItem[] = [
   { label: 'ফিডব্যাক', icon: MessageSquareText, route: 'admin-feedback', group: GROUPS.CMS },
   { label: 'যোগাযোগ বার্তা', icon: Mail, route: 'admin-contact-messages', group: GROUPS.CMS },
   { label: 'সেটিংস', icon: Settings, route: 'admin-settings', group: GROUPS.SETTINGS },
+  { label: 'ট্র্যাশ', icon: Trash2, route: 'admin-trash', group: GROUPS.SETTINGS },
+  { label: 'অডিট লগ', icon: Activity, route: 'admin-audit-logs', group: GROUPS.SETTINGS },
+  { label: 'ভার্সন হিস্ট্রি', icon: History, route: 'admin-version-history', group: GROUPS.SETTINGS },
 
   // Analytics (single entry — all tabs inside)
   { label: 'বিশ্লেষণ', icon: BarChart3, route: 'admin-analytics', group: GROUPS.ANALYTICS },

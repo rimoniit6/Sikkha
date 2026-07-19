@@ -102,19 +102,19 @@ export async function GET(
       }>
     >(
       `SELECT
-        (SELECT COUNT(*) FROM "Suggestion" WHERE "subjectId" = $1 AND "isActive" = true) as "suggestionCount",
-        (SELECT COUNT(*) FROM "Exam" WHERE "subjectId" = $1 AND "isActive" = true AND "status" = 'PUBLISHED') as "examCount",
-        (SELECT COUNT(*) FROM "MCQ" WHERE "subjectId" = $1 AND "isActive" = true AND "board" IS NOT NULL AND "year" IS NOT NULL) as "boardMcqCount",
-        (SELECT COUNT(*) FROM "CQ" WHERE "subjectId" = $1 AND "isActive" = true AND "board" IS NOT NULL AND "year" IS NOT NULL) as "boardCqCount",
-        (SELECT COUNT(*) FROM "Lecture" l INNER JOIN "Chapter" ch ON l."chapterId" = ch."id" WHERE ch."subjectId" = $1 AND l."isActive" = true AND l."isPremium" = false) as "freeLectureCount",
-        (SELECT COUNT(*) FROM "MCQ" WHERE "subjectId" = $1 AND "isActive" = true AND "isPremium" = false) as "freeMcqCount",
-        (SELECT COUNT(*) FROM "CQ" WHERE "subjectId" = $1 AND "isActive" = true AND "isPremium" = false) as "freeCqCount",
-        (SELECT COUNT(*) FROM "MCQ" WHERE "subjectId" = $1 AND "isActive" = true AND "isPremium" = false AND "board" IS NOT NULL AND "year" IS NOT NULL) as "freeBoardMcqCount",
-        (SELECT COUNT(*) FROM "CQ" WHERE "subjectId" = $1 AND "isActive" = true AND "isPremium" = false AND "board" IS NOT NULL AND "year" IS NOT NULL) as "freeBoardCqCount",
-        (SELECT COUNT(*) FROM "KnowledgeQuestion" kq INNER JOIN "Chapter" ch ON kq."chapterId" = ch."id" WHERE ch."subjectId" = $1 AND kq."isActive" = true) as "shortQuestionCount",
-        (SELECT COUNT(*) FROM "KnowledgeQuestion" kq INNER JOIN "Chapter" ch ON kq."chapterId" = ch."id" WHERE ch."subjectId" = $1 AND kq."isActive" = true AND kq."isPremium" = false) as "freeShortQuestionCount",
-        (SELECT COUNT(*) FROM "Suggestion" WHERE "subjectId" = $1 AND "isActive" = true AND "isPremium" = false) as "freeSuggestionCount",
-        (SELECT COUNT(*) FROM "Exam" WHERE "subjectId" = $1 AND "isActive" = true AND "status" = 'PUBLISHED' AND "isPremium" = false) as "freeExamCount"`,
+        (SELECT COUNT(*) FROM "Suggestion" WHERE "subjectId" = $1 AND "isActive" = true AND "deletedAt" IS NULL) as "suggestionCount",
+        (SELECT COUNT(*) FROM "Exam" WHERE "subjectId" = $1 AND "isActive" = true AND "deletedAt" IS NULL AND "status" = 'PUBLISHED') as "examCount",
+        (SELECT COUNT(*) FROM "MCQ" WHERE "subjectId" = $1 AND "isActive" = true AND "deletedAt" IS NULL AND "board" IS NOT NULL AND "year" IS NOT NULL) as "boardMcqCount",
+        (SELECT COUNT(*) FROM "CQ" WHERE "subjectId" = $1 AND "isActive" = true AND "deletedAt" IS NULL AND "board" IS NOT NULL AND "year" IS NOT NULL) as "boardCqCount",
+        (SELECT COUNT(*) FROM "Lecture" l INNER JOIN "Chapter" ch ON l."chapterId" = ch."id" WHERE ch."subjectId" = $1 AND l."isActive" = true AND l."deletedAt" IS NULL AND l."isPremium" = false) as "freeLectureCount",
+        (SELECT COUNT(*) FROM "MCQ" WHERE "subjectId" = $1 AND "isActive" = true AND "deletedAt" IS NULL AND "isPremium" = false) as "freeMcqCount",
+        (SELECT COUNT(*) FROM "CQ" WHERE "subjectId" = $1 AND "isActive" = true AND "deletedAt" IS NULL AND "isPremium" = false) as "freeCqCount",
+        (SELECT COUNT(*) FROM "MCQ" WHERE "subjectId" = $1 AND "isActive" = true AND "deletedAt" IS NULL AND "isPremium" = false AND "board" IS NOT NULL AND "year" IS NOT NULL) as "freeBoardMcqCount",
+        (SELECT COUNT(*) FROM "CQ" WHERE "subjectId" = $1 AND "isActive" = true AND "deletedAt" IS NULL AND "isPremium" = false AND "board" IS NOT NULL AND "year" IS NOT NULL) as "freeBoardCqCount",
+        (SELECT COUNT(*) FROM "KnowledgeQuestion" kq INNER JOIN "Chapter" ch ON kq."chapterId" = ch."id" WHERE ch."subjectId" = $1 AND kq."isActive" = true AND kq."deletedAt" IS NULL) as "shortQuestionCount",
+        (SELECT COUNT(*) FROM "KnowledgeQuestion" kq INNER JOIN "Chapter" ch ON kq."chapterId" = ch."id" WHERE ch."subjectId" = $1 AND kq."isActive" = true AND kq."deletedAt" IS NULL AND kq."isPremium" = false) as "freeShortQuestionCount",
+        (SELECT COUNT(*) FROM "Suggestion" WHERE "subjectId" = $1 AND "isActive" = true AND "deletedAt" IS NULL AND "isPremium" = false) as "freeSuggestionCount",
+        (SELECT COUNT(*) FROM "Exam" WHERE "subjectId" = $1 AND "isActive" = true AND "deletedAt" IS NULL AND "status" = 'PUBLISHED' AND "isPremium" = false) as "freeExamCount"`,
       id
     )
     const sr = subjectCountRows[0]
@@ -142,27 +142,27 @@ export async function GET(
           Array<{ type: string; chapterId: string; count: number }>
         >(
           `SELECT 'lecture' as "type", "chapterId", COUNT(*) as "count"
-           FROM "Lecture" WHERE "chapterId" IN (${chapterPlaceholders}) AND "isActive" = true AND "isPremium" = false
+           FROM "Lecture" WHERE "chapterId" IN (${chapterPlaceholders}) AND "isActive" = true AND "deletedAt" IS NULL AND "isPremium" = false
            GROUP BY "chapterId"
            UNION ALL
            SELECT 'mcq' as "type", "chapterId", COUNT(*) as "count"
-           FROM "MCQ" WHERE "chapterId" IN (${chapterPlaceholders}) AND "isActive" = true AND "isPremium" = false
+           FROM "MCQ" WHERE "chapterId" IN (${chapterPlaceholders}) AND "isActive" = true AND "deletedAt" IS NULL AND "isPremium" = false
            GROUP BY "chapterId"
            UNION ALL
            SELECT 'cq' as "type", "chapterId", COUNT(*) as "count"
-           FROM "CQ" WHERE "chapterId" IN (${chapterPlaceholders}) AND "isActive" = true AND "isPremium" = false
+           FROM "CQ" WHERE "chapterId" IN (${chapterPlaceholders}) AND "isActive" = true AND "deletedAt" IS NULL AND "isPremium" = false
            GROUP BY "chapterId"
            UNION ALL
            SELECT 'suggestion' as "type", "chapterId", COUNT(*) as "count"
-           FROM "Suggestion" WHERE "chapterId" IN (${chapterPlaceholders}) AND "isActive" = true
+           FROM "Suggestion" WHERE "chapterId" IN (${chapterPlaceholders}) AND "isActive" = true AND "deletedAt" IS NULL
            GROUP BY "chapterId"
            UNION ALL
            SELECT 'knowledge_free' as "type", "chapterId", COUNT(*) as "count"
-           FROM "KnowledgeQuestion" WHERE "chapterId" IN (${chapterPlaceholders}) AND "isActive" = true AND "isPremium" = false
+           FROM "KnowledgeQuestion" WHERE "chapterId" IN (${chapterPlaceholders}) AND "isActive" = true AND "deletedAt" IS NULL AND "isPremium" = false
            GROUP BY "chapterId"
            UNION ALL
            SELECT 'knowledge_total' as "type", "chapterId", COUNT(*) as "count"
-           FROM "KnowledgeQuestion" WHERE "chapterId" IN (${chapterPlaceholders}) AND "isActive" = true
+           FROM "KnowledgeQuestion" WHERE "chapterId" IN (${chapterPlaceholders}) AND "isActive" = true AND "deletedAt" IS NULL
            GROUP BY "chapterId"`,
           ...chapterIds, ...chapterIds, ...chapterIds, ...chapterIds, ...chapterIds, ...chapterIds
         )

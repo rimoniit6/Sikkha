@@ -4,6 +4,9 @@ import { db } from '@/lib/db'
 import { handleApiError } from '@/lib/errors'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
+import { softDelete } from '@/lib/soft-delete'
+import { createVersion } from '@/lib/version-history'
+import { getClientIP } from '@/lib/audit'
 
 const createPlanSchema = z.object({
   title: z.string().min(1, 'নাম আবশ্যক'),
@@ -109,9 +112,30 @@ export async function PUT(request: Request) {
       data.originalPrice = parseFloat(String(updateData.price))
     }
 
-    const updated = await db.contentPackage.update({
-      where: { id },
-      data,
+    // Determine which fields actually changed
+    const changedFields = Object.keys(data).filter(
+      key => JSON.stringify(data[key]) !== JSON.stringify(existing[key as keyof typeof existing])
+    )
+
+    // Create version snapshot + update in single transaction
+    const ipAddress = getClientIP(request)
+    const userAgent = request.headers.get('user-agent') || undefined
+
+    const updated = await db.$transaction(async (tx) => {
+      // Create version snapshot of current state BEFORE update
+      await createVersion(tx, 'contentPackage', id, { ...existing }, auth.user.id, changedFields, {
+        ipAddress,
+        userAgent,
+      })
+
+      // Perform the actual update
+      return tx.contentPackage.update({
+        where: { id },
+        data,
+      })
+    }, {
+      maxWait: 10000,
+      timeout: 30000,
     })
 
     await invalidateContentCache('package')
@@ -151,7 +175,7 @@ export async function DELETE(request: Request) {
       return apiResponse(null, 'প্ল্যান খুঁজে পাওয়া যায়নি', 404)
     }
 
-    await db.contentPackage.delete({ where: { id } })
+    await softDelete(db, 'contentPackage', id, auth.user.id)
 
     await invalidateContentCache('package')
     return apiResponse({ id }, 'সাবস্ক্রিপশন প্ল্যান সফলভাবে মুছে ফেলা হয়েছে')

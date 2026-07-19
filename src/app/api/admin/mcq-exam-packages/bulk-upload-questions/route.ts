@@ -1,4 +1,4 @@
-import { apiError } from '@/lib/api-utils'
+import { apiError, withCsrf } from '@/lib/api-utils'
 import { requireAdmin } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { ExcelParseError,safeParseExcelFromFile } from '@/lib/excel-parse'
@@ -43,21 +43,6 @@ const COLUMN_MAP: Record<string, string> = {
   'Tags': 'tags',
 }
 
-// Helper: recalculate totalQuestions and totalMarks for an exam set
-async function recalculateSetTotals(setId: string) {
-  const questions = await db.mCQExamSetQuestion.findMany({
-    where: { setId },
-  })
-  const totalQuestions = questions.length
-  const totalMarks = questions.reduce((sum, q) => sum + toDecimal(q.marks), 0)
-
-  await db.mCQExamSet.update({
-    where: { id: setId },
-    data: { totalQuestions, totalMarks },
-  })
-  return { totalQuestions, totalMarks }
-}
-
 // POST: Bulk upload MCQs from Excel and add them to an exam set
 export async function POST(request: Request) {
   try {
@@ -66,6 +51,9 @@ export async function POST(request: Request) {
     if (!auth) {
       return apiError('Unauthorized. Admin access required.', 401)
     }
+
+    const csrfCheck = await withCsrf(request)
+    if ('error' in csrfCheck) return csrfCheck.error
 
     const formData = await request.formData()
     const file = formData.get('file') as File | null
@@ -121,7 +109,7 @@ export async function POST(request: Request) {
     // Build chapter name → id lookup
     const chapters = await db.chapter.findMany({
       where: { subjectId: resolvedSubjectId || undefined, isActive: true },
-      select: { id: true, name: true },
+      select: { id: true, name: true, subjectId: true },
     })
     const chapterMap = new Map(chapters.map(c => [c.name.trim().toLowerCase(), c.id]))
     const chapterSlugMap = new Map(chapters.map(c => [c.name.replace(/\s+/g, '-').toLowerCase(), c.id]))
@@ -141,19 +129,16 @@ export async function POST(request: Request) {
     })
     const nextOrder = (maxOrderResult?.order ?? -1) + 1
 
-    const results = {
-      success: 0,
-      failed: 0,
-      skipped: 0,
-      errors: [] as string[],
-    }
+    const validationErrors: string[] = []
 
-    const createdMcqIds: string[] = []
+    // ── Phase 1: Validate ALL rows and build insert payloads ──
+    const insertPayloads: Array<{ mcqData: Record<string, unknown> }> = []
+    const chapterSubjectMap = new Map(chapters.map(c => [c.id, (c as any).subjectId]))
 
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i]
+      const rowNum = i + 2
 
-      // Map columns using the column map
       const mapped: Record<string, string> = {}
       for (const [header, value] of Object.entries(row)) {
         const dbField = COLUMN_MAP[header]
@@ -162,22 +147,17 @@ export async function POST(request: Request) {
         }
       }
 
-      // Validate required fields
       if (!mapped.question || !mapped.optionA || !mapped.optionB || !mapped.optionC || !mapped.optionD || !mapped.correctAnswer) {
-        results.failed++
-        results.errors.push(`সারি ${i + 2}: প্রয়োজনীয় ফিল্ড অনুপস্থিত (প্রশ্ন, ৪টি অপশন, সঠিক উত্তর)`)
+        validationErrors.push(`সারি ${rowNum}: প্রয়োজনীয় ফিল্ড অনুপস্থিত (প্রশ্ন, ৪টি অপশন, সঠিক উত্তর)`)
         continue
       }
 
-      // Normalize correct answer
       const correctAnswer = mapped.correctAnswer.toUpperCase().trim()
       if (!['A', 'B', 'C', 'D'].includes(correctAnswer)) {
-        results.failed++
-        results.errors.push(`সারি ${i + 2}: সঠিক উত্তর A/B/C/D হতে হবে (পাওয়া গেছে: "${mapped.correctAnswer}")`)
+        validationErrors.push(`সারি ${rowNum}: সঠিক উত্তর A/B/C/D হতে হবে (পাওয়া গেছে: "${mapped.correctAnswer}")`)
         continue
       }
 
-      // Resolve chapterId
       let chapterId: string | undefined
       if (mapped.chapterName) {
         const key = mapped.chapterName.trim().toLowerCase()
@@ -197,71 +177,112 @@ export async function POST(request: Request) {
       }
 
       if (!chapterId) {
-        results.failed++
-        results.errors.push(`সারি ${i + 2}: অধ্যায় পাওয়া যায়নি "${mapped.chapterName || '(নেই)'}"`)
+        validationErrors.push(`সারি ${rowNum}: অধ্যায় পাওয়া যায়নি "${mapped.chapterName || '(নেই)'}"`)
         continue
       }
 
-      // Resolve subjectId from chapter
-      const chapter = await db.chapter.findUnique({ where: { id: chapterId }, select: { subjectId: true } })
-      const finalSubjectId = chapter?.subjectId || resolvedSubjectId
+      const finalSubjectId = chapterSubjectMap.get(chapterId) || resolvedSubjectId
 
-      try {
-        // Create the MCQ
-        const mcq = await db.mCQ.create({
-          data: {
-            question: mapped.question,
-            optionA: mapped.optionA,
-            optionB: mapped.optionB,
-            optionC: mapped.optionC,
-            optionD: mapped.optionD,
-            correctAnswer: correctAnswer as 'A' | 'B' | 'C' | 'D',
-            explanation: mapped.explanation || null,
-            chapterId,
-            classLevel: mapped.classLevel || defaultClassLevel || examSet.package?.class?.slug || '',
-            subjectId: finalSubjectId || '',
-            board: mapped.board || null,
-            year: mapped.year || null,
-            topic: mapped.topic || null,
-            difficulty: (mapped.difficulty || 'MEDIUM').toUpperCase() as 'EASY' | 'MEDIUM' | 'HARD',
-            isPremium: mapped.isPremium === 'true' || mapped.isPremium === '1' || mapped.isPremium === 'হ্যাঁ',
-            price: 0,
-            tags: mapped.tags || null,
-            isActive: true,
-          },
-        })
-
-        createdMcqIds.push(mcq.id)
-        results.success++
-      } catch (err) {
-        results.failed++
-        results.errors.push(`সারি ${i + 2}: ডাটাবেস ত্রুটি - ${err instanceof Error ? err.message : 'অজানা'}`)
-      }
-    }
-
-    // Now add all created MCQs to the exam set
-    const setQuestionData = createdMcqIds.map((mcqId, index) => ({
-      setId,
-      mcqId,
-      marks: examSet.marksPerQ,
-      order: nextOrder + index,
-    }))
-
-    if (setQuestionData.length > 0) {
-      await db.mCQExamSetQuestion.createMany({
-        data: setQuestionData,
+      insertPayloads.push({
+        mcqData: {
+          question: mapped.question,
+          optionA: mapped.optionA,
+          optionB: mapped.optionB,
+          optionC: mapped.optionC,
+          optionD: mapped.optionD,
+          correctAnswer: correctAnswer as 'A' | 'B' | 'C' | 'D',
+          explanation: mapped.explanation || null,
+          chapterId,
+          classLevel: mapped.classLevel || defaultClassLevel || examSet.package?.class?.slug || '',
+          subjectId: finalSubjectId || '',
+          board: mapped.board || null,
+          year: mapped.year || null,
+          topic: mapped.topic || null,
+          difficulty: (mapped.difficulty || 'MEDIUM').toUpperCase() as 'EASY' | 'MEDIUM' | 'HARD',
+          isPremium: mapped.isPremium === 'true' || mapped.isPremium === '1' || mapped.isPremium === 'হ্যাঁ',
+          price: 0,
+          tags: mapped.tags || null,
+          isActive: true,
+        },
       })
     }
 
-    // Recalculate set totals
-    await recalculateSetTotals(setId)
+    if (insertPayloads.length === 0) {
+      return NextResponse.json({
+        success: true,
+        data: {
+          message: 'কোনো বৈধ প্রশ্ন পাওয়া যায়নি',
+          success: 0,
+          failed: validationErrors.length,
+          skipped: 0,
+          errors: validationErrors,
+          totalInSet: await db.mCQExamSetQuestion.count({ where: { setId } }),
+        },
+      })
+    }
+
+    // ── Phase 2: Create MCQs + link to exam set + recalculate — ALL in one transaction ──
+    let totalInSet = 0
+    try {
+      await db.$transaction(async (tx) => {
+        const createdMcqIds: string[] = []
+
+        for (const payload of insertPayloads) {
+          const mcq = await tx.mCQ.create({ data: payload.mcqData as any })
+          createdMcqIds.push(mcq.id)
+        }
+
+        // Link all created MCQs to the exam set
+        if (createdMcqIds.length > 0) {
+          const setQuestionData = createdMcqIds.map((mcqId, index) => ({
+            setId,
+            mcqId,
+            marks: examSet.marksPerQ,
+            order: nextOrder + index,
+          }))
+          await tx.mCQExamSetQuestion.createMany({ data: setQuestionData })
+        }
+
+        // Recalculate set totals inside the transaction
+        const questions = await tx.mCQExamSetQuestion.findMany({ where: { setId } })
+        const totalQuestions = questions.length
+        const totalMarks = questions.reduce((sum, q) => sum + toDecimal(q.marks), 0)
+        await tx.mCQExamSet.update({
+          where: { id: setId },
+          data: { totalQuestions, totalMarks },
+        })
+
+        totalInSet = totalQuestions
+      }, {
+        maxWait: 10000,
+        timeout: 120000,
+      })
+    } catch (insertError) {
+      // Transaction rolled back — no MCQs created, no set links, no stale totals
+      console.error('[MCQ Exam Bulk Upload] Transaction rolled back:', insertError)
+      return NextResponse.json({
+        success: true,
+        data: {
+          message: `বাল্ক আপলোড ব্যর্থ হয়েছে — কোনো প্রশ্ন সংরক্ষিত হয়নি: ${insertError instanceof Error ? insertError.message : 'অজানা ত্রুটি'}`,
+          success: 0,
+          failed: validationErrors.length + insertPayloads.length,
+          skipped: 0,
+          errors: [...validationErrors, `ডাটাবেস ত্রুটি: ${insertError instanceof Error ? insertError.message : 'অজানা'}`],
+          totalInSet: await db.mCQExamSetQuestion.count({ where: { setId } }),
+          rolledBack: true,
+        },
+      })
+    }
 
     return NextResponse.json({
       success: true,
       data: {
-        message: `${results.success}টি প্রশ্ন সফলভাবে আপলোড ও সেটে যোগ হয়েছে${results.failed > 0 ? `, ${results.failed}টি ব্যর্থ` : ''}`,
-        ...results,
-        totalInSet: (await db.mCQExamSetQuestion.count({ where: { setId } })),
+        message: `${insertPayloads.length}টি প্রশ্ন সফলভাবে আপলোড ও সেটে যোগ হয়েছে${validationErrors.length > 0 ? `, ${validationErrors.length}টি ব্যর্থ` : ''}`,
+        success: insertPayloads.length,
+        failed: validationErrors.length,
+        skipped: 0,
+        errors: validationErrors,
+        totalInSet,
       },
     })
   } catch (error) {

@@ -35,6 +35,8 @@ import { ContactTab } from './settings/ContactTab'
 import { PaymentTab } from './settings/PaymentTab'
 import { LegalTab } from './settings/LegalTab'
 import { DatabaseTab } from './settings/DatabaseTab'
+import { SecurityTab } from './settings/SecurityTab'
+import AdminTrashCleanupTab from './AdminTrashCleanupTab'
 
 export default function AdminSettingsPage() {
   const { toast } = useToast()
@@ -101,6 +103,7 @@ export default function AdminSettingsPage() {
 
   const [logoUrl, setLogoUrl] = useState('')
   const [faviconUrl, setFaviconUrl] = useState('')
+  const [enableCsrfProtection, setEnableCsrfProtection] = useState(false)
 
   const [exporting, setExporting] = useState(false)
   const [importing, setImporting] = useState(false)
@@ -142,6 +145,7 @@ export default function AdminSettingsPage() {
     }
     if (map.logo) setLogoUrl(map.logo)
     if (map.favicon) setFaviconUrl(map.favicon)
+    if (map.enableCsrfProtection) setEnableCsrfProtection(map.enableCsrfProtection === 'true')
     if (map.seo_title) setSeoTitle(map.seo_title)
     if (map.seo_description) setSeoDescription(map.seo_description)
     if (map.seo_keywords) setSeoKeywords(map.seo_keywords)
@@ -213,6 +217,7 @@ export default function AdminSettingsPage() {
         { key: 'seo_author', value: seoAuthor, group: 'seo', label: 'লেখক (SEO Author)' },
         { key: 'privacy_content', value: privacyContent, group: 'legal', label: 'প্রাইভেসি পলিসি কন্টেন্ট' },
         { key: 'terms_content', value: termsContent, group: 'legal', label: 'শর্তাবলী কন্টেন্ট' },
+        { key: 'enableCsrfProtection', value: String(enableCsrfProtection), group: 'security', label: 'CSRF সুরক্ষা সক্রিয়' },
         { key: 'homepage_classes_badge', value: homepageClassesBadge, group: 'homepage', label: 'হিরো ব্যাজ' },
         { key: 'homepage_classes_title', value: homepageClassesTitle, group: 'homepage', label: 'শ্রেণি সেকশন শিরোনাম' },
         { key: 'homepage_classes_subtitle', value: homepageClassesSubtitle, group: 'homepage', label: 'শ্রেণি সেকশন উপশিরোনাম' },
@@ -371,7 +376,7 @@ export default function AdminSettingsPage() {
       </div>
 
       <Tabs defaultValue="general" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-9 max-w-4xl">
+        <TabsList className="grid w-full grid-cols-10 max-w-4xl">
           <TabsTrigger value="general">সাধারণ</TabsTrigger>
           <TabsTrigger value="appearance" className="gap-1.5">
             <Palette className="size-3.5" />
@@ -389,9 +394,17 @@ export default function AdminSettingsPage() {
             <Scale className="size-3.5" />
             লিগ্যাল
           </TabsTrigger>
+          <TabsTrigger value="security" className="gap-1.5">
+            <Shield className="size-3.5" />
+            নিরাপত্তা
+          </TabsTrigger>
           <TabsTrigger value="database" className="gap-1.5">
             <Database className="size-3.5" />
             ডাটাবেজ
+          </TabsTrigger>
+          <TabsTrigger value="trash" className="gap-1.5">
+            <Trash2 className="size-3.5" />
+            ট্র্যাশ
           </TabsTrigger>
         </TabsList>
 
@@ -486,6 +499,14 @@ export default function AdminSettingsPage() {
           />
         </TabsContent>
 
+        <TabsContent value="security">
+          <SecurityTab
+            enableCsrfProtection={enableCsrfProtection}
+            setEnableCsrfProtection={setEnableCsrfProtection}
+            isProduction={process.env.NODE_ENV === 'production'}
+          />
+        </TabsContent>
+
         <TabsContent value="database">
           <DatabaseTab
             exporting={exporting} handleExport={handleExport}
@@ -497,6 +518,10 @@ export default function AdminSettingsPage() {
             deleteConfirmText={deleteConfirmText} setDeleteConfirmText={setDeleteConfirmText}
             deleting={deleting} handleDeleteAll={handleDeleteAll} cancelDelete={cancelDelete}
           />
+        </TabsContent>
+
+        <TabsContent value="trash">
+          <AdminTrashCleanupTab />
         </TabsContent>
       </Tabs>
 

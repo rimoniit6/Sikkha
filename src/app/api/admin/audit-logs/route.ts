@@ -104,6 +104,13 @@ function mapLog(log: Record<string, unknown>) {
     newData: parseJsonSafe(log.newData),
     ipAddress: log.ipAddress ?? null,
     userAgent: log.userAgent ?? null,
+    userName: log.userName ?? null,
+    userRole: log.userRole ?? null,
+    status: log.status ?? 'success',
+    duration: log.duration ?? null,
+    os: log.os ?? null,
+    browser: log.browser ?? null,
+    country: log.country ?? null,
     createdAt: log.createdAt,
     deletedAt: log.deletedAt ?? null,
   }

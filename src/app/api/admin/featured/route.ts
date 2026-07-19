@@ -4,6 +4,7 @@ import { handleApiError } from '@/lib/errors'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { toDecimal } from '@/lib/decimal'
+import { softDelete } from '@/lib/soft-delete'
 
 const createFeaturedSchema = z.object({
   contentType: z.string().min(1, 'কন্টেন্ট টাইপ আবশ্যক'),
@@ -182,7 +183,7 @@ export async function DELETE(request: Request) {
     const existing = await db.featuredContent.findUnique({ where: { id } })
     if (!existing) return apiError('ফিচার্ড কন্টেন্ট খুঁজে পাওয়া যায়নি', 404)
 
-    await db.featuredContent.delete({ where: { id } })
+    await softDelete(db, 'featuredContent', id, auth.user.id)
     return apiResponse({ id, message: 'ফিচার্ড কন্টেন্ট সফলভাবে মুছে ফেলা হয়েছে' })
   } catch (error) {
     return handleApiError(error, 'Admin Delete Featured')

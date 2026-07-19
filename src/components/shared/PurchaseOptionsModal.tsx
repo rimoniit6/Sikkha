@@ -137,9 +137,9 @@ export default function PurchaseOptionsModal({
   const [showAllBundles, setShowAllBundles] = useState(false)
   const [showAllPackages, setShowAllPackages] = useState(false)
   const [selectedPackageClass, setSelectedPackageClass] = useState<Record<string, string>>({})
-  const [purchaseStatus, setPurchaseStatus] = useState<'checking' | 'available' | 'pending' | 'purchased'>('checking')
+  const [purchaseStatus, setPurchaseStatus] = useState<'checking' | 'available' | 'pending' | 'purchased' | 'rejected'>('checking')
 
-  // Check purchase/pending status on open
+  // Check purchase/pending/rejected status on open
   useEffect(() => {
     if (open) {
       setPurchaseStatus('checking')
@@ -151,6 +151,9 @@ export default function PurchaseOptionsModal({
             setPurchaseStatus('purchased')
           } else if (d?.pendingPayment) {
             setPurchaseStatus('pending')
+          } else if (d?.rejected) {
+            // Rejected — show available options for repurchase
+            setPurchaseStatus('available')
           } else {
             setPurchaseStatus('available')
           }

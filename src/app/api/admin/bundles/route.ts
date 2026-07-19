@@ -6,6 +6,9 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { toDecimal } from '@/lib/decimal'
 import { guardDeleteDependencies } from '@/lib/delete-guard'
+import { softDelete } from '@/lib/soft-delete'
+import { getClientIP } from '@/lib/audit'
+import { createVersion } from '@/lib/version-history'
 
 const createBundleSchema = z.object({
   title: z.string().min(1, 'শিরোনাম আবশ্যক'),
@@ -149,10 +152,13 @@ export async function PUT(request: Request) {
       return apiError('বান্ডেল ID আবশ্যক', 400)
     }
 
-    const existing = await db.contentBundle.findUnique({ where: { id } })
+    const existing = await db.contentBundle.findUnique({ where: { id }, include: { items: true } })
     if (!existing) {
       return apiError('বান্ডেল খুঁজে পাওয়া যায়নি', 404)
     }
+
+    const ipAddress = getClientIP(request)
+    const userAgent = request.headers.get('user-agent') || undefined
 
     const data: Record<string, unknown> = {}
     const allowedFields = [
@@ -201,11 +207,20 @@ export async function PUT(request: Request) {
       }
     }
 
-    const updated = await db.contentBundle.update({
-      where: { id },
-      data,
-      include: { items: true },
-    })
+    const changedFields = Object.keys(data).filter(
+      key => JSON.stringify(data[key]) !== JSON.stringify(existing[key as keyof typeof existing])
+    )
+
+    const updated = await db.$transaction(async (tx) => {
+      await createVersion(tx, 'contentBundle', id, { ...existing }, auth.user.id, changedFields, {
+        ipAddress, userAgent,
+      })
+      return tx.contentBundle.update({
+        where: { id },
+        data,
+        include: { items: true },
+      })
+    }, { maxWait: 10000, timeout: 30000 })
 
     await invalidateContentCache('bundle')
     return apiResponse(updated)
@@ -224,9 +239,11 @@ export async function DELETE(request: Request) {
     const { searchParams } = new URL(request.url)
     const ids = parseIdsParam(searchParams)
     if (ids) {
-      const result = await db.contentBundle.deleteMany({ where: { id: { in: ids } } })
+      for (const id of ids) {
+        await softDelete(db, 'contentBundle', id, auth.user.id)
+      }
       await invalidateContentCache('bundle')
-      return apiResponse({ deleted: result.count }, `${result.count}টি সফলভাবে মুছে ফেলা হয়েছে`)
+      return apiResponse({ deleted: ids.length }, `${ids.length}টি সফলভাবে মুছে ফেলা হয়েছে`)
     }
     const idFromQuery = searchParams.get('id')
 
@@ -250,7 +267,7 @@ export async function DELETE(request: Request) {
     const guard = await guardDeleteDependencies('bundles', id)
     if (!guard.ok) return guard.response
 
-    await db.contentBundle.delete({ where: { id } })
+    await softDelete(db, 'contentBundle', id, auth.user.id)
     await invalidateContentCache('bundle')
     return apiResponse({ id }, 'বান্ডেল সফলভাবে মুছে ফেলা হয়েছে')
   } catch (error) {

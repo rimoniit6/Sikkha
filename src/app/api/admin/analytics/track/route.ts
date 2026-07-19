@@ -1,9 +1,16 @@
 import { db } from '@/lib/db'
-import { apiResponse } from '@/lib/api-utils'
+import { apiResponse, withAdmin, withCsrf } from '@/lib/api-utils'
 import { handleApiError } from '@/lib/errors'
 
 export async function POST(request: Request) {
   try {
+    // Only authenticated admins may track analytics events
+    const auth = await withAdmin(request)
+    if (auth instanceof Response) return auth
+
+    const csrfCheck = await withCsrf(request)
+    if ('error' in csrfCheck) return csrfCheck.error
+
     const body = await request.json()
     const {
       eventType,

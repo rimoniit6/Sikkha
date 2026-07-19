@@ -1,11 +1,12 @@
 import { db } from '@/lib/db'
-import { apiResponse, apiError, withAdmin, validateBody } from '@/lib/api-utils'
+import { apiResponse, apiError, withAdmin, validateBody, withCsrf } from '@/lib/api-utils'
 import { handleApiError } from '@/lib/errors'
 import { invalidateContentCache } from '@/lib/cache-invalidate'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { auditFromRequest, AuditActions } from '@/lib/audit'
 import { guardDeleteDependencies } from '@/lib/delete-guard'
+import { softDelete } from '@/lib/soft-delete'
 
 const createClassSchema = z.object({
   name: z.string().min(1, 'শ্রেণির নাম আবশ্যক'),
@@ -45,6 +46,9 @@ export async function POST(request: Request) {
   const auth = await withAdmin(request)
   if (auth instanceof NextResponse) return auth
 
+  const csrfCheck = await withCsrf(request)
+  if ('error' in csrfCheck) return csrfCheck.error
+
   try {
     const body = await request.json()
     const validation = validateBody(createClassSchema, body)
@@ -81,6 +85,9 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
   const auth = await withAdmin(request)
   if (auth instanceof NextResponse) return auth
+
+  const csrfCheck = await withCsrf(request)
+  if ('error' in csrfCheck) return csrfCheck.error
 
   try {
     const body = await request.json()
@@ -124,6 +131,9 @@ export async function DELETE(request: Request) {
   const auth = await withAdmin(request)
   if (auth instanceof NextResponse) return auth
 
+  const csrfCheck = await withCsrf(request)
+  if ('error' in csrfCheck) return csrfCheck.error
+
   try {
     const { searchParams } = new URL(request.url)
     let id = searchParams.get('id')
@@ -141,7 +151,7 @@ export async function DELETE(request: Request) {
     const guard = await guardDeleteDependencies('classes', id)
     if (!guard.ok) return guard.response
 
-    await db.classCategory.delete({ where: { id } })
+    await softDelete(db, 'classCategory', id, auth.user.id)
     await invalidateContentCache('class')
     await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_DELETE, 'class', id)
     return apiResponse({ id, message: 'শ্রেণি সফলভাবে মুছে ফেলা হয়েছে' })

@@ -8,7 +8,7 @@ export async function GET(request: Request) {
     const rateCheck = await applyRateLimit(apiLimiter, request)
     if ('error' in rateCheck) return rateCheck.error
 
-    if (!isCsrfEnabled()) {
+    if (!(await isCsrfEnabled())) {
       return NextResponse.json({ token: '', enabled: false })
     }
 

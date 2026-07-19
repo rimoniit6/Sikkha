@@ -1,5 +1,5 @@
 import { db } from '@/lib/db'
-import { apiResponse, paginatedApiResponse, apiError, withAdmin, parseIdsParam, validateBody, withCsrf } from '@/lib/api-utils'
+import { apiResponse, paginatedApiResponse, apiError, withAdmin, parseIdsParam, validateBody, withCsrf, getClientIP } from '@/lib/api-utils'
 import { handleApiError } from '@/lib/errors'
 import { invalidateContentCache } from '@/lib/cache-invalidate'
 import { deriveIsPremium } from '@/lib/premium'
@@ -7,6 +7,8 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { auditFromRequest, AuditActions, EntityTypes } from '@/lib/audit'
 import { guardDeleteDependencies } from '@/lib/delete-guard'
+import { softDelete } from '@/lib/soft-delete'
+import { createVersion } from '@/lib/version-history'
 
 const createCqSchema = z.object({
   uddeepok: z.string().min(1, 'উদ্দীপক আবশ্যক'),
@@ -191,10 +193,30 @@ export async function PUT(request: Request) {
       updateFields.isPremium = deriveIsPremium(updateData.price)
     }
 
-    const updated = await db.cQ.update({ where: { id }, data: updateFields as never })
+    // Determine which fields actually changed
+    const changedFields = Object.keys(updateFields).filter(
+      key => JSON.stringify(updateFields[key]) !== JSON.stringify(existing[key as keyof typeof existing])
+    )
+
+    // Create version snapshot + update in single transaction
+    const ipAddress = getClientIP(request)
+    const userAgent = request.headers.get('user-agent') || undefined
+
+    const updated = await db.$transaction(async (tx) => {
+      // Create version snapshot of current state BEFORE update
+      await createVersion(tx, 'cQ', id, { ...existing }, auth.user.id, changedFields, {
+        ipAddress,
+        userAgent,
+      })
+
+      // Perform the actual update
+      return tx.cQ.update({ where: { id }, data: updateFields as never })
+    }, {
+      maxWait: 10000,
+      timeout: 30000,
+    })
 
     await invalidateContentCache('cq')
-    await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_UPDATE, EntityTypes.CQ_QUESTION, existing.id, { ...existing }, updateData)
     return apiResponse(updated)
   } catch (error) {
     return handleApiError(error, 'Admin Update CQ')
@@ -212,10 +234,12 @@ export async function DELETE(request: Request) {
 
     const ids = parseIdsParam(searchParams)
     if (ids) {
-      const result = await db.cQ.deleteMany({ where: { id: { in: ids } } })
+      for (const id of ids) {
+        await softDelete(db, 'cq', id, auth.user.id)
+      }
       await invalidateContentCache('cq')
       await Promise.all(ids.map(id => auditFromRequest(request, auth.user.id, AuditActions.CONTENT_DELETE, EntityTypes.CQ_QUESTION, id)))
-      return apiResponse({ deleted: result.count }, `${result.count}টি CQ মুছে ফেলা হয়েছে`)
+      return apiResponse({ deleted: ids.length }, `${ids.length}টি CQ মুছে ফেলা হয়েছে`)
     }
 
     const idFromQuery = searchParams.get('id')
@@ -243,7 +267,7 @@ export async function DELETE(request: Request) {
     const guard = await guardDeleteDependencies('cq', id)
     if (!guard.ok) return guard.response
 
-    await db.cQ.delete({ where: { id } })
+    await softDelete(db, 'cq', id, auth.user.id)
 
     await invalidateContentCache('cq')
     await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_DELETE, EntityTypes.CQ_QUESTION, id)

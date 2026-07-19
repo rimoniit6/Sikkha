@@ -1,11 +1,13 @@
-import { apiError,apiResponse,withAdmin } from '@/lib/api-utils'
+import { apiError,apiResponse,withAdmin,withCsrf } from '@/lib/api-utils'
 import { AuditActions,createAuditLog,EntityTypes,getClientIP } from '@/lib/audit'
+import { createVersion } from '@/lib/version-history'
 import { db } from '@/lib/db'
 import { handleApiError } from '@/lib/errors'
 import { deriveIsPremium } from '@/lib/premium'
 import { NextResponse } from 'next/server'
 import { toDecimal } from '@/lib/decimal'
 import { guardDeleteDependencies } from '@/lib/delete-guard'
+import { softDelete } from '@/lib/soft-delete'
 
 async function checkGradingDeadline(setId: string): Promise<void> {
   const examSet = await db.cQExamSet.findUnique({
@@ -285,6 +287,9 @@ export async function POST(request: Request) {
   const auth = await withAdmin(request)
   if (auth instanceof NextResponse) return auth
 
+  const csrfCheck = await withCsrf(request)
+  if ('error' in csrfCheck) return csrfCheck.error
+
   try {
     const body = await request.json()
     const { action } = body
@@ -450,6 +455,9 @@ export async function PUT(request: Request) {
   const auth = await withAdmin(request)
   if (auth instanceof NextResponse) return auth
 
+  const csrfCheck = await withCsrf(request)
+  if ('error' in csrfCheck) return csrfCheck.error
+
   try {
     const body = await request.json()
     const { action } = body
@@ -459,6 +467,9 @@ export async function PUT(request: Request) {
       case 'update-package': {
         const { id, ...data } = body
         if (!id) return apiError('Package ID is required', 400)
+
+        const existing = await db.cQExamPackage.findUnique({ where: { id } })
+        if (!existing) return apiError('Package not found', 404)
 
         const allowed = ['title', 'description', 'classId', 'subjectIds', 'price', 'originalPrice', 'thumbnail', 'isPremium', 'isActive', 'order', 'status']
         const updateData: Record<string, unknown> = {}
@@ -478,7 +489,20 @@ export async function PUT(request: Request) {
           updateData.isPremium = deriveIsPremium(updateData.price)
         }
 
-        const pkg = await db.cQExamPackage.update({ where: { id }, data: updateData as never })
+        const ipAddress = getClientIP(request)
+        const userAgent = request.headers.get('user-agent') || undefined
+
+        const changedFields = Object.keys(updateData).filter(
+          key => JSON.stringify(updateData[key]) !== JSON.stringify(existing[key as keyof typeof existing])
+        )
+
+        const pkg = await db.$transaction(async (tx) => {
+          await createVersion(tx, 'cQExamPackage', id, { ...existing }, auth.user.id, changedFields, {
+            ipAddress, userAgent,
+          })
+          return tx.cQExamPackage.update({ where: { id }, data: updateData as never })
+        }, { maxWait: 10000, timeout: 30000 })
+
         return apiResponse({ package: pkg })
       }
 
@@ -1107,6 +1131,9 @@ export async function DELETE(request: Request) {
   const auth = await withAdmin(request)
   if (auth instanceof NextResponse) return auth
 
+  const csrfCheck = await withCsrf(request)
+  if ('error' in csrfCheck) return csrfCheck.error
+
   try {
     const { searchParams } = new URL(request.url)
     const action = searchParams.get('action')
@@ -1117,7 +1144,7 @@ export async function DELETE(request: Request) {
         if (!id) return apiError('Package ID is required', 400)
         const guard = await guardDeleteDependencies('cq-exam-packages', id)
         if (!guard.ok) return guard.response
-        await db.cQExamPackage.delete({ where: { id } })
+        await softDelete(db, 'cqExamPackage', id, auth.user.id)
         return apiResponse({ success: true })
       }
 
@@ -1138,7 +1165,7 @@ export async function DELETE(request: Request) {
           id = body.id
         } catch { /* no body */ }
         if (!id) return apiError('ID is required', 400)
-        await db.cQExamPackage.delete({ where: { id } })
+        await softDelete(db, 'cqExamPackage', id, auth.user.id)
         return apiResponse({ success: true })
       }
     }

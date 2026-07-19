@@ -1,8 +1,9 @@
 import { db } from '@/lib/db'
-import { apiResponse, apiError, withAdmin, validateBody } from '@/lib/api-utils'
+import { apiResponse, apiError, withAdmin, validateBody, withCsrf } from '@/lib/api-utils'
 import { handleApiError } from '@/lib/errors'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
+import { softDelete } from '@/lib/soft-delete'
 
 const createTopicSchema = z.object({
   name: z.string().min(1, 'টপিকের নাম আবশ্যক'),
@@ -63,6 +64,9 @@ export async function POST(request: Request) {
   const auth = await withAdmin(request)
   if (auth instanceof NextResponse) return auth
 
+  const csrfCheck = await withCsrf(request)
+  if ('error' in csrfCheck) return csrfCheck.error
+
   try {
     const body = await request.json()
     const validation = validateBody(createTopicSchema, body)
@@ -96,6 +100,9 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
   const auth = await withAdmin(request)
   if (auth instanceof NextResponse) return auth
+
+  const csrfCheck = await withCsrf(request)
+  if ('error' in csrfCheck) return csrfCheck.error
 
   try {
     const body = await request.json()
@@ -139,6 +146,9 @@ export async function DELETE(request: Request) {
   const auth = await withAdmin(request)
   if (auth instanceof NextResponse) return auth
 
+  const csrfCheck = await withCsrf(request)
+  if ('error' in csrfCheck) return csrfCheck.error
+
   try {
     const { searchParams } = new URL(request.url)
     const idFromQuery = searchParams.get('id')
@@ -163,7 +173,7 @@ export async function DELETE(request: Request) {
       return apiError('টপিক খুঁজে পাওয়া যায়নি', 404)
     }
 
-    await db.topic.delete({ where: { id } })
+    await softDelete(db, 'topic', id, auth.user.id)
 
     return apiResponse({ id }, 'টপিক সফলভাবে মুছে ফেলা হয়েছে')
   } catch (error) {

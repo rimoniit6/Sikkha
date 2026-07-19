@@ -1,9 +1,14 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { withAdmin } from '@/lib/api-utils'
 
 // Fetch available MCQ/CQ questions for adding to an exam
 export async function GET(request: Request) {
   try {
+    // Only authenticated admins may access the question bank
+    const auth = await withAdmin(request)
+    if (auth instanceof Response) return auth
+
     const { searchParams } = new URL(request.url)
     const classLevel = searchParams.get('classLevel')
     const subjectId = searchParams.get('subjectId')

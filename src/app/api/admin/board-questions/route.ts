@@ -1,9 +1,12 @@
 import { db } from '@/lib/db'
-import { apiResponse, paginatedApiResponse, apiError, withAdmin, validateBody } from '@/lib/api-utils'
+import { apiResponse, paginatedApiResponse, apiError, withAdmin, validateBody, withCsrf } from '@/lib/api-utils'
 import { handleApiError } from '@/lib/errors'
 import { invalidateContentCache } from '@/lib/cache-invalidate'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
+import { softDelete } from '@/lib/soft-delete'
+import { getClientIP } from '@/lib/audit'
+import { createVersion } from '@/lib/version-history'
 
 const createBoardMcqSchema = z.object({
   type: z.literal('mcq'),
@@ -191,6 +194,9 @@ export async function POST(request: Request) {
   const auth = await withAdmin(request)
   if (auth instanceof NextResponse) return auth
 
+  const csrfCheck = await withCsrf(request)
+  if ('error' in csrfCheck) return csrfCheck.error
+
   try {
     const body = await request.json()
     const { type } = body
@@ -254,6 +260,9 @@ export async function PUT(request: Request) {
   const auth = await withAdmin(request)
   if (auth instanceof NextResponse) return auth
 
+  const csrfCheck = await withCsrf(request)
+  if ('error' in csrfCheck) return csrfCheck.error
+
   try {
     const body = await request.json()
     const { id, type, ...updateData } = body
@@ -277,7 +286,20 @@ export async function PUT(request: Request) {
         if (updateData[field] !== undefined) data[field] = updateData[field]
       }
 
-      const updated = await db.mCQ.update({ where: { id }, data: data as never })
+      const ipAddress = getClientIP(request)
+      const userAgent = request.headers.get('user-agent') || undefined
+
+      const changedFields = Object.keys(data).filter(
+        key => JSON.stringify(data[key]) !== JSON.stringify(existing[key as keyof typeof existing])
+      )
+
+      const updated = await db.$transaction(async (tx) => {
+        await createVersion(tx, 'mCQ', id, { ...existing }, auth.user.id, changedFields, {
+          ipAddress, userAgent,
+        })
+        return tx.mCQ.update({ where: { id }, data: data as never })
+      }, { maxWait: 10000, timeout: 30000 })
+
       await invalidateContentCache('board-question')
       return apiResponse(updated)
     }
@@ -298,7 +320,20 @@ export async function PUT(request: Request) {
       if (updateData[field] !== undefined) data[field] = updateData[field]
     }
 
-    const updated = await db.cQ.update({ where: { id }, data: data as never })
+    const ipAddress = getClientIP(request)
+    const userAgent = request.headers.get('user-agent') || undefined
+
+    const changedFields = Object.keys(data).filter(
+      key => JSON.stringify(data[key]) !== JSON.stringify(existing[key as keyof typeof existing])
+    )
+
+    const updated = await db.$transaction(async (tx) => {
+      await createVersion(tx, 'cQ', id, { ...existing }, auth.user.id, changedFields, {
+        ipAddress, userAgent,
+      })
+      return tx.cQ.update({ where: { id }, data: data as never })
+    }, { maxWait: 10000, timeout: 30000 })
+
     await invalidateContentCache('board-question')
     return apiResponse(updated)
   } catch (error) {
@@ -309,6 +344,9 @@ export async function PUT(request: Request) {
 export async function DELETE(request: Request) {
   const auth = await withAdmin(request)
   if (auth instanceof NextResponse) return auth
+
+  const csrfCheck = await withCsrf(request)
+  if ('error' in csrfCheck) return csrfCheck.error
 
   try {
     const { searchParams } = new URL(request.url)
@@ -321,14 +359,14 @@ export async function DELETE(request: Request) {
     if (type === 'mcq') {
       const existing = await db.mCQ.findUnique({ where: { id } })
       if (!existing) return apiError('MCQ খুঁজে পাওয়া যায়নি', 404)
-      await db.mCQ.delete({ where: { id } })
+      await softDelete(db, 'mcq', id, auth.user.id)
       await invalidateContentCache('board-question')
       return apiResponse({ id }, 'MCQ সফলভাবে মুছে ফেলা হয়েছে')
     }
 
     const existing = await db.cQ.findUnique({ where: { id } })
     if (!existing) return apiError('CQ খুঁজে পাওয়া যায়নি', 404)
-    await db.cQ.delete({ where: { id } })
+    await softDelete(db, 'cq', id, auth.user.id)
     await invalidateContentCache('board-question')
     return apiResponse({ id }, 'CQ সফলভাবে মুছে ফেলা হয়েছে')
   } catch (error) {

@@ -3,6 +3,7 @@ import { apiError, withAdmin, withCsrf, validateBody } from '@/lib/api-utils'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { guardDeleteDependencies } from '@/lib/delete-guard'
+import { softDelete } from '@/lib/soft-delete'
 
 const createBoardYearSchema = z.object({
   board: z.string().min(1, 'বোর্ড আবশ্যক'),
@@ -130,7 +131,7 @@ export async function DELETE(request: Request) {
     const guard = await guardDeleteDependencies('board-years', id)
     if (!guard.ok) return guard.response
 
-    await db.boardYear.delete({ where: { id } })
+    await softDelete(db, 'boardYear', id, auth.user.id)
 
     return NextResponse.json({ success: true, data: { id }, message: 'বোর্ড সাল সফলভাবে মুছে ফেলা হয়েছে' })
   } catch (error) {

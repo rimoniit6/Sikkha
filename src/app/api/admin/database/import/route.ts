@@ -1,4 +1,4 @@
-import { apiError,applyRateLimit } from '@/lib/api-utils'
+import { apiError, withCsrf, applyRateLimit } from '@/lib/api-utils'
 import { auditFromRequest } from '@/lib/audit'
 import { requireSuperAdmin } from '@/lib/auth'
 import { db } from '@/lib/db'
@@ -66,6 +66,9 @@ export async function POST(request: NextRequest) {
       return apiError('সুপার অ্যাডমিন অনুমতি প্রয়োজন।', 403, 'FORBIDDEN')
     }
 
+    const csrfCheck = await withCsrf(request)
+    if ('error' in csrfCheck) return csrfCheck.error
+
     const confirmHeader = request.headers.get('x-confirm-import')
     if (confirmHeader !== 'true') {
       return apiError('ইমপোর্ট নিশ্চিত করতে x-confirm-import: true হেডার প্রয়োজন।', 400, 'CONFIRMATION_REQUIRED')
@@ -74,62 +77,113 @@ export async function POST(request: NextRequest) {
     const rateCheck = await applyRateLimit(apiLimiter, request)
     if ('error' in rateCheck) return rateCheck.error
 
-    // Increase timeout for the import
     const body = await request.json()
     const { data } = body
 
-    if (!data) {
+    if (!data || typeof data !== 'object') {
       return apiError('ইমপোর্ট ডাটা পাওয়া যায়নি', 400)
     }
 
-    await auditFromRequest(request, auth.user.id, 'database_import', 'database', 'full_import', undefined, { timestamp: new Date().toISOString() })
-
-    // Delete all existing data in reverse dependency order
-    for (const modelName of DELETE_ORDER) {
-      const model = modelMap[modelName]
-      if (model) {
-        await model.deleteMany()
+    // Validate data structure: each model key must map to an array
+    for (const modelName of IMPORT_ORDER) {
+      const records = (data as Record<string, unknown>)[modelName]
+      if (records !== undefined && records !== null) {
+        if (!Array.isArray(records)) {
+          return apiError(`অবৈধ ডাটা ফরম্যাট: ${modelName} একটি অ্যারে হতে হবে`, 400, 'INVALID_DATA_FORMAT')
+        }
+        // Validate each record is a plain object
+        for (let i = 0; i < records.length; i++) {
+          if (typeof records[i] !== 'object' || records[i] === null || Array.isArray(records[i])) {
+            return apiError(`অবৈধ রেকর্ড: ${modelName}[${i}] একটি অবজেক্ট হতে হবে`, 400, 'INVALID_RECORD_FORMAT')
+          }
+        }
       }
     }
 
-    // Import in dependency order
-    const results: Record<string, { imported: number; errors: number }> = {}
-
+    // Count total records for pre-flight check
+    let totalRecords = 0
     for (const modelName of IMPORT_ORDER) {
-      const model = modelMap[modelName]
-      const records = (data as Record<string, Record<string, unknown>[]>)[modelName]
-
-      if (!model || !records || !Array.isArray(records)) {
-        results[modelName] = { imported: 0, errors: 0 }
-        continue
+      const records = (data as Record<string, unknown[]>)[modelName]
+      if (Array.isArray(records)) {
+        totalRecords += records.length
       }
+    }
 
-      let imported = 0
-      let errors = 0
+    if (totalRecords === 0) {
+      return apiError('ইমপোর্ট করার জন্য কোনো রেকর্ড নেই', 400)
+    }
 
-      for (const record of records) {
-        try {
-          await (model as any).create({ data: record })
-          imported++
-        } catch (err) {
-          console.error(`Import error for ${modelName}:`, err)
-          errors++
+    await auditFromRequest(request, auth.user.id, 'database_import', 'database', 'full_import', undefined, {
+      timestamp: new Date().toISOString(),
+      totalRecords,
+    })
+
+    // Execute entire delete+import in a single transaction
+    // If ANY record fails, EVERYTHING rolls back — zero partial data
+    const results = await db.$transaction(async (tx) => {
+      // Step 1: Delete all existing data in reverse dependency order
+      for (const modelName of DELETE_ORDER) {
+        const model = (tx as any)[modelName] || modelMap[modelName]
+        if (model) {
+          await model.deleteMany()
         }
       }
 
-      results[modelName] = { imported, errors }
-    }
+      // Step 2: Import in dependency order — any failure triggers full rollback
+      const importResults: Record<string, { imported: number; errors: number; errorMessages: string[] }> = {}
 
-    // Preserve the importing admin's super admin access
-    const currentUser = await db.user.findUnique({ where: { id: auth.user.id } })
-    if (currentUser && currentUser.role !== 'SUPER_ADMIN') {
-      await db.user.update({
-        where: { id: currentUser.id },
-        data: { role: 'SUPER_ADMIN' },
-      })
-    }
+      for (const modelName of IMPORT_ORDER) {
+        const model = (tx as any)[modelName] || modelMap[modelName]
+        const records = (data as Record<string, Record<string, unknown>[]>)[modelName]
 
-    return NextResponse.json({ success: true, data: { message: 'ডাটাবেজ ইমপোর্ট সম্পন্ন হয়েছে', results } })
+        if (!model || !records || !Array.isArray(records)) {
+          importResults[modelName] = { imported: 0, errors: 0, errorMessages: [] }
+          continue
+        }
+
+        let imported = 0
+        let errors = 0
+        const errorMessages: string[] = []
+
+        for (let i = 0; i < records.length; i++) {
+          try {
+            await model.create({ data: records[i] })
+            imported++
+          } catch (err) {
+            errors++
+            const msg = err instanceof Error ? err.message : 'অজানা ত্রুটি'
+            errorMessages.push(`${modelName}[${i}]: ${msg}`)
+            // Any error inside the transaction causes automatic rollback
+            throw new Error(`Import failed at ${modelName}[${i}]: ${msg}`)
+          }
+        }
+
+        importResults[modelName] = { imported, errors, errorMessages }
+      }
+
+      // Step 3: Preserve the importing admin's super admin access
+      const currentUser = await tx.user.findUnique({ where: { id: auth.user.id } })
+      if (currentUser && currentUser.role !== 'SUPER_ADMIN') {
+        await tx.user.update({
+          where: { id: currentUser.id },
+          data: { role: 'SUPER_ADMIN' },
+        })
+      }
+
+      return importResults
+    }, {
+      maxWait: 30000,   // 30s to acquire connection
+      timeout: 300000,  // 5min for the entire import transaction
+    })
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        message: 'ডাটাবেজ ইমপোর্ট সম্পন্ন হয়েছে',
+        totalRecords,
+        results,
+      },
+    })
   } catch (error) {
     console.error('[DB Import] Error details:', error instanceof Error ? { message: error.message, stack: error.stack, name: error.name } : error)
     return handleApiError(error, 'Database import error')

@@ -1,5 +1,5 @@
 import { db } from '@/lib/db'
-import { apiResponse, apiError, withAdmin, parseIdsParam } from '@/lib/api-utils'
+import { apiResponse, apiError, withAdmin, parseIdsParam, withCsrf } from '@/lib/api-utils'
 import { handleApiError } from '@/lib/errors'
 import { NextResponse } from 'next/server'
 
@@ -50,6 +50,9 @@ export async function GET(request: Request) {
 export async function DELETE(request: Request) {
   const auth = await withAdmin(request)
   if (auth instanceof NextResponse) return auth
+
+  const csrfCheck = await withCsrf(request)
+  if ('error' in csrfCheck) return csrfCheck.error
 
   try {
     const { searchParams } = new URL(request.url)

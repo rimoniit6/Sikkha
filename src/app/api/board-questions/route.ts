@@ -35,6 +35,7 @@ function analyticsWhere(
 ): Prisma.Sql {
   const parts: Prisma.Sql[] = [
     Prisma.sql`"isActive" = true`,
+    Prisma.sql`"deletedAt" IS NULL`,
     Prisma.sql`"board" IS NOT NULL`,
     Prisma.sql`"year" IS NOT NULL`,
   ]

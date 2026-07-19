@@ -3,6 +3,9 @@ import { z } from 'zod'
 import { apiResponse, apiError, withAdmin, withCsrf } from '@/lib/api-utils'
 import { handleApiError } from '@/lib/errors'
 import { NextResponse } from 'next/server'
+import { softDelete } from '@/lib/soft-delete'
+import { createVersion } from '@/lib/version-history'
+import { getClientIP } from '@/lib/audit'
 
 const lessonPostSchema = z.object({
   courseId: z.string().min(1).optional(),
@@ -115,23 +118,45 @@ export async function POST(request: Request) {
         const updateData: Record<string, unknown> = {}
         for (const f of allowed) { if (data[f] !== undefined) updateData[f] = data[f] }
 
-        const lesson = await db.courseLesson.update({
-          where: { id },
-          data: updateData,
-          include: {
-            assignments: true,
-            schedules: true,
-            notes: true,
-            resources: true,
-          },
+        // Determine which fields actually changed
+        const changedFields = Object.keys(updateData).filter(
+          key => JSON.stringify(updateData[key]) !== JSON.stringify(existing[key as keyof typeof existing])
+        )
+
+        // Create version snapshot + update in single transaction
+        const ipAddress = getClientIP(request)
+        const userAgent = request.headers.get('user-agent') || undefined
+
+        const lesson = await db.$transaction(async (tx) => {
+          // Create version snapshot of current state BEFORE update
+          await createVersion(tx, 'courseLesson', id, { ...existing }, auth.user.id, changedFields, {
+            ipAddress,
+            userAgent,
+          })
+
+          // Perform the actual update
+          return tx.courseLesson.update({
+            where: { id },
+            data: updateData,
+            include: {
+              assignments: true,
+              schedules: true,
+              notes: true,
+              resources: true,
+            },
+          })
+        }, {
+          maxWait: 10000,
+          timeout: 30000,
         })
+
         return apiResponse({ lesson })
       }
 
       case 'delete': {
         const { id } = body
         if (!id) return apiError('Lesson ID required', 400)
-        await db.courseLesson.delete({ where: { id } })
+        await softDelete(db, 'courseLesson', id, auth.user.id)
         return apiResponse({ success: true })
       }
 

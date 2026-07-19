@@ -1,5 +1,5 @@
 import { db } from '@/lib/db'
-import { apiError } from '@/lib/api-utils'
+import { apiError, withCsrf } from '@/lib/api-utils'
 import { verifyAuth } from '@/lib/auth'
 import { getExamTimeMs, getDhakaNow } from '@/lib/date-utils'
 import { NextResponse } from 'next/server'
@@ -319,6 +319,9 @@ export async function POST(request: Request) {
       return apiError('লগইন প্রয়োজন', 401, 'UNAUTHORIZED')
     }
     const userId = auth.user.id
+
+    const csrfCheck = await withCsrf(request)
+    if ('error' in csrfCheck) return csrfCheck.error
 
     const body = await request.json()
     const { action } = body

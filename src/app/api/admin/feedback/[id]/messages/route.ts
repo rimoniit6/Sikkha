@@ -1,5 +1,5 @@
 import { db } from '@/lib/db'
-import { apiError, withAdmin } from '@/lib/api-utils'
+import { apiError, withAdmin, withCsrf } from '@/lib/api-utils'
 import { NextResponse } from 'next/server'
 
 export async function GET(
@@ -44,6 +44,9 @@ export async function POST(
   try {
     const auth = await withAdmin(request)
     if (auth instanceof NextResponse) return auth
+
+    const csrfCheck = await withCsrf(request)
+    if ('error' in csrfCheck) return csrfCheck.error
 
     const { id } = await params
     const feedback = await db.userFeedback.findUnique({ where: { id } })
