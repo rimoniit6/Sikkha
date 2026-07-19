@@ -32,6 +32,7 @@ import type { StepNumber, ViewMode, CQForm, ClassItem, SubjectItem, ChapterItem 
 import { difficultyLabels, difficultyColors } from './types'
 import StepIndicator from './StepIndicator'
 import QAPairCard from './QAPairCard'
+import { WorkflowPanel } from '@/components/admin/workflow'
 
 interface CQEditorViewProps {
   editId: string | null
@@ -99,6 +100,14 @@ export default function CQEditorView({
           <StepIndicator currentStep={currentStep} />
         </CardContent>
       </Card>
+
+      {editId && (
+        <WorkflowPanel
+          entityType="cQ"
+          entityId={editId}
+          onTransition={() => { /* refetch handled by parent */ }}
+        />
+      )}
 
       <AnimatePresence mode="wait">
         {currentStep === 1 && (

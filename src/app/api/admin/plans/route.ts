@@ -6,7 +6,7 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { softDelete } from '@/lib/soft-delete'
 import { createVersion } from '@/lib/version-history'
-import { getClientIP } from '@/lib/audit'
+import { auditFromRequest, AuditActions, getClientIP } from '@/lib/audit'
 
 const createPlanSchema = z.object({
   title: z.string().min(1, 'নাম আবশ্যক'),
@@ -73,6 +73,7 @@ export async function POST(request: Request) {
     })
 
     await invalidateContentCache('package')
+    await auditFromRequest(request, auth.user.id, AuditActions.PACKAGE_CREATE, 'content_package', data.id, body, { title: data.title })
     return apiResponse(data, null, 201)
   } catch (error) {
     return handleApiError(error, 'Admin Create Plan error')
@@ -139,6 +140,7 @@ export async function PUT(request: Request) {
     })
 
     await invalidateContentCache('package')
+    await auditFromRequest(request, auth.user.id, AuditActions.PACKAGE_UPDATE, 'content_package', id, existing, data)
     return apiResponse(updated)
   } catch (error) {
     return handleApiError(error, 'Admin Update Plan error')
@@ -178,6 +180,7 @@ export async function DELETE(request: Request) {
     await softDelete(db, 'contentPackage', id, auth.user.id)
 
     await invalidateContentCache('package')
+    await auditFromRequest(request, auth.user.id, AuditActions.PACKAGE_DELETE, 'content_package', id)
     return apiResponse({ id }, 'সাবস্ক্রিপশন প্ল্যান সফলভাবে মুছে ফেলা হয়েছে')
   } catch (error) {
     return handleApiError(error, 'Admin Delete Plan error')

@@ -5,6 +5,7 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { toDecimal } from '@/lib/decimal'
 import { softDelete } from '@/lib/soft-delete'
+import { auditFromRequest, AuditActions } from '@/lib/audit'
 
 const createFeaturedSchema = z.object({
   contentType: z.string().min(1, 'কন্টেন্ট টাইপ আবশ্যক'),
@@ -125,6 +126,8 @@ export async function POST(request: Request) {
       },
     })
 
+    await auditFromRequest(request, auth.user.id, AuditActions.FEATURED_CREATE, 'featured_content', created.id, undefined, created as Record<string, unknown>)
+
     return apiResponse(created, 201)
   } catch (error) {
     return handleApiError(error, 'Admin Create Featured')
@@ -157,6 +160,9 @@ export async function PUT(request: Request) {
     }
 
     const updated = await db.featuredContent.update({ where: { id }, data })
+
+    await auditFromRequest(request, auth.user.id, AuditActions.FEATURED_UPDATE, 'featured_content', updated.id, existing as Record<string, unknown>, updated as Record<string, unknown>)
+
     return apiResponse(updated)
   } catch (error) {
     return handleApiError(error, 'Admin Update Featured')
@@ -184,6 +190,9 @@ export async function DELETE(request: Request) {
     if (!existing) return apiError('ফিচার্ড কন্টেন্ট খুঁজে পাওয়া যায়নি', 404)
 
     await softDelete(db, 'featuredContent', id, auth.user.id)
+
+    await auditFromRequest(request, auth.user.id, AuditActions.FEATURED_DELETE, 'featured_content', id, existing as Record<string, unknown>, undefined)
+
     return apiResponse({ id, message: 'ফিচার্ড কন্টেন্ট সফলভাবে মুছে ফেলা হয়েছে' })
   } catch (error) {
     return handleApiError(error, 'Admin Delete Featured')

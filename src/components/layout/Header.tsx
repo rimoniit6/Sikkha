@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useTheme } from 'next-themes'
 import { Search, Menu, X, Sun, Moon, User, GraduationCap, BookOpen, LogIn, LogOut, LayoutDashboard, Crown } from 'lucide-react'
+import NotificationBell from '@/components/notifications/NotificationBell'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -197,6 +198,9 @@ export default function Header() {
                 </DropdownMenuContent>
               </DropdownMenu>
             )}
+
+            {/* Notification Bell */}
+            {isAuthenticated && mounted && <NotificationBell />}
 
             {/* User Menu / Login */}
             {!mounted ? (

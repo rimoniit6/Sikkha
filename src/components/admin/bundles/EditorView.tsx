@@ -3,6 +3,7 @@ import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
 import { ArrowLeft, Check, ChevronRight, Edit, Save, Sparkles, X } from 'lucide-react'
 import React from 'react'
+import { WorkflowPanel } from '@/components/admin/workflow'
 import StepBundleInfo, { type StepBundleInfoProps } from './StepBundleInfo'
 import StepAddContent, { type StepAddContentProps } from './StepAddContent'
 import StepPricing, { type StepPricingProps } from './StepPricing'
@@ -78,6 +79,14 @@ export default function EditorView({
           </Button>
         </div>
       </div>
+
+      {editId && (
+        <WorkflowPanel
+          entityType="contentBundle"
+          entityId={editId}
+          compact
+        />
+      )}
 
       <div className="flex items-center gap-1 mb-6">
         {steps.map((step, idx) => {

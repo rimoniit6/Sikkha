@@ -56,6 +56,7 @@ import React, { useState } from 'react'
 import { QueryError } from '@/components/admin/QueryError'
 import { noticeService, type NoticeRecord, type NoticeInput } from '@/services/api/notice.service'
 import { useNotices } from '@/hooks/admin/use-notices'
+import { WorkflowPanel } from '@/components/admin/workflow'
 
 // ─── Types ──────────────────────────────────────────────────────
 
@@ -592,6 +593,14 @@ export default function AdminNoticePage() {
                 </Button>
               </div>
             </div>
+
+            {editId && (
+              <WorkflowPanel
+                entityType="notice"
+                entityId={editId}
+                compact
+              />
+            )}
 
             {/* Editor Body */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

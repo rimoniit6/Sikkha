@@ -1,5 +1,5 @@
-import { apiError,apiResponse,paginatedApiResponse,parseIdsParam,validateBody,withAdmin,withCsrf,getClientIP } from '@/lib/api-utils'
-import { AuditActions,auditFromRequest,EntityTypes } from '@/lib/audit'
+import { apiError,apiResponse,paginatedApiResponse,parseIdsParam,validateBody,withAdmin,withCsrf } from '@/lib/api-utils'
+import { AuditActions,auditFromRequest,EntityTypes,getClientIP } from '@/lib/audit'
 import { guardDeleteDependencies } from '@/lib/delete-guard'
 import { softDelete } from '@/lib/soft-delete'
 import { invalidateContentCache } from '@/lib/cache-invalidate'
@@ -8,7 +8,7 @@ import { db } from '@/lib/db'
 import { handleApiError } from '@/lib/errors'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
-import { createVersion } from '@/lib/version-history'
+import { transitionWorkflow } from '@/lib/workflow'
 
 const createMcqSchema = z.object({
   question: z.string().min(1, 'প্রশ্ন আবশ্যক'),
@@ -197,29 +197,31 @@ export async function PUT(request: Request) {
       key => JSON.stringify(updateFields[key]) !== JSON.stringify(existing[key as keyof typeof existing])
     )
 
-    // Create version snapshot + update in single transaction
+    // Transition workflow + update content atomically
     const ipAddress = getClientIP(request)
     const userAgent = request.headers.get('user-agent') || undefined
 
-    const updated = await db.$transaction(async (tx) => {
-      // Create version snapshot of current state BEFORE update
-      await createVersion(tx, 'mCQ', id, { ...existing }, auth.user.id, changedFields, {
-        ipAddress,
-        userAgent,
-      })
+    const workflow = await db.contentWorkflow.findFirst({ where: { entityType: 'mCQ', entityId: id } })
 
-      // Perform the actual update
-      return tx.mCQ.update({
-        where: { id },
-        data: updateFields as never,
-      })
-    }, {
-      maxWait: 10000,
-      timeout: 30000,
+    const result = await transitionWorkflow(db, {
+      entityType: 'mCQ',
+      entityId: id,
+      action: 'update_content',
+      userId: auth.user.id,
+      userRole: auth.user.role,
+      expectedVersion: workflow?.version ?? 0,
+      ipAddress,
+      userAgent,
+      changedFields,
+      contentUpdate: { data: updateFields },
     })
 
+    if (!result.success) {
+      return NextResponse.json({ error: result.error }, { status: result.httpStatus })
+    }
+
     await invalidateContentCache('mcq')
-    return apiResponse(updated)
+    return apiResponse(result.contentRecord)
   } catch (error) {
     return handleApiError(error, 'Admin Update MCQ')
   }

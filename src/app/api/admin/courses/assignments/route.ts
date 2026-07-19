@@ -1,6 +1,7 @@
 import { db } from '@/lib/db'
 import { z } from 'zod'
 import { apiResponse, apiError, withAdmin, withCsrf } from '@/lib/api-utils'
+import { auditFromRequest, AuditActions } from '@/lib/audit'
 import { handleApiError } from '@/lib/errors'
 import { NextResponse } from 'next/server'
 
@@ -171,6 +172,7 @@ export async function POST(request: Request) {
           },
           include: { lesson: { select: { title: true } } },
         })
+        await auditFromRequest(request, auth.user.id, 'course_assignment_create', 'course_assignment', assignment.id, undefined, { lessonId, title })
         return apiResponse({ assignment }, 201)
       }
 
@@ -187,6 +189,7 @@ export async function POST(request: Request) {
           data,
           include: { lesson: { select: { title: true } } },
         })
+        await auditFromRequest(request, auth.user.id, 'course_assignment_update', 'course_assignment', id, undefined, data)
         return apiResponse({ assignment })
       }
 
@@ -194,6 +197,7 @@ export async function POST(request: Request) {
         const { id } = body
         if (!id) return apiError('Assignment ID required', 400)
         await db.lessonAssignment.delete({ where: { id } })
+        await auditFromRequest(request, auth.user.id, 'course_assignment_delete', 'course_assignment', id)
         return apiResponse({ success: true })
       }
 
@@ -214,6 +218,7 @@ export async function POST(request: Request) {
             gradedAt: new Date(),
           },
         })
+        await auditFromRequest(request, auth.user.id, AuditActions.GRADE_UPDATE, 'course_assignment', submissionId, { marks: submission.marks, status: submission.status }, { marks, feedback, status: 'graded' })
         return apiResponse({ submission: updated })
       }
 
@@ -230,6 +235,7 @@ export async function POST(request: Request) {
             gradedAt: new Date(),
           },
         })
+        await auditFromRequest(request, auth.user.id, AuditActions.GRADE_BULK, 'course_assignment', assignmentId, undefined, { defaultMarks, count: result.count })
         return apiResponse({ count: result.count })
       }
 

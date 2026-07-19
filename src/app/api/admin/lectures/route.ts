@@ -1,14 +1,14 @@
 import { db } from '@/lib/db'
-import { apiResponse, paginatedApiResponse, apiError, withAdmin, parseIdsParam, validateBody, withCsrf, getClientIP } from '@/lib/api-utils'
+import { apiResponse, paginatedApiResponse, apiError, withAdmin, parseIdsParam, validateBody, withCsrf } from '@/lib/api-utils'
 import { handleApiError } from '@/lib/errors'
 import { invalidateContentCache } from '@/lib/cache-invalidate'
 import { deriveIsPremium } from '@/lib/premium'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
-import { auditFromRequest, AuditActions, EntityTypes } from '@/lib/audit'
+import { auditFromRequest, AuditActions, EntityTypes, getClientIP } from '@/lib/audit'
 import { guardDeleteDependencies } from '@/lib/delete-guard'
 import { softDelete } from '@/lib/soft-delete'
-import { createVersion } from '@/lib/version-history'
+import { transitionWorkflow } from '@/lib/workflow'
 
 const createLectureSchema = z.object({
   title: z.string().min(1, 'শিরোনাম আবশ্যক'),
@@ -165,26 +165,31 @@ export async function PUT(request: Request) {
       key => JSON.stringify(updateFields[key]) !== JSON.stringify(existing[key as keyof typeof existing])
     )
 
-    // Create version snapshot + update in single transaction
+    // Transition workflow + update content atomically
     const ipAddress = getClientIP(request)
     const userAgent = request.headers.get('user-agent') || undefined
 
-    const updated = await db.$transaction(async (tx) => {
-      // Create version snapshot of current state BEFORE update
-      await createVersion(tx, 'lecture', id, { ...existing }, auth.user.id, changedFields, {
-        ipAddress,
-        userAgent,
-      })
+    const workflow = await db.contentWorkflow.findFirst({ where: { entityType: 'lecture', entityId: id } })
 
-      // Perform the actual update
-      return tx.lecture.update({ where: { id }, data: updateFields as never })
-    }, {
-      maxWait: 10000,
-      timeout: 30000,
+    const result = await transitionWorkflow(db, {
+      entityType: 'lecture',
+      entityId: id,
+      action: 'update_content',
+      userId: auth.user.id,
+      userRole: auth.user.role,
+      expectedVersion: workflow?.version ?? 0,
+      ipAddress,
+      userAgent,
+      changedFields,
+      contentUpdate: { data: updateFields },
     })
 
+    if (!result.success) {
+      return NextResponse.json({ error: result.error }, { status: result.httpStatus })
+    }
+
     await invalidateContentCache('lecture')
-    return apiResponse(updated)
+    return apiResponse(result.contentRecord)
   } catch (error) {
     return handleApiError(error, 'Admin Update Lecture')
   }

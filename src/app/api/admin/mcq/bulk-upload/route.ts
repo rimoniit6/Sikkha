@@ -3,6 +3,7 @@ import { apiError, withAdmin, withCsrf } from '@/lib/api-utils'
 import { NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
 import { safeParseExcelFromFile, ExcelParseError } from '@/lib/excel-parse'
+import { auditFromRequest, AuditActions } from '@/lib/audit'
 
 // Excel column mapping (Bengali headers → DB fields)
 const COLUMN_MAP: Record<string, string> = {
@@ -210,6 +211,8 @@ export async function POST(request: Request) {
         },
       })
     }
+
+    await auditFromRequest(request, auth.user.id, AuditActions.BULK_IMPORT, 'mcq', 'bulk', undefined, { count: createdIds.length } as Record<string, unknown>)
 
     return NextResponse.json({
       success: true,

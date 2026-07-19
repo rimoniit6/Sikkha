@@ -1,5 +1,6 @@
 import { db } from '@/lib/db'
-import { apiResponse, apiError, withAdmin, withCsrf, getClientIP } from '@/lib/api-utils'
+import { apiResponse, apiError, withAdmin, withCsrf } from '@/lib/api-utils'
+import { auditFromRequest, AuditActions, getClientIP } from '@/lib/audit'
 import { handleApiError } from '@/lib/errors'
 import { deriveIsPremium } from '@/lib/premium'
 import { NextResponse } from 'next/server'
@@ -7,7 +8,7 @@ import { toDecimal } from '@/lib/decimal'
 import { z } from 'zod'
 import { guardDeleteDependencies } from '@/lib/delete-guard'
 import { softDelete } from '@/lib/soft-delete'
-import { createVersion } from '@/lib/version-history'
+import { transitionWorkflow } from '@/lib/workflow'
 
 const COURSE_STATUSES = ['DRAFT', 'PUBLISHED'] as const
 
@@ -428,6 +429,7 @@ export async function POST(request: Request) {
             subjectId: b.subjectId || null,
           },
         })
+        await auditFromRequest(request, auth.user.id, AuditActions.COURSE_CREATE, 'course', course.id, body, { title: course.title })
         return apiResponse({ course }, 201)
       }
 
@@ -486,25 +488,31 @@ export async function POST(request: Request) {
           key => JSON.stringify(updateData[key]) !== JSON.stringify(existing[key as keyof typeof existing])
         )
 
-        // Create version snapshot + update in single transaction
+        // Transition workflow + update content atomically
         const ipAddress = getClientIP(request)
         const userAgent = request.headers.get('user-agent') || undefined
 
-        const course = await db.$transaction(async (tx) => {
-          // Create version snapshot of current state BEFORE update
-          await createVersion(tx, 'course', id, { ...existing }, auth.user.id, changedFields, {
-            ipAddress,
-            userAgent,
-          })
+        const workflow = await db.contentWorkflow.findFirst({ where: { entityType: 'course', entityId: id } })
 
-          // Perform the actual update
-          return tx.course.update({ where: { id }, data: updateData })
-        }, {
-          maxWait: 10000,
-          timeout: 30000,
+        const result = await transitionWorkflow(db, {
+          entityType: 'course',
+          entityId: id,
+          action: 'update_content',
+          userId: auth.user.id,
+          userRole: auth.user.role,
+          expectedVersion: workflow?.version ?? 0,
+          ipAddress,
+          userAgent,
+          changedFields,
+          contentUpdate: { data: updateData },
         })
 
-        return apiResponse({ course })
+        if (!result.success) {
+          return NextResponse.json({ error: result.error }, { status: result.httpStatus })
+        }
+
+        await auditFromRequest(request, auth.user.id, AuditActions.COURSE_UPDATE, 'course', id, existing, updateData)
+        return apiResponse({ course: result.contentRecord })
       }
 
       case 'delete': {
@@ -520,6 +528,7 @@ export async function POST(request: Request) {
         }
         await db.courseExamSchedule.deleteMany({ where: { courseId: id } })
         await softDelete(db, 'course', id, auth.user.id)
+        await auditFromRequest(request, auth.user.id, AuditActions.COURSE_DELETE, 'course', id)
         return apiResponse({ success: true })
       }
 
@@ -538,6 +547,7 @@ export async function POST(request: Request) {
             overrideAllowed: true,
           },
         })
+        await auditFromRequest(request, auth.user.id, 'course_exam_schedule_create', 'course', courseId, body, schedule)
         return apiResponse({ schedule }, 201)
       }
 
@@ -565,6 +575,7 @@ export async function POST(request: Request) {
             },
           })
         ))
+        await auditFromRequest(request, auth.user.id, 'course_exam_schedules_bulk_create', 'course', courseId, body, { count: schedules.length })
         return apiResponse({ schedules, count: schedules.length }, 201)
       }
 
@@ -581,6 +592,7 @@ export async function POST(request: Request) {
         if (endTime !== undefined) updateData.endTime = endTime
 
         const schedule = await db.courseExamSchedule.update({ where: { id }, data: updateData as never })
+        await auditFromRequest(request, auth.user.id, 'course_exam_schedule_update', 'course', existing.courseId, body, schedule)
         return apiResponse({ schedule })
       }
 
@@ -588,6 +600,7 @@ export async function POST(request: Request) {
         const { id } = body
         if (!id) return apiError('Schedule ID required', 400)
         await db.courseExamSchedule.delete({ where: { id } })
+        await auditFromRequest(request, auth.user.id, 'course_exam_schedule_delete', 'course', body.courseId, body)
         return apiResponse({ success: true })
       }
 

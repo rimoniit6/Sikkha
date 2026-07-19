@@ -5,6 +5,7 @@ import { invalidateContentCache } from '@/lib/cache-invalidate'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { softDelete } from '@/lib/soft-delete'
+import { auditFromRequest, AuditActions } from '@/lib/audit'
 
 const createNoticeSchema = z.object({
   title: z.string().min(1, 'নোটিশ শিরোনাম আবশ্যক'),
@@ -116,6 +117,9 @@ export async function POST(request: Request) {
     })
 
     await invalidateContentCache('notice')
+
+    await auditFromRequest(request, auth.user.id, AuditActions.NOTICE_CREATE, 'notice', data.id, undefined, data as Record<string, unknown>)
+
     return apiResponse({ data }, 201)
   } catch (error) {
     return handleApiError(error, 'Admin Create Notice')
@@ -137,6 +141,7 @@ export async function PUT(request: Request) {
       if (isActive !== undefined) updateData.isActive = isActive
       const result = await db.notice.updateMany({ where: { id: { in: ids } }, data: updateData })
       await invalidateContentCache('notice')
+      await auditFromRequest(request, auth.user.id, AuditActions.NOTICE_UPDATE, 'notice', ids[0], undefined, updateData as Record<string, unknown>)
       return apiResponse({ updated: result.count }, `${result.count}টি আপডেট হয়েছে`)
     }
     const { id, ...updateData } = body
@@ -182,6 +187,7 @@ export async function PUT(request: Request) {
     })
 
     await invalidateContentCache('notice')
+    await auditFromRequest(request, auth.user.id, AuditActions.NOTICE_UPDATE, 'notice', updated.id, existing as Record<string, unknown>, updated as Record<string, unknown>)
     return apiResponse({ data: updated })
   } catch (error) {
     return handleApiError(error, 'Admin Update Notice')
@@ -204,6 +210,7 @@ export async function DELETE(request: Request) {
         await softDelete(db, 'notice', id, auth.user.id)
       }
       await invalidateContentCache('notice')
+      await auditFromRequest(request, auth.user.id, AuditActions.NOTICE_DELETE, 'notice', ids[0], undefined, undefined)
       return apiResponse({ deleted: ids.length }, `${ids.length}টি সফলভাবে মুছে ফেলা হয়েছে`)
     }
 
@@ -232,6 +239,7 @@ export async function DELETE(request: Request) {
     await softDelete(db, 'notice', id, auth.user.id)
 
     await invalidateContentCache('notice')
+    await auditFromRequest(request, auth.user.id, AuditActions.NOTICE_DELETE, 'notice', id, existing as Record<string, unknown>, undefined)
     return apiResponse({ data: { id }, message: 'নোটিশ সফলভাবে মুছে ফেলা হয়েছে' })
   } catch (error) {
     return handleApiError(error, 'Admin Delete Notice')

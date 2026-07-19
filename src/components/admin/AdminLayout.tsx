@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useCallback, useMemo, Suspense, lazy } from 'react'
+import React, { useState, useEffect, useCallback, useMemo, useRef, Suspense, lazy } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   LayoutDashboard,
@@ -224,6 +224,8 @@ function SidebarContent({
   const logout = useAuthStore((s) => s.logout)
   const { config } = useSiteConfig()
   const siteName = config?.siteName || 'শিক্ষা বাংলা'
+  const activeItemRef = useRef<HTMLButtonElement>(null)
+  const prevRouteRef = useRef<RoutePath>(currentRoute)
 
   const groupedItems = useMemo(() => {
     const map = new Map<string, SidebarItem[]>()
@@ -238,6 +240,22 @@ function SidebarContent({
     navigate(route)
     onNavigate?.()
   }
+
+  // Auto-scroll to the active navigation item
+  useEffect(() => {
+    if (activeItemRef.current) {
+      // Small delay to ensure the DOM has settled after route change
+      const timer = setTimeout(() => {
+        activeItemRef.current?.scrollIntoView({
+          behavior: prevRouteRef.current === currentRoute ? 'smooth' : 'auto',
+          block: 'center',
+          inline: 'nearest',
+        })
+      }, 50)
+      prevRouteRef.current = currentRoute
+      return () => clearTimeout(timer)
+    }
+  }, [currentRoute])
 
   const getInitials = (name: string) => {
     return name
@@ -308,7 +326,9 @@ function SidebarContent({
                       <Tooltip key={item.route}>
                         <TooltipTrigger asChild>
                           <button
+                            ref={isActive ? activeItemRef : undefined}
                             onClick={() => handleNavigate(item.route)}
+                            data-active={isActive || undefined}
                             className={cn(
                               'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200 w-full',
                               'hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',

@@ -1,6 +1,7 @@
 import { db } from '@/lib/db'
 import { apiError, withAdmin, withCsrf } from '@/lib/api-utils'
 import { NextResponse } from 'next/server'
+import { auditFromRequest, AuditActions } from '@/lib/audit'
 
 export async function GET(
   request: Request,
@@ -79,6 +80,8 @@ export async function POST(
         data: { status: 'REPLIED', updatedAt: new Date() },
       }),
     ])
+
+    await auditFromRequest(request, auth.user.id, AuditActions.FEEDBACK_MESSAGE_SEND, 'feedback_message', msg.id, undefined, msg as Record<string, unknown>)
 
     return NextResponse.json({ success: true, data: msg }, { status: 201 })
   } catch (error) {

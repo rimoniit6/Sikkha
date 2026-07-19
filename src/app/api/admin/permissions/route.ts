@@ -1,4 +1,5 @@
 import { applyRateLimit,validateBody,withCsrf } from '@/lib/api-utils'
+import { auditFromRequest, AuditActions } from '@/lib/audit'
 import { invalidatePermissionCache,requirePermission } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { handleApiError } from '@/lib/errors'
@@ -66,6 +67,8 @@ export async function PUT(request: Request) {
     })
 
     invalidatePermissionCache()
+
+    await auditFromRequest(request, 'system', AuditActions.PERMISSION_UPDATE, 'permission', permissionId, undefined, { permissionId, roles })
 
     return NextResponse.json({ success: true, message: 'পারমিশন আপডেট করা হয়েছে' })
   } catch (error) {

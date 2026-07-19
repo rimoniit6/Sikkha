@@ -6,7 +6,7 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { softDelete } from '@/lib/soft-delete'
 import { createVersion } from '@/lib/version-history'
-import { getClientIP } from '@/lib/audit'
+import { auditFromRequest, AuditActions, getClientIP } from '@/lib/audit'
 
 const createPackageSchema = z.object({
   title: z.string().min(1, 'শিরোনাম প্রদান করুন'),
@@ -149,6 +149,7 @@ export async function POST(request: Request) {
     })
 
     await invalidateContentCache('package')
+    await auditFromRequest(request, auth.user.id, AuditActions.PACKAGE_CREATE, 'content_package', newPackage.id, body, { title: newPackage.title })
     return apiResponse(newPackage, 'প্যাকেজ তৈরি হয়েছে', 201)
   } catch (error) {
     return handleApiError(error, 'Create package error')
@@ -202,6 +203,7 @@ export async function PUT(request: Request) {
       })
 
       await invalidateContentCache('package')
+      await auditFromRequest(request, auth.user.id, AuditActions.PACKAGE_UPDATE, 'content_package', ids.join(','), undefined, { count: ids.length, updateData })
       return apiResponse({ updated: ids.length }, `${ids.length}টি আপডেট হয়েছে`)
     }
 
@@ -253,6 +255,7 @@ export async function PUT(request: Request) {
     })
 
     await invalidateContentCache('package')
+    await auditFromRequest(request, auth.user.id, AuditActions.PACKAGE_UPDATE, 'content_package', id, existing, updateData)
     return apiResponse(updated, 'প্যাকেজ আপডেট হয়েছে')
   } catch (error) {
     return handleApiError(error, 'Update package error')
@@ -277,6 +280,7 @@ export async function DELETE(request: Request) {
         await softDelete(db, 'contentPackage', pkgId, auth.user.id)
       }
       await invalidateContentCache('package')
+      await auditFromRequest(request, auth.user.id, AuditActions.PACKAGE_DELETE, 'content_package', ids.join(','), undefined, { count: ids.length })
       return apiResponse({ deleted: ids.length }, `${ids.length}টি সফলভাবে মুছে ফেলা হয়েছে`)
     }
     const id = searchParams.get('id')
@@ -298,6 +302,7 @@ export async function DELETE(request: Request) {
     await softDelete(db, 'contentPackage', id, auth.user.id)
 
     await invalidateContentCache('package')
+    await auditFromRequest(request, auth.user.id, AuditActions.PACKAGE_DELETE, 'content_package', id)
     return apiResponse({ id }, 'প্যাকেজ মুছে ফেলা হয়েছে')
   } catch (error) {
     return handleApiError(error, 'Delete package error')

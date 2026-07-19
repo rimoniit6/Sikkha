@@ -7,7 +7,7 @@ import { z } from 'zod'
 import { toDecimal } from '@/lib/decimal'
 import { guardDeleteDependencies } from '@/lib/delete-guard'
 import { softDelete } from '@/lib/soft-delete'
-import { getClientIP } from '@/lib/audit'
+import { auditFromRequest, AuditActions, getClientIP } from '@/lib/audit'
 import { createVersion } from '@/lib/version-history'
 
 const createBundleSchema = z.object({
@@ -132,6 +132,7 @@ export async function POST(request: Request) {
     })
 
     await invalidateContentCache('bundle')
+    await auditFromRequest(request, auth.user.id, AuditActions.BUNDLE_CREATE, 'content_bundle', bundle.id, body, { title: bundle.title })
     return apiResponse(bundle, 201)
   } catch (error) {
     return handleApiError(error, 'Admin Create Bundle')
@@ -223,6 +224,7 @@ export async function PUT(request: Request) {
     }, { maxWait: 10000, timeout: 30000 })
 
     await invalidateContentCache('bundle')
+    await auditFromRequest(request, auth.user.id, AuditActions.BUNDLE_UPDATE, 'content_bundle', id, existing, updateData)
     return apiResponse(updated)
   } catch (error) {
     return handleApiError(error, 'Admin Update Bundle')
@@ -243,6 +245,7 @@ export async function DELETE(request: Request) {
         await softDelete(db, 'contentBundle', id, auth.user.id)
       }
       await invalidateContentCache('bundle')
+      await auditFromRequest(request, auth.user.id, AuditActions.BUNDLE_DELETE, 'content_bundle', ids.join(','), undefined, { count: ids.length })
       return apiResponse({ deleted: ids.length }, `${ids.length}টি সফলভাবে মুছে ফেলা হয়েছে`)
     }
     const idFromQuery = searchParams.get('id')
@@ -269,6 +272,7 @@ export async function DELETE(request: Request) {
 
     await softDelete(db, 'contentBundle', id, auth.user.id)
     await invalidateContentCache('bundle')
+    await auditFromRequest(request, auth.user.id, AuditActions.BUNDLE_DELETE, 'content_bundle', id)
     return apiResponse({ id }, 'বান্ডেল সফলভাবে মুছে ফেলা হয়েছে')
   } catch (error) {
     return handleApiError(error, 'Admin Delete Bundle')

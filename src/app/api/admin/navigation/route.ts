@@ -4,6 +4,7 @@ import { handleApiError } from '@/lib/errors'
 import { requireAdmin } from '@/lib/auth'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
+import { auditFromRequest, AuditActions } from '@/lib/audit'
 
 const createNavigationSchema = z.object({
   label: z.string().min(1, 'label আবশ্যক'),
@@ -62,6 +63,8 @@ export async function POST(request: Request) {
       },
     })
 
+    await auditFromRequest(request, auth.user.id, AuditActions.NAVIGATION_CREATE, 'navigation', item.id, undefined, item as Record<string, unknown>)
+
     return NextResponse.json({ success: true, data: item }, { status: 201 })
   } catch (error) {
     return handleApiError(error, 'Admin Create Navigation')
@@ -90,6 +93,8 @@ export async function PUT(request: Request) {
       data: updates,
     })
 
+    await auditFromRequest(request, auth.user.id, AuditActions.NAVIGATION_UPDATE, 'navigation', item.id, undefined, item as Record<string, unknown>)
+
     return NextResponse.json({ success: true, data: item })
   } catch (error) {
     return handleApiError(error, 'Admin Update Navigation')
@@ -117,6 +122,8 @@ export async function DELETE(request: Request) {
       where: { id },
       data: { isActive: false },
     })
+
+    await auditFromRequest(request, auth.user.id, AuditActions.NAVIGATION_DELETE, 'navigation', item.id, undefined, item as Record<string, unknown>)
 
     return NextResponse.json({ success: true, data: item, message: 'নেভিগেশন আইটেম নিষ্ক্রিয় করা হয়েছে' })
   } catch (error) {

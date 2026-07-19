@@ -21,6 +21,7 @@ import {
   BookOpen, Monitor, Calendar, Library, Sparkles,
 } from 'lucide-react'
 import type { CourseLessonRecord } from '@/features/course/types'
+import { WorkflowPanel } from '@/components/admin/workflow'
 
 const STEPS = [
   { id: 'basic', label: 'মৌলিক তথ্য', icon: BookOpen, desc: 'পাঠের শিরোনাম ও ধরন নির্ধারণ করুন' },
@@ -155,6 +156,16 @@ export default function LessonEditorSheet({
             </span>
           </div>
         </SheetHeader>
+
+        {mode === 'edit' && editLesson?.id && (
+          <div className="px-6 py-3 border-b">
+            <WorkflowPanel
+              entityType="courseLesson"
+              entityId={editLesson.id}
+              compact
+            />
+          </div>
+        )}
 
         <div className="px-6 pt-5 pb-4 shrink-0 bg-muted/20 border-b">
           <div className="flex items-start justify-between">

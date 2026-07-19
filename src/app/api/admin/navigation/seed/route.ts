@@ -2,6 +2,7 @@ import { db } from '@/lib/db'
 import { apiError, withCsrf } from '@/lib/api-utils'
 import { requireSuperAdmin } from '@/lib/auth'
 import { NextResponse } from 'next/server'
+import { auditFromRequest, AuditActions } from '@/lib/audit'
 
 const DEFAULT_NAVIGATION_ITEMS = [
   // Header nav items
@@ -63,6 +64,8 @@ export async function POST(request: Request) {
       })
       created++
     }
+
+    await auditFromRequest(request, auth.user.id, AuditActions.NAVIGATION_SEED, 'navigation', 'seed', undefined, { created, skipped })
 
     return NextResponse.json({
       success: true,

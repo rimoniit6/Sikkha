@@ -4,6 +4,7 @@ import { handleApiError } from '@/lib/errors'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { softDelete } from '@/lib/soft-delete'
+import { auditFromRequest, AuditActions } from '@/lib/audit'
 
 const createTopicSchema = z.object({
   name: z.string().min(1, 'টপিকের নাম আবশ্যক'),
@@ -91,6 +92,8 @@ export async function POST(request: Request) {
       },
     })
 
+    await auditFromRequest(request, auth.user.id, AuditActions.TOPIC_CREATE, 'topic', data.id, undefined, data as Record<string, unknown>)
+
     return apiResponse(data, 201)
   } catch (error) {
     return handleApiError(error, 'Admin Create Topic error')
@@ -136,6 +139,8 @@ export async function PUT(request: Request) {
       },
     })
 
+    await auditFromRequest(request, auth.user.id, AuditActions.TOPIC_UPDATE, 'topic', updated.id, existing as Record<string, unknown>, updated as Record<string, unknown>)
+
     return apiResponse(updated)
   } catch (error) {
     return handleApiError(error, 'Admin Update Topic error')
@@ -174,6 +179,8 @@ export async function DELETE(request: Request) {
     }
 
     await softDelete(db, 'topic', id, auth.user.id)
+
+    await auditFromRequest(request, auth.user.id, AuditActions.TOPIC_DELETE, 'topic', id, existing as Record<string, unknown>, undefined)
 
     return apiResponse({ id }, 'টপিক সফলভাবে মুছে ফেলা হয়েছে')
   } catch (error) {

@@ -6,6 +6,7 @@ import { registerSchema } from '@/lib/validations'
 import { validateBody } from '@/lib/api-utils'
 import { handleApiError, ConflictError } from '@/lib/errors'
 import { authLimiter, getClientIdentifier, rateLimitHeaders } from '@/lib/rate-limit'
+import { createAuditLog, AuditActions, getClientIP } from '@/lib/audit'
 
 export async function POST(request: Request) {
   try {
@@ -62,6 +63,11 @@ export async function POST(request: Request) {
       { status: 201 },
     )
     response.cookies.set(getSessionCookieName(), token, getCookieOptions())
+
+    const ipAddress = getClientIP(request)
+    const userAgent = request.headers.get('user-agent') || undefined
+    await createAuditLog({ adminId: user.id, action: AuditActions.USER_REGISTER, entityType: 'user', entityId: user.id, ipAddress, userAgent, userName: user.name, userRole: user.role, status: 'success' })
+
     return response
   } catch (error) {
     return handleApiError(error, 'Register error')

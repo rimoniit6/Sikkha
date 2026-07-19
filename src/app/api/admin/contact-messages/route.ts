@@ -2,6 +2,7 @@ import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { withAdmin, withCsrf } from '@/lib/api-utils'
 import { handleApiError } from '@/lib/errors'
+import { auditFromRequest, AuditActions } from '@/lib/audit'
 
 export async function GET(request: Request) {
   const auth = await withAdmin(request)
@@ -58,6 +59,8 @@ export async function PATCH(request: Request) {
       data: { isRead: isRead ?? true },
     })
 
+    await auditFromRequest(request, auth.user.id, AuditActions.CONTACT_MESSAGE_READ, 'contact_message', updated.id, undefined, updated as Record<string, unknown>)
+
     return NextResponse.json({ success: true, data: updated })
   } catch (error) {
     return handleApiError(error, 'Admin Update Contact Message')
@@ -80,6 +83,8 @@ export async function DELETE(request: Request) {
     }
 
     await db.contactMessage.delete({ where: { id } })
+
+    await auditFromRequest(request, auth.user.id, AuditActions.CONTACT_MESSAGE_DELETE, 'contact_message', id, undefined, undefined)
 
     return NextResponse.json({ success: true })
   } catch (error) {

@@ -1,4 +1,5 @@
 import { apiResponse, apiError, withAdmin, withCsrf } from '@/lib/api-utils'
+import { auditFromRequest, AuditActions } from '@/lib/audit'
 import { handleApiError } from '@/lib/errors'
 import {
   getTrashRetentionSettings,
@@ -74,6 +75,8 @@ export async function POST(request: Request) {
       }
 
       const settings = await getTrashRetentionSettings()
+      await auditFromRequest(request, auth.user.id, AuditActions.SETTINGS_UPDATE, 'trash', 'settings', undefined, { updates })
+
       return apiResponse({ settings }, 'সেটিংস আপডেট করা হয়েছে')
     }
 
@@ -98,6 +101,12 @@ export async function POST(request: Request) {
         dryRun: dryRun === true,
         userId: auth.user.id,
         trigger: 'manual',
+      })
+
+      await auditFromRequest(request, auth.user.id, AuditActions.TRASH_CLEANUP, 'trash', 'cleanup', undefined, {
+        totalDeleted: result.totalDeleted,
+        dryRun: result.dryRun,
+        success: result.success,
       })
 
       return apiResponse(result, result.success

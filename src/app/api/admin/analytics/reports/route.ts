@@ -1,6 +1,7 @@
 import { db } from '@/lib/db'
 import { apiResponse, withAdmin, withCsrf } from '@/lib/api-utils'
 import { handleApiError } from '@/lib/errors'
+import { auditFromRequest, AuditActions } from '@/lib/audit'
 import { NextResponse } from 'next/server'
 
 export async function GET(request: Request) {
@@ -54,6 +55,7 @@ export async function POST(request: Request) {
       },
     })
 
+    await auditFromRequest(request, auth.user.id, 'analytics_report_create', 'analytics_report', report.id, body as Record<string, unknown>, { name: report.name } as Record<string, unknown>)
     return apiResponse({
       id: report.id,
       name: report.name,
@@ -87,6 +89,7 @@ export async function DELETE(request: Request) {
 
     await db.analyticsReport.delete({ where: { id } })
 
+    await auditFromRequest(request, auth.user.id, 'analytics_report_delete', 'analytics_report', id, undefined, undefined)
     return apiResponse({ deleted: true })
   } catch (error) {
     return handleApiError(error, 'Delete Report')

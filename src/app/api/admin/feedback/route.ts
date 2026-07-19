@@ -2,6 +2,7 @@ import { db } from '@/lib/db'
 import { apiError, validateBody, withAdmin, withCsrf } from '@/lib/api-utils'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
+import { auditFromRequest, AuditActions } from '@/lib/audit'
 
 const updateFeedbackSchema = z.object({
   id: z.string().min(1, 'id আবশ্যক'),
@@ -77,6 +78,8 @@ export async function PUT(request: Request) {
       where: { id },
       data: { status: status.toUpperCase() as 'PENDING' | 'REPLIED' | 'CLOSED' },
     })
+
+    await auditFromRequest(request, auth.user.id, AuditActions.FEEDBACK_UPDATE, 'feedback', updated.id, undefined, updated as Record<string, unknown>)
 
     return NextResponse.json({ success: true, data: updated })
   } catch (error) {

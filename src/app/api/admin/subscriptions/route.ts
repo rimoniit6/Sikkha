@@ -3,6 +3,7 @@ import { apiResponse, apiError, withAdmin, parseIdsParam, validateBody, withCsrf
 import { handleApiError } from '@/lib/errors'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
+import { auditFromRequest, AuditActions } from '@/lib/audit'
 
 const updateSubscriptionSchema = z.object({
   id: z.string().optional(),
@@ -86,6 +87,7 @@ export async function PUT(request: Request) {
       const updateData: Record<string, unknown> = {}
       if (isActive !== undefined) updateData.isActive = isActive
       const result = await db.userSubscription.updateMany({ where: { id: { in: ids } }, data: updateData })
+      await auditFromRequest(request, auth.user.id, AuditActions.SUBSCRIPTION_UPDATE, 'subscription', ids[0], undefined, updateData as Record<string, unknown>)
       return apiResponse({ updated: result.count }, `${result.count}টি আপডেট হয়েছে`)
     }
 
@@ -119,6 +121,8 @@ export async function PUT(request: Request) {
       },
     })
 
+    await auditFromRequest(request, auth.user.id, AuditActions.SUBSCRIPTION_UPDATE, 'subscription', updated.id, existing as Record<string, unknown>, updated as Record<string, unknown>)
+
     return apiResponse({ message: 'সাবস্ক্রিপশন আপডেট হয়েছে', data: updated })
   } catch (error) {
     return handleApiError(error, 'Admin Update Subscription')
@@ -136,6 +140,7 @@ export async function DELETE(request: Request) {
     const ids = parseIdsParam(searchParams)
     if (ids) {
       const result = await db.userSubscription.updateMany({ where: { id: { in: ids } }, data: { isActive: false } })
+      await auditFromRequest(request, auth.user.id, AuditActions.SUBSCRIPTION_DELETE, 'subscription', ids[0], undefined, undefined)
       return apiResponse({ updated: result.count }, `${result.count}টি নিষ্ক্রিয় করা হয়েছে`)
     }
     const id = searchParams.get('id')
@@ -149,6 +154,8 @@ export async function DELETE(request: Request) {
       where: { id },
       data: { isActive: false },
     })
+
+    await auditFromRequest(request, auth.user.id, AuditActions.SUBSCRIPTION_DELETE, 'subscription', id, existing as Record<string, unknown>, undefined)
 
     return apiResponse({ message: 'সাবস্ক্রিপশন নিষ্ক্রিয় করা হয়েছে' })
   } catch (error) {

@@ -17,6 +17,7 @@ ClassCategory,
 SubjectOption
 } from '@/types/admin-mcq-exam'
 import { ArrowLeft,BookOpen,FileQuestion,GraduationCap,Loader2,Power,Save,Tag } from 'lucide-react'
+import { WorkflowPanel } from '@/components/admin/workflow'
 
 interface PackageFormProps {
   editId: string | null
@@ -65,6 +66,14 @@ export function PackageForm({
           <p className="text-sm text-muted-foreground mt-0.5">প্যাকেজের তথ্য পূরণ করুন</p>
         </div>
       </div>
+
+      {editId && (
+        <WorkflowPanel
+          entityType="mCQExamPackage"
+          entityId={editId}
+          compact
+        />
+      )}
 
       <Card className="border-border/50 overflow-hidden">
         <div className="bg-gradient-to-r from-emerald-50/80 to-teal-50/80 dark:from-emerald-950/30 dark:to-teal-950/30 px-4 py-3 border-b border-border/30">

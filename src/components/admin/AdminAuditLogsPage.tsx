@@ -287,7 +287,7 @@ export default function AdminAuditLogsPage() {
       const res = await fetch(`/api/admin/audit-logs?${params}`)
       const json = await res.json()
       if (json.success) {
-        setData(json.data)
+        setData({ items: json.data, pagination: json.pagination })
       } else {
         toast({ title: 'ত্রুটি', description: json.error || 'ডাটা লোড করা যায়নি', variant: 'destructive' })
       }

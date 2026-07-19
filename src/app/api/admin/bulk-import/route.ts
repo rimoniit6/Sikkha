@@ -4,6 +4,7 @@ import { safeParseExcelFromFile, ExcelParseError } from '@/lib/excel-parse'
 import { withAdmin, withCsrf, applyRateLimit, apiError } from '@/lib/api-utils'
 import { uploadLimiter } from '@/lib/rate-limit'
 import { handleApiError } from '@/lib/errors'
+import { auditFromRequest, AuditActions } from '@/lib/audit'
 
 interface ImportError {
   row: number
@@ -211,6 +212,8 @@ export async function POST(request: Request) {
         rolledBack: true,
       })
     }
+
+    await auditFromRequest(request, auth.user.id, AuditActions.BULK_IMPORT, 'import', 'bulk', undefined, { type, count: insertCount, total: rows.length } as Record<string, unknown>)
 
     return NextResponse.json({
       success: insertCount,

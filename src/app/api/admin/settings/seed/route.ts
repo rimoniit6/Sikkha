@@ -2,6 +2,7 @@ import { db } from '@/lib/db'
 import { apiResponse, withAdmin, withCsrf } from '@/lib/api-utils'
 import { handleApiError } from '@/lib/errors'
 import { NextResponse } from 'next/server'
+import { auditFromRequest, AuditActions } from '@/lib/audit'
 
 const SEO_SEEDS = [
   { key: 'seo_title', value: 'শিক্ষা বাংলা - বাংলাদেশের সেরা শিক্ষা প্ল্যাটফর্ম', group: 'seo', label: 'সাইট শিরোনাম (SEO Title)' },
@@ -44,6 +45,8 @@ export async function POST(request: Request) {
         results.push({ key: seed.key, action: 'created', data })
       }
     }
+
+    await auditFromRequest(request, auth.user.id, AuditActions.SETTINGS_BATCH_UPDATE, 'site_setting', 'seed', undefined, { results } as Record<string, unknown>)
 
     return apiResponse(results, 'SEO সেটিংস সফলভাবে সিড করা হয়েছে')
   } catch (error) {

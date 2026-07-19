@@ -6,6 +6,7 @@ import { loginSchema } from '@/lib/validations'
 import { validateBody } from '@/lib/api-utils'
 import { handleApiError, AuthenticationError } from '@/lib/errors'
 import { authLimiter, getClientIdentifier, rateLimitHeaders } from '@/lib/rate-limit'
+import { createAuditLog, AuditActions, getClientIP } from '@/lib/audit'
 
 export async function POST(request: Request) {
   try {
@@ -30,6 +31,9 @@ export async function POST(request: Request) {
     })
 
     if (!user || !user.password || !verifyPassword(password, user.password)) {
+      const failIp = getClientIP(request)
+      const failUa = request.headers.get('user-agent') || undefined
+      await createAuditLog({ adminId: 'system', action: AuditActions.LOGIN_FAILED, entityType: 'user', entityId: email, ipAddress: failIp, userAgent: failUa, status: 'failed' })
       throw new AuthenticationError('ইমেইল বা পাসওয়ার্ড সঠিক নয়')
     }
 
@@ -55,6 +59,11 @@ export async function POST(request: Request) {
       },
     })
     response.cookies.set(getSessionCookieName(), token, getCookieOptions())
+
+    const ipAddress = getClientIP(request)
+    const userAgent = request.headers.get('user-agent') || undefined
+    await createAuditLog({ adminId: user.id, action: AuditActions.LOGIN, entityType: 'user', entityId: user.id, ipAddress, userAgent, userName: user.name, userRole: user.role, status: 'success' })
+
     return response
   } catch (error) {
     return handleApiError(error, 'Login error')

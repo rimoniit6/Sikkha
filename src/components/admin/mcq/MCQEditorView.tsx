@@ -10,6 +10,7 @@ import Step1Content from './steps/Step1Content'
 import Step2Content from './steps/Step2Content'
 import Step3Content from './steps/Step3Content'
 import React from 'react'
+import { WorkflowPanel } from '@/components/admin/workflow'
 
 interface MCQEditorViewProps {
   form: MCQFormData
@@ -185,6 +186,14 @@ export default function MCQEditorView({
           )
         })}
       </div>
+
+      {editId && (
+        <WorkflowPanel
+          entityType="mCQ"
+          entityId={editId}
+          onTransition={() => { /* refetch handled by parent */ }}
+        />
+      )}
 
       {currentStep === 1 && <Step1Content form={form} updateForm={updateForm} currentStep={currentStep} />}
       {currentStep === 2 && (

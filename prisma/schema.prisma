@@ -1756,3 +1756,84 @@ model AnalyticsReport {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 }
+
+// ============ EDITORIAL WORKFLOW ============
+
+model ContentWorkflow {
+  id              String    @id @default(cuid())
+  entityType      String
+  entityId        String
+  status          String    @default("DRAFT")
+  previousStatus  String?
+  version         Int       @default(0) // Optimistic concurrency token
+  submittedBy     String?
+  submittedAt     DateTime?
+  reviewedBy      String?
+  reviewedAt      DateTime?
+  reviewComment   String?
+  approvedBy      String?
+  approvedAt      DateTime?
+  publishedBy     String?
+  publishedAt     DateTime?
+  publishedVersionId String?
+  scheduledAt     DateTime?
+  unpublishedAt   DateTime?
+  rejectedBy      String?
+  rejectedAt      DateTime?
+  rejectionReason String?
+  archivedBy      String?
+  archivedAt      DateTime?
+  publishAttempts    Int       @default(0)
+  lastPublishAttempt DateTime?
+  publishFailedAt    DateTime?
+  publishError       String?
+  metadata        String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([entityType, entityId])
+  @@index([status])
+  @@index([scheduledAt])
+  @@index([entityType, status])
+}
+
+model WorkflowHistory {
+  id              String    @id @default(cuid())
+  entityType      String
+  entityId        String
+  fromStatus      String?
+  toStatus        String
+  performedBy     String
+  performedByName String?
+  performedByRole String?
+  comment         String?
+  versionNumber   Int?
+  ipAddress       String?
+  userAgent       String?
+  metadata        String?
+  createdAt       DateTime  @default(now())
+
+  @@index([entityType, entityId])
+  @@index([toStatus])
+  @@index([performedBy])
+  @@index([createdAt])
+}
+
+model WorkflowComment {
+  id              String    @id @default(cuid())
+  entityType      String
+  entityId        String
+  parentId        String?
+  authorId        String
+  authorName      String?
+  authorRole      String?
+  content         String
+  action          String?
+  isResolved      Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([entityType, entityId])
+  @@index([parentId])
+  @@index([authorId])
+}

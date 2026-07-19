@@ -27,6 +27,7 @@ import {
   X,
 } from 'lucide-react'
 import React,{ useCallback,useEffect,useMemo,useRef,useState } from 'react'
+import { WorkflowPanel } from '@/components/admin/workflow'
 
 import DataTable from '@/components/shared/DataTable'
 import ImageUploader from '@/components/ui/image-uploader'
@@ -606,6 +607,14 @@ export default function AdminKnowledgeQuestionsPage() {
               </div>
             </div>
           </div>
+          {form.id && (
+            <WorkflowPanel
+              entityType="knowledgeQuestion"
+              entityId={form.id}
+              onTransition={() => { /* refetch handled by parent */ }}
+              compact
+            />
+          )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>
               <X className="size-4 mr-1" /> বাতিল

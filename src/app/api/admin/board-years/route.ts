@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { guardDeleteDependencies } from '@/lib/delete-guard'
 import { softDelete } from '@/lib/soft-delete'
+import { auditFromRequest, AuditActions } from '@/lib/audit'
 
 const createBoardYearSchema = z.object({
   board: z.string().min(1, 'বোর্ড আবশ্যক'),
@@ -54,6 +55,8 @@ export async function POST(request: Request) {
       },
     })
 
+    await auditFromRequest(request, auth.user.id, AuditActions.BOARD_YEAR_CREATE, 'board_year', data.id, undefined, data as Record<string, unknown>)
+
     return NextResponse.json({ success: true, data }, { status: 201 })
   } catch (error) {
     console.error('Admin Create BoardYear error:', error)
@@ -92,6 +95,8 @@ export async function PUT(request: Request) {
       where: { id },
       data,
     })
+
+    await auditFromRequest(request, auth.user.id, AuditActions.BOARD_YEAR_UPDATE, 'board_year', updated.id, existing as Record<string, unknown>, updated as Record<string, unknown>)
 
     return NextResponse.json({ success: true, data: updated })
   } catch (error) {
@@ -132,6 +137,8 @@ export async function DELETE(request: Request) {
     if (!guard.ok) return guard.response
 
     await softDelete(db, 'boardYear', id, auth.user.id)
+
+    await auditFromRequest(request, auth.user.id, AuditActions.BOARD_YEAR_DELETE, 'board_year', id, existing as Record<string, unknown>, undefined)
 
     return NextResponse.json({ success: true, data: { id }, message: 'বোর্ড সাল সফলভাবে মুছে ফেলা হয়েছে' })
   } catch (error) {

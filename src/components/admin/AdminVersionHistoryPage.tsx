@@ -14,6 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { useToast } from '@/hooks/use-toast'
+import RollbackConfirmDialog from '@/components/admin/RollbackConfirmDialog'
 
 // ─── Types ───
 
@@ -110,6 +111,10 @@ export default function AdminVersionHistoryPage() {
   const [compareVersionA, setCompareVersionA] = useState<VersionItem | null>(null)
   const [compareVersionB, setCompareVersionB] = useState<VersionItem | null>(null)
   const [compareDialogOpen, setCompareDialogOpen] = useState(false)
+
+  // Rollback mode
+  const [rollbackDialogOpen, setRollbackDialogOpen] = useState(false)
+  const [rollbackTarget, setRollbackTarget] = useState<VersionItem | null>(null)
 
   // Virtual scrolling
   const listRef = useRef<HTMLDivElement>(null)
@@ -661,6 +666,19 @@ export default function AdminVersionHistoryPage() {
               </CardContent>
             </Card>
 
+            {/* Rollback Button */}
+            <Button
+              variant="outline"
+              className="w-full border-orange-200 text-orange-600 hover:bg-orange-50 hover:text-orange-700"
+              onClick={() => {
+                setRollbackTarget(selectedVersion)
+                setRollbackDialogOpen(true)
+              }}
+            >
+              <RotateCcw className="h-4 w-4 mr-2" />
+              এই ভার্সনে রোলব্যাক করুন
+            </Button>
+
             {/* Changed Fields Summary - Grouped */}
             {selectedVersion.changedFields.length > 0 && (
               <Card>
@@ -796,6 +814,22 @@ export default function AdminVersionHistoryPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Rollback Confirm Dialog */}
+      {rollbackTarget && (
+        <RollbackConfirmDialog
+          open={rollbackDialogOpen}
+          onOpenChange={setRollbackDialogOpen}
+          entityType={rollbackTarget.entityType}
+          entityId={rollbackTarget.entityId}
+          targetVersion={rollbackTarget.versionNumber}
+          currentVersion={selectedVersion?.versionNumber || 0}
+          onSuccess={() => {
+            // Refresh the version list
+            fetchVersions()
+          }}
+        />
+      )}
     </div>
   )
 }

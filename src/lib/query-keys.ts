@@ -65,6 +65,7 @@ export const queryKeys = {
     adminClasses: () => ['admin', 'classes'] as const,
     adminSubjects: (classId?: string) => ['admin', 'subjects', classId ?? 'all'] as const,
     adminChapters: (subjectId?: string) => ['admin', 'chapters', subjectId ?? 'all'] as const,
+    workflowAnalytics: (params?: Record<string, unknown>) => ['admin', 'workflow', 'analytics', params] as const,
   },
   examPackages: {
     mcq: (params?: Record<string, unknown>) => ['mcq-exam-packages', params] as const,
@@ -96,5 +97,9 @@ export const queryKeys = {
     predictions: (params?: Record<string, unknown>) => ['analytics', 'predictions', params] as const,
     alerts: () => ['analytics', 'alerts'] as const,
     reports: () => ['analytics', 'reports'] as const,
+  },
+  notifications: {
+    list: (params?: Record<string, unknown>) => ['student', 'notifications', params] as const,
+    unreadCount: () => ['student', 'notifications', 'unread'] as const,
   },
 }

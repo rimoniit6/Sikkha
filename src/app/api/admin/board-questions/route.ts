@@ -5,7 +5,7 @@ import { invalidateContentCache } from '@/lib/cache-invalidate'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { softDelete } from '@/lib/soft-delete'
-import { getClientIP } from '@/lib/audit'
+import { auditFromRequest, AuditActions, getClientIP } from '@/lib/audit'
 import { createVersion } from '@/lib/version-history'
 
 const createBoardMcqSchema = z.object({
@@ -223,6 +223,7 @@ export async function POST(request: Request) {
       })
 
       await invalidateContentCache('board-question')
+      await auditFromRequest(request, auth.user.id, AuditActions.MCQ_CREATE, 'mcq', data.id, body as Record<string, unknown>, { question: data.question } as Record<string, unknown>)
       return apiResponse(data, 201)
     }
 
@@ -250,6 +251,7 @@ export async function POST(request: Request) {
     })
 
     await invalidateContentCache('board-question')
+    await auditFromRequest(request, auth.user.id, AuditActions.CQ_CREATE, 'cq', data.id, body as Record<string, unknown>, { uddeepok: data.uddeepok } as Record<string, unknown>)
     return apiResponse(data, 201)
   } catch (error) {
     return handleApiError(error, 'Admin Create Board Question')
@@ -301,11 +303,12 @@ export async function PUT(request: Request) {
       }, { maxWait: 10000, timeout: 30000 })
 
       await invalidateContentCache('board-question')
+      await auditFromRequest(request, auth.user.id, AuditActions.MCQ_UPDATE, 'mcq', id, existing as Record<string, unknown>, data)
       return apiResponse(updated)
     }
 
-    const existing = await db.cQ.findUnique({ where: { id } })
-    if (!existing) return apiError('CQ খুঁজে পাওয়া যায়নি', 404)
+    const existingCq = await db.cQ.findUnique({ where: { id } })
+    if (!existingCq) return apiError('CQ খুঁজে পাওয়া যায়নি', 404)
 
     const data: Record<string, unknown> = {}
     const allowedFields = [
@@ -324,17 +327,18 @@ export async function PUT(request: Request) {
     const userAgent = request.headers.get('user-agent') || undefined
 
     const changedFields = Object.keys(data).filter(
-      key => JSON.stringify(data[key]) !== JSON.stringify(existing[key as keyof typeof existing])
+      key => JSON.stringify(data[key]) !== JSON.stringify(existingCq[key as keyof typeof existingCq])
     )
 
     const updated = await db.$transaction(async (tx) => {
-      await createVersion(tx, 'cQ', id, { ...existing }, auth.user.id, changedFields, {
+      await createVersion(tx, 'cQ', id, { ...existingCq }, auth.user.id, changedFields, {
         ipAddress, userAgent,
       })
       return tx.cQ.update({ where: { id }, data: data as never })
     }, { maxWait: 10000, timeout: 30000 })
 
     await invalidateContentCache('board-question')
+    await auditFromRequest(request, auth.user.id, AuditActions.CQ_UPDATE, 'cq', id, existingCq as Record<string, unknown>, data)
     return apiResponse(updated)
   } catch (error) {
     return handleApiError(error, 'Admin Update Board Question')
@@ -361,6 +365,7 @@ export async function DELETE(request: Request) {
       if (!existing) return apiError('MCQ খুঁজে পাওয়া যায়নি', 404)
       await softDelete(db, 'mcq', id, auth.user.id)
       await invalidateContentCache('board-question')
+      await auditFromRequest(request, auth.user.id, AuditActions.MCQ_DELETE, 'mcq', id, existing as Record<string, unknown>, undefined)
       return apiResponse({ id }, 'MCQ সফলভাবে মুছে ফেলা হয়েছে')
     }
 
@@ -368,6 +373,7 @@ export async function DELETE(request: Request) {
     if (!existing) return apiError('CQ খুঁজে পাওয়া যায়নি', 404)
     await softDelete(db, 'cq', id, auth.user.id)
     await invalidateContentCache('board-question')
+    await auditFromRequest(request, auth.user.id, AuditActions.CQ_DELETE, 'cq', id, existing as Record<string, unknown>, undefined)
     return apiResponse({ id }, 'CQ সফলভাবে মুছে ফেলা হয়েছে')
   } catch (error) {
     return handleApiError(error, 'Admin Delete Board Question')

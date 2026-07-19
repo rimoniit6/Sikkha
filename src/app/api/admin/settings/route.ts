@@ -1,5 +1,6 @@
 import { db } from '@/lib/db'
-import { apiResponse, apiError, withAdmin, validateBody, withCsrf, getClientIP } from '@/lib/api-utils'
+import { apiResponse, apiError, withAdmin, validateBody, withCsrf } from '@/lib/api-utils'
+import { auditFromRequest, AuditActions, getClientIP } from '@/lib/audit'
 import { handleApiError } from '@/lib/errors'
 import { invalidateContentCache } from '@/lib/cache-invalidate'
 import { invalidateCsrfCache } from '@/lib/csrf'
@@ -80,6 +81,9 @@ export async function POST(request: Request) {
     })
 
     await invalidateContentCache('settings')
+
+    await auditFromRequest(request, auth.user.id, AuditActions.SETTINGS_CREATE, 'site_setting', data.key, body, { key, value, group, label })
+
     return apiResponse({ data }, 201)
   } catch (error) {
     return handleApiError(error, 'Admin Create Setting')
@@ -135,6 +139,9 @@ export async function PUT(request: Request) {
     })
 
     await invalidateContentCache('settings')
+
+    await auditFromRequest(request, auth.user.id, AuditActions.SETTINGS_UPDATE, 'site_setting', key, { value: existing.value, group: existing.group, label: existing.label }, { value, group, label })
+
     return apiResponse({ data })
   } catch (error) {
     return handleApiError(error, 'Admin Update Setting')
@@ -187,6 +194,8 @@ export async function PATCH(request: Request) {
     if (csrfSetting) {
       invalidateCsrfCache()
     }
+
+    await auditFromRequest(request, auth.user.id, AuditActions.SETTINGS_BATCH_UPDATE, 'site_setting', 'batch:' + settings.map(s => s.key).join(','), undefined, { count: settings.length, keys: settings.map(s => s.key) })
 
     return apiResponse({ data: { updated: settings.length } })
   } catch (error) {

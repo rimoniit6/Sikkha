@@ -7,7 +7,7 @@ import { z } from 'zod'
 import { toDecimal } from '@/lib/decimal'
 import { softDelete } from '@/lib/soft-delete'
 import { createVersion } from '@/lib/version-history'
-import { getClientIP } from '@/lib/audit'
+import { auditFromRequest, AuditActions, getClientIP } from '@/lib/audit'
 
 const createExamSchema = z.object({
   title: z.string().min(1, 'পরীক্ষার নাম আবশ্যক'),
@@ -123,6 +123,7 @@ export async function POST(request: Request) {
       exam.totalMarks = calcMarks
     }
 
+    await auditFromRequest(request, auth.user.id, AuditActions.EXAM_CREATE, 'exam', exam.id, body, { title: exam.title })
     return apiResponse(exam, 201)
   } catch (error) {
     return handleApiError(error, 'Admin Create Exam')
@@ -203,6 +204,7 @@ export async function PUT(request: Request) {
       timeout: 30000,
     })
 
+    await auditFromRequest(request, auth.user.id, AuditActions.EXAM_UPDATE, 'exam', id, existing, updateFields)
     return apiResponse(updated)
   } catch (error) {
     return handleApiError(error, 'Admin Update Exam')
@@ -223,6 +225,7 @@ export async function DELETE(request: Request) {
       for (const id of ids) {
         await softDelete(db, 'exam', id, auth.user.id)
       }
+      await auditFromRequest(request, auth.user.id, AuditActions.EXAM_DELETE, 'exam', ids.join(','), undefined, { count: ids.length })
       return apiResponse({ deleted: ids.length }, `${ids.length}টি সফলভাবে মুছে ফেলা হয়েছে`)
     }
     const id = searchParams.get('id')
@@ -233,6 +236,7 @@ export async function DELETE(request: Request) {
     if (!existing) return apiError('পরীক্ষা খুঁজে পাওয়া যায়নি', 404)
 
     await softDelete(db, 'exam', id, auth.user.id)
+    await auditFromRequest(request, auth.user.id, AuditActions.EXAM_DELETE, 'exam', id)
     return apiResponse({ id }, 'পরীক্ষা সফলভাবে মুছে ফেলা হয়েছে')
   } catch (error) {
     return handleApiError(error, 'Admin Delete Exam')

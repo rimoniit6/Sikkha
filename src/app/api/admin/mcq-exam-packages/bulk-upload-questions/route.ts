@@ -5,6 +5,7 @@ import { ExcelParseError,safeParseExcelFromFile } from '@/lib/excel-parse'
 import { NextResponse } from 'next/server'
 import { toDecimal } from '@/lib/decimal'
 import * as XLSX from 'xlsx'
+import { auditFromRequest, AuditActions } from '@/lib/audit'
 
 // Excel column mapping (Bengali + English headers → DB fields)
 const COLUMN_MAP: Record<string, string> = {
@@ -273,6 +274,8 @@ export async function POST(request: Request) {
         },
       })
     }
+
+    await auditFromRequest(request, auth.user.id, 'mcq_exam_questions_bulk_upload', 'mcq_exam_package', examSet.package.id, undefined, { count: insertPayloads.length, setId } as Record<string, unknown>)
 
     return NextResponse.json({
       success: true,

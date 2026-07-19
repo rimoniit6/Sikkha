@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/auth'
 import { getContentTypeLabels } from '@/lib/content-type-labels'
 import { handleApiError } from '@/lib/errors'
+import { auditFromRequest, AuditActions } from '@/lib/audit'
 
 export async function GET(request: Request) {
   try {
@@ -195,6 +196,8 @@ export async function PATCH(request: Request) {
 
       return payment
     })
+
+    await auditFromRequest(request, auth.user.id, 'content_purchase_status_update', 'content_purchase', updated.id, { isActive: existing.isActive } as Record<string, unknown>, { isActive } as Record<string, unknown>)
 
     return NextResponse.json({
       success: true,

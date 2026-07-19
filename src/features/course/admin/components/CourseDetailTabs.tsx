@@ -16,6 +16,7 @@ import AssignmentsTab from './AssignmentsTab'
 import StudentsTab from './StudentsTab'
 import AnalyticsTab from './AnalyticsTab'
 import SettingsTab from './SettingsTab'
+import { WorkflowPanel } from '@/components/admin/workflow'
 
 interface Props {
   courseId: string
@@ -46,6 +47,12 @@ export default function CourseDetailTabs({ courseId, courseTitle, onBack }: Prop
           <p className="text-sm text-muted-foreground">/admin/courses/{courseId}</p>
         </div>
       </div>
+
+      <WorkflowPanel
+        entityType="course"
+        entityId={courseId}
+        compact
+      />
 
       {h.loading ? (
         <div className="space-y-4">

@@ -56,6 +56,7 @@ Upload,
 X
 } from 'lucide-react'
 import React,{ useCallback,useEffect,useRef,useState } from 'react'
+import { WorkflowPanel } from '@/components/admin/workflow'
 
 // ─── Types ──────────────────────────────────────────────────────
 
@@ -1319,6 +1320,14 @@ export default function AdminExamsPage() {
           })}
         </div>
       </div>
+
+      {editId && (
+        <WorkflowPanel
+          entityType="exam"
+          entityId={editId}
+          onTransition={() => { /* refetch handled by parent */ }}
+        />
+      )}
 
       {/* Step Content */}
       <AnimatePresence mode="wait">

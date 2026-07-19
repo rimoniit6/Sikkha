@@ -4,6 +4,7 @@ import { handleApiError } from '@/lib/errors'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { softDelete } from '@/lib/soft-delete'
+import { auditFromRequest, AuditActions } from '@/lib/audit'
 
 const createContentTypeSchema = z.object({
   key: z.string().min(1, 'key আবশ্যক'),
@@ -57,6 +58,8 @@ export async function POST(request: Request) {
       },
     })
 
+    await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_TYPE_CREATE, 'content_type', contentType.id, undefined, contentType as Record<string, unknown>)
+
     return apiResponse(contentType, 201)
   } catch (error) {
     return handleApiError(error, 'Admin Create Content Type')
@@ -82,6 +85,8 @@ export async function PUT(request: Request) {
       data: updates,
     })
 
+    await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_TYPE_UPDATE, 'content_type', contentType.id, undefined, contentType as Record<string, unknown>)
+
     return apiResponse(contentType)
   } catch (error) {
     return handleApiError(error, 'Admin Update Content Type')
@@ -103,6 +108,7 @@ export async function DELETE(request: Request) {
     }
 
     await softDelete(db, 'contentType', id, auth.user.id)
+    await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_TYPE_DELETE, 'content_type', id, undefined, undefined)
     return apiResponse({ id }, 'কন্টেন্ট টাইপ মুছে ফেলা হয়েছে')
   } catch (error) {
     return handleApiError(error, 'Admin Delete Content Type')

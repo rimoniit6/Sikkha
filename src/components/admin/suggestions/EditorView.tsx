@@ -35,6 +35,7 @@ import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { WorkflowPanel } from '@/components/admin/workflow'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
@@ -157,6 +158,14 @@ export function EditorView({
           </Button>
         </div>
       </div>
+
+      {editId && (
+        <WorkflowPanel
+          entityType="suggestion"
+          entityId={editId}
+          onTransition={() => { /* refetch handled by parent */ }}
+        />
+      )}
 
       {/* Editor Body - Two Column on Desktop */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">

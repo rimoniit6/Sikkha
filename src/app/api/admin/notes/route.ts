@@ -2,6 +2,7 @@ import { db } from '@/lib/db'
 import { apiResponse, apiError, withAdmin, parseIdsParam, withCsrf } from '@/lib/api-utils'
 import { handleApiError } from '@/lib/errors'
 import { NextResponse } from 'next/server'
+import { auditFromRequest, AuditActions } from '@/lib/audit'
 
 export async function GET(request: Request) {
   const auth = await withAdmin(request)
@@ -60,6 +61,7 @@ export async function DELETE(request: Request) {
     const ids = parseIdsParam(searchParams)
     if (ids) {
       const result = await db.note.deleteMany({ where: { id: { in: ids } } })
+      await auditFromRequest(request, auth.user.id, AuditActions.NOTE_DELETE, 'note', ids[0], undefined, undefined)
       return apiResponse({ deleted: result.count }, `${result.count}টি সফলভাবে মুছে ফেলা হয়েছে`)
     }
 
@@ -76,6 +78,9 @@ export async function DELETE(request: Request) {
     if (!existing) return apiError('নোট খুঁজে পাওয়া যায়নি', 404)
 
     await db.note.delete({ where: { id } })
+
+    await auditFromRequest(request, auth.user.id, AuditActions.NOTE_DELETE, 'note', id, existing as Record<string, unknown>, undefined)
+
     return apiResponse({ id, message: 'নোট সফলভাবে মুছে ফেলা হয়েছে' })
   } catch (error) {
     return handleApiError(error, 'Admin Delete Note')

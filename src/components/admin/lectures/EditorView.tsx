@@ -36,6 +36,7 @@ import React from 'react'
 import type { StepNumber, ClassItem, SubjectItem, ChapterItem } from './types'
 import { steps } from './types'
 import StepIndicator from './StepIndicator'
+import { WorkflowPanel } from '@/components/admin/workflow'
 
 interface EditorViewProps {
   editId: string | null
@@ -153,6 +154,14 @@ export default function EditorView({
           <StepIndicator currentStep={currentStep} />
         </CardContent>
       </Card>
+
+      {editId && (
+        <WorkflowPanel
+          entityType="lecture"
+          entityId={editId}
+          onTransition={() => { /* refetch handled by parent */ }}
+        />
+      )}
 
       {currentStep === 1 && (
         <div className="space-y-6">

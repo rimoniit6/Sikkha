@@ -1,11 +1,12 @@
 import { db } from '@/lib/db'
-import { apiResponse, paginatedApiResponse, apiError, withAdmin, validateBody, withCsrf, getClientIP } from '@/lib/api-utils'
+import { apiResponse, paginatedApiResponse, apiError, withAdmin, validateBody, withCsrf } from '@/lib/api-utils'
+import { getClientIP } from '@/lib/audit'
 import { handleApiError } from '@/lib/errors'
 import { deriveIsPremium } from '@/lib/premium'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { softDelete } from '@/lib/soft-delete'
-import { createVersion } from '@/lib/version-history'
+import { transitionWorkflow } from '@/lib/workflow'
 
 const createKnowledgeQuestionSchema = z.object({
   chapterId: z.string().min(1, 'chapterId is required'),
@@ -164,31 +165,35 @@ export async function PUT(request: Request) {
       key => JSON.stringify(updateData[key]) !== JSON.stringify(existing[key as keyof typeof existing])
     )
 
-    // Create version snapshot + update in single transaction
+    // Transition workflow + update content atomically
     const ipAddress = getClientIP(request)
     const userAgent = request.headers.get('user-agent') || undefined
 
-    const data = await db.$transaction(async (tx) => {
-      // Create version snapshot of current state BEFORE update
-      await createVersion(tx, 'knowledgeQuestion', id, { ...existing }, auth.user.id, changedFields, {
-        ipAddress,
-        userAgent,
-      })
+    const workflow = await db.contentWorkflow.findFirst({ where: { entityType: 'knowledgeQuestion', entityId: id } })
 
-      // Perform the actual update
-      return tx.knowledgeQuestion.update({
-        where: { id },
+    const result = await transitionWorkflow(db, {
+      entityType: 'knowledgeQuestion',
+      entityId: id,
+      action: 'update_content',
+      userId: auth.user.id,
+      userRole: auth.user.role,
+      expectedVersion: workflow?.version ?? 0,
+      ipAddress,
+      userAgent,
+      changedFields,
+      contentUpdate: {
         data: updateData,
         include: {
           chapter: { select: { id: true, name: true, slug: true } },
         },
-      })
-    }, {
-      maxWait: 10000,
-      timeout: 30000,
+      },
     })
 
-    return apiResponse(data)
+    if (!result.success) {
+      return NextResponse.json({ error: result.error }, { status: result.httpStatus })
+    }
+
+    return apiResponse(result.contentRecord)
   } catch (error) {
     return handleApiError(error, 'Admin Update Knowledge Question')
   }

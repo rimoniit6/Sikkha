@@ -8,7 +8,7 @@ import { toDecimal } from '@/lib/decimal'
 import { z } from 'zod'
 import { guardDeleteDependencies } from '@/lib/delete-guard'
 import { softDelete } from '@/lib/soft-delete'
-import { getClientIP } from '@/lib/audit'
+import { auditFromRequest, AuditActions, getClientIP } from '@/lib/audit'
 import { createVersion } from '@/lib/version-history'
 
 const createMcqPackageSchema = z.object({
@@ -392,6 +392,7 @@ export async function POST(request: Request) {
           },
         })
 
+        await auditFromRequest(request, auth.user.id, AuditActions.MCQ_EXAM_PACKAGE_CREATE, 'mcq_exam_package', pkg.id, body, { title: pkg.title })
         return apiResponse({ package: pkg }, 201)
       }
 
@@ -443,6 +444,7 @@ export async function POST(request: Request) {
         // Update package totalSets
         await recalculatePackageTotalSets(packageId)
 
+        await auditFromRequest(request, auth.user.id, AuditActions.MCQ_EXAM_SET_CREATE, 'mcq_exam_set', examSet.id, body, { title: examSet.title })
         return apiResponse({ set: examSet }, 201)
       }
 
@@ -489,6 +491,7 @@ export async function POST(request: Request) {
         })
 
         await recalculateSetTotals(setId)
+        await auditFromRequest(request, auth.user.id, AuditActions.MCQ_EXAM_SET_QUESTIONS_ADD, 'mcq_exam_set', setId, undefined, { mcqIds: newMcqIds, count: newMcqIds.length })
 
         const updatedSet = await db.mCQExamSet.findUnique({
           where: { id: setId },
@@ -588,6 +591,7 @@ export async function POST(request: Request) {
           timeout: 30000,
         })
 
+        await auditFromRequest(request, auth.user.id, AuditActions.MCQ_EXAM_SET_CREATE, 'mcq_exam_set', packageId, undefined, { count: createdSets.length, prefix, startDate })
         return apiResponse({ sets: createdSets, count: createdSets.length }, 201)
       }
 
@@ -664,6 +668,7 @@ export async function PUT(request: Request) {
           })
         }, { maxWait: 10000, timeout: 30000 })
 
+        await auditFromRequest(request, auth.user.id, AuditActions.MCQ_EXAM_PACKAGE_UPDATE, 'mcq_exam_package', id, existing, data)
         return apiResponse({ package: updated })
       }
 
@@ -701,6 +706,7 @@ export async function PUT(request: Request) {
 
         await db.mCQExamSet.update({ where: { id }, data: data as never })
         await recalculateSetTotals(id)
+        await auditFromRequest(request, auth.user.id, AuditActions.MCQ_EXAM_SET_UPDATE, 'mcq_exam_set', id, existing, data)
 
         const refreshedSet = await db.mCQExamSet.findUnique({
           where: { id },
@@ -862,6 +868,7 @@ export async function DELETE(request: Request) {
         const guard = await guardDeleteDependencies('mcq-exam-packages', id)
         if (!guard.ok) return guard.response
         await softDelete(db, 'mcqExamPackage', id, auth.user.id)
+        await auditFromRequest(request, auth.user.id, AuditActions.MCQ_EXAM_PACKAGE_DELETE, 'mcq_exam_package', id)
         return apiResponse({ message: 'Package deleted' })
       }
 
@@ -874,6 +881,7 @@ export async function DELETE(request: Request) {
         const packageId = existing.packageId
         await db.mCQExamSet.delete({ where: { id } })
         await recalculatePackageTotalSets(packageId)
+        await auditFromRequest(request, auth.user.id, AuditActions.MCQ_EXAM_SET_DELETE, 'mcq_exam_set', id)
         return apiResponse({ message: 'Set deleted' })
       }
 
@@ -889,6 +897,7 @@ export async function DELETE(request: Request) {
 
         await db.mCQExamSetQuestion.delete({ where: { id: question.id } })
         await recalculateSetTotals(setId)
+        await auditFromRequest(request, auth.user.id, AuditActions.MCQ_EXAM_SET_QUESTIONS_REMOVE, 'mcq_exam_set', setId, undefined, { mcqId })
         return apiResponse({ message: 'Question removed' })
       }
 

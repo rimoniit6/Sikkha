@@ -4,8 +4,8 @@ import { apiResponse, apiError, withAdmin, withCsrf } from '@/lib/api-utils'
 import { handleApiError } from '@/lib/errors'
 import { NextResponse } from 'next/server'
 import { softDelete } from '@/lib/soft-delete'
-import { createVersion } from '@/lib/version-history'
-import { getClientIP } from '@/lib/audit'
+import { transitionWorkflow } from '@/lib/workflow'
+import { auditFromRequest, AuditActions, getClientIP } from '@/lib/audit'
 
 const lessonPostSchema = z.object({
   courseId: z.string().min(1).optional(),
@@ -104,6 +104,7 @@ export async function POST(request: Request) {
             resources: true,
           },
         })
+        await auditFromRequest(request, auth.user.id, AuditActions.COURSE_LESSON_CREATE, 'course_lesson', lesson.id, body, { title: lesson.title })
         return apiResponse({ lesson }, 201)
       }
 
@@ -123,20 +124,23 @@ export async function POST(request: Request) {
           key => JSON.stringify(updateData[key]) !== JSON.stringify(existing[key as keyof typeof existing])
         )
 
-        // Create version snapshot + update in single transaction
+        // Transition workflow + update content atomically
         const ipAddress = getClientIP(request)
         const userAgent = request.headers.get('user-agent') || undefined
 
-        const lesson = await db.$transaction(async (tx) => {
-          // Create version snapshot of current state BEFORE update
-          await createVersion(tx, 'courseLesson', id, { ...existing }, auth.user.id, changedFields, {
-            ipAddress,
-            userAgent,
-          })
+        const workflow = await db.contentWorkflow.findFirst({ where: { entityType: 'courseLesson', entityId: id } })
 
-          // Perform the actual update
-          return tx.courseLesson.update({
-            where: { id },
+        const result = await transitionWorkflow(db, {
+          entityType: 'courseLesson',
+          entityId: id,
+          action: 'update_content',
+          userId: auth.user.id,
+          userRole: auth.user.role,
+          expectedVersion: workflow?.version ?? 0,
+          ipAddress,
+          userAgent,
+          changedFields,
+          contentUpdate: {
             data: updateData,
             include: {
               assignments: true,
@@ -144,19 +148,22 @@ export async function POST(request: Request) {
               notes: true,
               resources: true,
             },
-          })
-        }, {
-          maxWait: 10000,
-          timeout: 30000,
+          },
         })
 
-        return apiResponse({ lesson })
+        if (!result.success) {
+          return NextResponse.json({ error: result.error }, { status: result.httpStatus })
+        }
+
+        await auditFromRequest(request, auth.user.id, AuditActions.COURSE_LESSON_UPDATE, 'course_lesson', id, existing, updateData)
+        return apiResponse({ lesson: result.contentRecord })
       }
 
       case 'delete': {
         const { id } = body
         if (!id) return apiError('Lesson ID required', 400)
         await softDelete(db, 'courseLesson', id, auth.user.id)
+        await auditFromRequest(request, auth.user.id, AuditActions.COURSE_LESSON_DELETE, 'course_lesson', id)
         return apiResponse({ success: true })
       }
 
@@ -166,6 +173,7 @@ export async function POST(request: Request) {
         await db.$transaction(lessonIds.map((id: string, i: number) =>
           db.courseLesson.update({ where: { id }, data: { displayOrder: i } })
         ))
+        await auditFromRequest(request, auth.user.id, 'course_lesson_reorder', 'course_lesson', courseId, undefined, { order: body.order })
         return apiResponse({ success: true })
       }
 
@@ -214,6 +222,7 @@ export async function POST(request: Request) {
             displayOrder: (max._max.displayOrder ?? -1) + 1,
           },
         })
+        await auditFromRequest(request, auth.user.id, 'course_assignment_create', 'course_assignment', assignment.id, body)
         return apiResponse({ assignment }, 201)
       }
 
@@ -221,6 +230,7 @@ export async function POST(request: Request) {
         const { id } = body
         if (!id) return apiError('Assignment ID required', 400)
         await db.lessonAssignment.delete({ where: { id } })
+        await auditFromRequest(request, auth.user.id, 'course_assignment_delete', 'course_assignment', id)
         return apiResponse({ success: true })
       }
 
