@@ -1,17 +1,16 @@
 import logger from '@/lib/logger'
-import { initProcessHandlers } from '@/lib/process-handlers'
 
 export async function register() {
-  // Only run on the Node.js server runtime (DB client is node-only).
-  if (process.env.NEXT_RUNTIME === 'edge') return
+  if (process.env.NEXT_RUNTIME !== 'nodejs') return
 
-  // Initialize process error handlers
-  initProcessHandlers()
+  const { registerProcessHandlers } = await import(
+    '@/lib/process-handlers.node'
+  )
+  registerProcessHandlers()
 
   logger.info('Application starting', {
     context: 'instrumentation',
     nodeEnv: process.env.NODE_ENV,
-    nodeVersion: process.version,
   })
 
   // Seed super admin
@@ -26,6 +25,5 @@ export async function register() {
 
   logger.info('Application ready', {
     context: 'instrumentation',
-    uptime: Math.floor(process.uptime()),
   })
 }

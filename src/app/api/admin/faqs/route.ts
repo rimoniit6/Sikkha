@@ -133,7 +133,7 @@ export async function DELETE(request: Request) {
     const ids = parseIdsParam(searchParams)
     if (ids) {
       for (const id of ids) {
-        await softDelete(db, 'fAQ', id, auth.user.id)
+        await softDelete(db, 'faq', id, auth.user.id)
       }
       await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_DELETE, 'faq', 'bulk:' + ids.join(','))
       await invalidateContentCache('faq')
@@ -160,7 +160,7 @@ export async function DELETE(request: Request) {
       return apiError('FAQ খুঁজে পাওয়া যায়নি', 404)
     }
 
-    await softDelete(db, 'fAQ', id, auth.user.id)
+    await softDelete(db, 'faq', id, auth.user.id)
     await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_DELETE, 'faq', id)
     await invalidateContentCache('faq')
     return apiResponse({ id }, 'FAQ সফলভাবে মুছে ফেলা হয়েছে')

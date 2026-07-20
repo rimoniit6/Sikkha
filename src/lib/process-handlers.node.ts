@@ -1,18 +1,8 @@
-/**
- * Process Error Handlers
- *
- * Catches uncaught exceptions and unhandled promise rejections
- * that would otherwise crash the server silently.
- *
- * Import this module early in the application lifecycle
- * (e.g., in instrumentation.ts).
- */
-
 import logger from './logger'
 
 let initialized = false
 
-export function initProcessHandlers(): void {
+export function registerProcessHandlers(): void {
   if (initialized) return
   initialized = true
 
@@ -20,7 +10,6 @@ export function initProcessHandlers(): void {
     logger.fatal('Uncaught Exception — process will exit', error, {
       context: 'process-handler',
     })
-    // Give logger time to flush before exiting
     setTimeout(() => process.exit(1), 1000)
   })
 

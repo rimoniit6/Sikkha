@@ -2,7 +2,7 @@ import { db } from '@/lib/db'
 import { apiResponse, apiError, withAdmin, withCsrf, parsePaginationParams } from '@/lib/api-utils'
 import { handleApiError } from '@/lib/errors'
 import { createAuditLog, auditFromRequest, AuditActions } from '@/lib/audit'
-import { restore, bulkRestore, forceDelete, bulkForceDelete, previewForceDelete, bulkPreviewForceDelete, SOFT_DELETE_MODELS } from '@/lib/soft-delete'
+import { restore, bulkRestore, forceDelete, bulkForceDelete, previewForceDelete, bulkPreviewForceDelete, SOFT_DELETE_MODELS, getPrismaModel } from '@/lib/soft-delete'
 import { NextResponse } from 'next/server'
 
 // Map of model name → human-readable label (Bengali)
@@ -20,7 +20,7 @@ const MODEL_LABELS: Record<string, string> = {
   course: 'কোর্স',
   courseLesson: 'কোর্স লেসন',
   banner: 'ব্যানার',
-  fAQ: 'FAQ',
+  faq: 'FAQ',
   testimonial: 'টেস্টিমোনিয়াল',
   notice: 'নোটিশ',
   navigation: 'নেভিগেশন',
@@ -126,7 +126,7 @@ export async function GET(request: Request) {
           }))
         }
 
-        const records = await (db as any)[modelName].findMany({
+        const records = await (db as any)[getPrismaModel(modelName)].findMany({
           where,
           includeDeleted: true,
           orderBy: { deletedAt: sortDir as 'asc' | 'desc' },
@@ -228,15 +228,28 @@ export async function POST(request: Request) {
         if (!resolvedModel) {
           for (const modelName of SOFT_DELETE_MODELS) {
             try {
-              const record = await (db as any)[modelName].findUnique({
+              const prismaName = getPrismaModel(modelName)
+              const delegate = (db as any)[prismaName]
+              if (!delegate) {
+                console.log(`TRASH-DBG: delegate not found for ${modelName} (${prismaName})`)
+                continue
+              }
+              const record = await delegate.findUnique({
                 where: { id },
                 includeDeleted: true,
               })
               if (record && record.deletedAt) {
+                console.log(`TRASH-DBG: resolved ${id} -> ${modelName} (${prismaName})`)
                 resolvedModel = modelName
                 break
+              } else if (record) {
+                console.log(`TRASH-DBG: ${modelName} (${prismaName}) record found for ${id} but deletedAt=null`)
+              } else {
+                console.log(`TRASH-DBG: ${modelName} (${prismaName}) no record for ${id}`)
               }
-            } catch {
+            } catch (e: unknown) {
+              const msg = e instanceof Error ? e.message : String(e)
+              console.log(`TRASH-DBG: ${modelName} ERROR: ${msg}`)
               continue
             }
           }
@@ -245,6 +258,7 @@ export async function POST(request: Request) {
         if (resolvedModel) {
           items.push({ model: resolvedModel, id })
         } else {
+          console.log(`TRASH-DBG: UNRESOLVED id=${id}`)
           unresolvedIds.push(id)
         }
       }
@@ -336,7 +350,7 @@ export async function POST(request: Request) {
         if (!resolvedModel) {
           for (const modelName of SOFT_DELETE_MODELS) {
             try {
-              const record = await (db as any)[modelName].findUnique({
+              const record = await (db as any)[getPrismaModel(modelName)].findUnique({
                 where: { id },
                 includeDeleted: true,
               })
@@ -388,7 +402,7 @@ export async function POST(request: Request) {
         if (!resolvedModel) {
           for (const modelName of SOFT_DELETE_MODELS) {
             try {
-              const record = await (db as any)[modelName].findUnique({
+              const record = await (db as any)[getPrismaModel(modelName)].findUnique({
                 where: { id },
                 includeDeleted: true,
               })

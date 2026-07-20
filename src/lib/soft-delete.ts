@@ -32,7 +32,7 @@ export const SOFT_DELETE_MODELS = new Set([
   'course',
   'courseLesson',
   'banner',
-  'fAQ',
+  'faq',
   'testimonial',
   'notice',
   'navigation',
@@ -54,6 +54,37 @@ export const SOFT_DELETE_MODELS = new Set([
 
 export function isSoftDeleteModel(model: string): boolean {
   return SOFT_DELETE_MODELS.has(model)
+}
+
+/**
+ * Maps lowercase logical model names to their Prisma Client accessor names.
+ * Models with all-caps prefixes (MCQ, CQ, FAQ) need special handling
+ * because Prisma generates `mCQ`, `cQ`, `fAQ` accessors, not `mcq`, `cq`, `faq`.
+ */
+export const PRISMA_MODEL_MAP: Record<string, string> = {
+  mcq: 'mCQ',
+  cq: 'cQ',
+  faq: 'fAQ',
+  mcqExamPackage: 'mCQExamPackage',
+  mcqExamPackagePurchase: 'mCQExamPackagePurchase',
+  mcqExamSet: 'mCQExamSet',
+  mcqExamSetQuestion: 'mCQExamSetQuestion',
+  mcqExamSetResult: 'mCQExamSetResult',
+  mcqExamRetakeRequest: 'mCQExamRetakeRequest',
+  cqExamPackage: 'cQExamPackage',
+  cqExamPackagePurchase: 'cQExamPackagePurchase',
+  cqExamSet: 'cQExamSet',
+  cqExamSetQuestion: 'cQExamSetQuestion',
+  cqExamSubmission: 'cQExamSubmission',
+  cqExamAnswer: 'cQExamAnswer',
+  cqExamAnswerImage: 'cQExamAnswerImage',
+  cqExamRetakeRequest: 'cQExamRetakeRequest',
+}
+
+export function getPrismaModel(logicalName: string): string {
+  const accessor = PRISMA_MODEL_MAP[logicalName]
+  if (accessor) return accessor
+  return logicalName
 }
 
 // ─── Cascade Rules ───
@@ -107,7 +138,7 @@ export async function softDelete(
   try {
     await db.$transaction(async (tx: AnyPrismaClient) => {
       // Check if already deleted
-      const existing = await tx[model].findUnique({ where: { id } })
+      const existing = await tx[getPrismaModel(model)].findUnique({ where: { id } })
       if (!existing) {
         throw new Error(`Record not found: ${model}/${id}`)
       }
@@ -118,7 +149,7 @@ export async function softDelete(
       // Check for children
       const childModels = CASCADE_RULES[model] || []
       for (const childModel of childModels) {
-        const childCount = await tx[childModel].count({
+        const childCount = await tx[getPrismaModel(childModel)].count({
           where: { [`${model}Id`]: id, deletedAt: null },
         })
         if (childCount > 0) {
@@ -128,7 +159,7 @@ export async function softDelete(
             )
           }
           // Cascade: soft-delete all children
-          const childIds = await tx[childModel].findMany({
+          const childIds = await tx[getPrismaModel(childModel)].findMany({
             where: { [`${model}Id`]: id, deletedAt: null },
             select: { id: true },
           })
@@ -141,7 +172,7 @@ export async function softDelete(
       }
 
       // Soft-delete the parent
-      await tx[model].update({
+      await tx[getPrismaModel(model)].update({
         where: { id },
         data: {
           deletedAt: now,
@@ -155,8 +186,8 @@ export async function softDelete(
       timeout: 30000,
     })
   } catch (err) {
-    errors.push(err instanceof Error ? err.message : 'Unknown error')
-    return { success: false, deletedCount: 0, cascadeCount: 0, errors }
+    const message = err instanceof Error ? err.message : 'Unknown error'
+    throw new Error(`Soft delete failed for ${model}/${id}: ${message}`)
   }
 
   return { success: true, deletedCount, cascadeCount, errors }
@@ -224,7 +255,7 @@ export async function restore(
   try {
     await db.$transaction(async (tx: AnyPrismaClient) => {
       // Step 1: Fetch the record to restore (with includeDeleted to bypass filter)
-      const existing = await tx[model].findUnique({
+      const existing = await tx[getPrismaModel(model)].findUnique({
         where: { id },
         includeDeleted: true,
       })
@@ -249,7 +280,7 @@ export async function restore(
 
       if (existing.slug) {
         // Check slug uniqueness against active records
-        const slugConflict = await tx[model].findFirst({
+        const slugConflict = await tx[getPrismaModel(model)].findFirst({
           where: {
             slug: existing.slug,
             id: { not: id },
@@ -259,7 +290,7 @@ export async function restore(
         if (slugConflict) {
           const timestamp = Date.now()
           const newSlugVal = `${existing.slug}-restored-${timestamp}`
-          await tx[model].update({
+          await tx[getPrismaModel(model)].update({
             where: { id },
             data: {
               deletedAt: null,
@@ -267,27 +298,30 @@ export async function restore(
               deleteReason: null,
               slug: newSlugVal,
             },
+            includeDeleted: true,
           })
           slugChanged = true
           newSlug = newSlugVal
         } else {
-          await tx[model].update({
+          await tx[getPrismaModel(model)].update({
             where: { id },
             data: {
               deletedAt: null,
               deletedBy: null,
               deleteReason: null,
             },
+            includeDeleted: true,
           })
         }
       } else {
-        await tx[model].update({
+        await tx[getPrismaModel(model)].update({
           where: { id },
           data: {
             deletedAt: null,
             deletedBy: null,
             deleteReason: null,
           },
+          includeDeleted: true,
         })
       }
 
@@ -304,7 +338,7 @@ export async function restore(
         const childModels = CASCADE_RULES[model] || []
         for (const childModel of childModels) {
           // Find soft-deleted children of this record
-          const deletedChildren = await tx[childModel].findMany({
+          const deletedChildren = await tx[getPrismaModel(childModel)].findMany({
             where: {
               [`${model}Id`]: id,
               deletedAt: { not: null },
@@ -329,8 +363,8 @@ export async function restore(
       timeout: 30000, // Longer timeout for cascade restores
     })
   } catch (err) {
-    errors.push(err instanceof Error ? err.message : 'Unknown error')
-    return { success: false, restoredCount: 0, cascadeCount: 0, errors, slugChanged, newSlug, auditTrail: [] }
+    const message = err instanceof Error ? err.message : 'Unknown error'
+    throw new Error(`Restore failed for ${model}/${id}: ${message}`)
   }
 
   return { success: true, restoredCount: 1, cascadeCount, errors, slugChanged, newSlug, auditTrail }
@@ -415,7 +449,7 @@ export async function bulkRestore(
           throw new Error(`Model '${item.model}' does not support soft delete`)
         }
 
-        const existing = await tx[item.model].findUnique({
+        const existing = await tx[getPrismaModel(item.model)].findUnique({
           where: { id: item.id },
           includeDeleted: true,
         })
@@ -436,7 +470,7 @@ export async function bulkRestore(
         let slugChanged = false
         let newSlug: string | undefined
         if (existing.slug) {
-          const slugConflict = await tx[item.model].findFirst({
+          const slugConflict = await tx[getPrismaModel(item.model)].findFirst({
             where: {
               slug: existing.slug,
               id: { not: item.id },
@@ -470,9 +504,10 @@ export async function bulkRestore(
           updateData.slug = item.newSlug
         }
 
-        await tx[item.model].update({
+        await tx[getPrismaModel(item.model)].update({
           where: { id: item.id },
           data: updateData,
+          includeDeleted: true,
         })
 
         auditTrail.push({
@@ -494,7 +529,7 @@ export async function bulkRestore(
         if (cascade) {
           const childModels = CASCADE_RULES[item.model] || []
           for (const childModel of childModels) {
-            const deletedChildren = await tx[childModel].findMany({
+            const deletedChildren = await tx[getPrismaModel(childModel)].findMany({
               where: {
                 [`${item.model}Id`]: item.id,
                 deletedAt: { not: null },
@@ -675,7 +710,7 @@ async function validateParentHierarchy(
   const parentId = record[hierarchy.field]
   if (!parentId) return { ok: true } // No parent ID set
 
-  const parent = await tx[hierarchy.model].findUnique({
+  const parent = await tx[getPrismaModel(hierarchy.model)].findUnique({
     where: { id: parentId },
     includeDeleted: true,
   })
@@ -691,7 +726,7 @@ async function validateParentHierarchy(
   if (hierarchy.parent) {
     const grandparentId = parent[hierarchy.parent.field]
     if (grandparentId) {
-      const grandparent = await tx[hierarchy.parent.model].findUnique({
+      const grandparent = await tx[getPrismaModel(hierarchy.parent.model)].findUnique({
         where: { id: grandparentId },
         includeDeleted: true,
       })
@@ -720,7 +755,7 @@ const MODEL_LABELS: Record<string, string> = {
   course: 'কোর্স',
   courseLesson: 'কোর্স লেসন',
   banner: 'ব্যানার',
-  fAQ: 'FAQ',
+  faq: 'FAQ',
   testimonial: 'টেস্টিমোনিয়াল',
   notice: 'নোটিশ',
   navigation: 'নেভিগেশন',
@@ -788,7 +823,7 @@ export async function previewForceDelete(
 
   try {
     // Fetch the record
-    const existing = await db[model].findUnique({
+    const existing = await db[getPrismaModel(model)].findUnique({
       where: { id },
       includeDeleted: true,
     })
@@ -808,8 +843,8 @@ export async function previewForceDelete(
     const childModels = CASCADE_RULES[model] || []
     for (const childModel of childModels) {
       const [activeCount, deletedCount] = await Promise.all([
-        db[childModel].count({ where: { [`${model}Id`]: id, deletedAt: null } }),
-        db[childModel].count({ where: { [`${model}Id`]: id, deletedAt: { not: null } } }),
+        db[getPrismaModel(childModel)].count({ where: { [`${model}Id`]: id, deletedAt: null } }),
+        db[getPrismaModel(childModel)].count({ where: { [`${model}Id`]: id, deletedAt: { not: null } } }),
       ])
       const label = MODEL_LABELS[childModel] || childModel
       dependencies.push({
@@ -824,15 +859,15 @@ export async function previewForceDelete(
       if (cascade && deletedCount > 0) {
         const grandchildModels = CASCADE_RULES[childModel] || []
         for (const grandchildModel of grandchildModels) {
-          const deletedChildren = await db[childModel].findMany({
+          const deletedChildren = await db[getPrismaModel(childModel)].findMany({
             where: { [`${model}Id`]: id, deletedAt: { not: null } },
             includeDeleted: true,
             select: { id: true },
           })
           for (const child of deletedChildren) {
             const [gcActive, gcDeleted] = await Promise.all([
-              db[grandchildModel].count({ where: { [`${childModel}Id`]: child.id, deletedAt: null } }),
-              db[grandchildModel].count({ where: { [`${childModel}Id`]: child.id, deletedAt: { not: null } } }),
+              db[getPrismaModel(grandchildModel)].count({ where: { [`${childModel}Id`]: child.id, deletedAt: null } }),
+              db[getPrismaModel(grandchildModel)].count({ where: { [`${childModel}Id`]: child.id, deletedAt: { not: null } } }),
             ])
             const gcLabel = MODEL_LABELS[grandchildModel] || grandchildModel
             const existing = dependencies.find(d => d.model === grandchildModel)
@@ -886,7 +921,7 @@ const DISPLAY_FIELDS_MAP: Record<string, string[]> = {
   course: ['title', 'slug'],
   courseLesson: ['title'],
   banner: ['title'],
-  fAQ: ['question'],
+  faq: ['question'],
   testimonial: ['name', 'content'],
   notice: ['title'],
   navigation: ['label', 'route'],
@@ -934,7 +969,7 @@ export async function forceDelete(
   try {
     await db.$transaction(async (tx: AnyPrismaClient) => {
       // Step 1: Fetch the record
-      const existing = await tx[model].findUnique({
+      const existing = await tx[getPrismaModel(model)].findUnique({
         where: { id },
         includeDeleted: true,
       })
@@ -949,8 +984,8 @@ export async function forceDelete(
       const childModels = CASCADE_RULES[model] || []
       for (const childModel of childModels) {
         const [activeCount, deletedCount] = await Promise.all([
-          tx[childModel].count({ where: { [`${model}Id`]: id, deletedAt: null } }),
-          tx[childModel].count({ where: { [`${model}Id`]: id, deletedAt: { not: null } } }),
+          tx[getPrismaModel(childModel)].count({ where: { [`${model}Id`]: id, deletedAt: null } }),
+          tx[getPrismaModel(childModel)].count({ where: { [`${model}Id`]: id, deletedAt: { not: null } } }),
         ])
 
         if (!cascade) {
@@ -971,7 +1006,7 @@ export async function forceDelete(
           }
           // Cascade: delete soft-deleted children
           if (deletedCount > 0) {
-            const deletedChildren = await tx[childModel].findMany({
+            const deletedChildren = await tx[getPrismaModel(childModel)].findMany({
               where: { [`${model}Id`]: id, deletedAt: { not: null } },
               includeDeleted: true,
               select: { id: true, deletedAt: true, deletedBy: true },
@@ -1001,14 +1036,14 @@ export async function forceDelete(
       })
 
       // Step 4: Permanently delete
-      await tx[model].delete({ where: { id } })
+      await tx[getPrismaModel(model)].delete({ where: { id }, includeDeleted: true })
     }, {
       maxWait: 15000,
       timeout: 30000, // Longer timeout for cascade operations
     })
   } catch (err) {
-    errors.push(err instanceof Error ? err.message : 'Unknown error')
-    return { success: false, deletedCount: 0, cascadeCount: 0, errors, auditTrail: [] }
+    const message = err instanceof Error ? err.message : 'Unknown error'
+    throw new Error(`Force delete failed for ${model}/${id}: ${message}`)
   }
 
   return { success: true, deletedCount: 1, cascadeCount, errors, auditTrail }
@@ -1146,7 +1181,7 @@ export async function bulkForceDelete(
           throw new Error(`Model '${item.model}' does not support force delete`)
         }
 
-        const existing = await tx[item.model].findUnique({
+        const existing = await tx[getPrismaModel(item.model)].findUnique({
           where: { id: item.id },
           includeDeleted: true,
         })
@@ -1161,8 +1196,8 @@ export async function bulkForceDelete(
         const childModels = CASCADE_RULES[item.model] || []
         for (const childModel of childModels) {
           const [activeCount, deletedCount] = await Promise.all([
-            tx[childModel].count({ where: { [`${item.model}Id`]: item.id, deletedAt: null } }),
-            tx[childModel].count({ where: { [`${item.model}Id`]: item.id, deletedAt: { not: null } } }),
+            tx[getPrismaModel(childModel)].count({ where: { [`${item.model}Id`]: item.id, deletedAt: null } }),
+            tx[getPrismaModel(childModel)].count({ where: { [`${item.model}Id`]: item.id, deletedAt: { not: null } } }),
           ])
 
           if (!cascade) {
@@ -1208,7 +1243,7 @@ export async function bulkForceDelete(
         if (cascade) {
           const childModels = CASCADE_RULES[item.model] || []
           for (const childModel of childModels) {
-            const deletedChildren = await tx[childModel].findMany({
+            const deletedChildren = await tx[getPrismaModel(childModel)].findMany({
               where: { [`${item.model}Id`]: item.id, deletedAt: { not: null } },
               includeDeleted: true,
               select: { id: true },
@@ -1245,7 +1280,7 @@ export async function bulkForceDelete(
         })
 
         // Permanently delete
-        await tx[item.model].delete({ where: { id: item.id } })
+        await tx[getPrismaModel(item.model)].delete({ where: { id: item.id }, includeDeleted: true })
 
         results.push({
           id: item.id,
@@ -1374,7 +1409,7 @@ export async function analyzeDeleteImpact(
 
   try {
     // Fetch the record
-    const existing = await db[model].findUnique({
+    const existing = await db[getPrismaModel(model)].findUnique({
       where: { id },
       includeDeleted: true,
     })
@@ -1391,8 +1426,8 @@ export async function analyzeDeleteImpact(
     const childModels = CASCADE_RULES[model] || []
     for (const childModel of childModels) {
       const [activeCount, deletedCount] = await Promise.all([
-        db[childModel].count({ where: { [`${model}Id`]: id, deletedAt: null } }),
-        db[childModel].count({ where: { [`${model}Id`]: id, deletedAt: { not: null } } }),
+        db[getPrismaModel(childModel)].count({ where: { [`${model}Id`]: id, deletedAt: null } }),
+        db[getPrismaModel(childModel)].count({ where: { [`${model}Id`]: id, deletedAt: { not: null } } }),
       ])
       const label = MODEL_LABELS[childModel] || childModel
       const impact: ImpactModel = { model: childModel, label, activeCount, deletedCount, totalCount: activeCount + deletedCount }
@@ -1420,7 +1455,7 @@ export async function analyzeDeleteImpact(
         if (directChild.deletedCount === 0) continue
 
         // Find soft-deleted children of this direct child
-        const deletedChildren = await db[directChild.model].findMany({
+        const deletedChildren = await db[getPrismaModel(directChild.model)].findMany({
           where: { [`${model}Id`]: id, deletedAt: { not: null } },
           includeDeleted: true,
           select: { id: true },
@@ -1431,12 +1466,12 @@ export async function analyzeDeleteImpact(
         for (const grandchildModel of grandchildModels) {
           const gcActiveCounts = await Promise.all(
             deletedChildren.map((child: { id: string }) =>
-              db[grandchildModel].count({ where: { [`${directChild.model}Id`]: child.id, deletedAt: null } })
+              db[getPrismaModel(grandchildModel)].count({ where: { [`${directChild.model}Id`]: child.id, deletedAt: null } })
             )
           )
           const gcDeletedCounts = await Promise.all(
             deletedChildren.map((child: { id: string }) =>
-              db[grandchildModel].count({ where: { [`${directChild.model}Id`]: child.id, deletedAt: { not: null } } })
+              db[getPrismaModel(grandchildModel)].count({ where: { [`${directChild.model}Id`]: child.id, deletedAt: { not: null } } })
             )
           )
           const totalGcActive = gcActiveCounts.reduce((a: number, b: number) => a + b, 0)
@@ -1637,7 +1672,7 @@ async function checkParentActive(
   const parentId = record[parentInfo.field]
   if (!parentId) return { ok: true }
 
-  const parent = await tx[parentInfo.model].findUnique({ where: { id: parentId } })
+      const parent = await tx[getPrismaModel(parentInfo.model)].findUnique({ where: { id: parentId } })
   if (!parent) return { ok: true } // Parent doesn't exist — allow restore
   if (parent.deletedAt) {
     return {

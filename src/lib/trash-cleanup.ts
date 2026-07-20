@@ -11,7 +11,7 @@
 
 import { db } from '@/lib/db'
 import { createAuditLog } from '@/lib/audit'
-import { SOFT_DELETE_MODELS, bulkForceDelete } from '@/lib/soft-delete'
+import { SOFT_DELETE_MODELS, bulkForceDelete, getPrismaModel } from '@/lib/soft-delete'
 
 // ─── Settings Keys ───
 
@@ -106,7 +106,7 @@ export async function previewTrashCleanup(retentionDays: number): Promise<Cleanu
 
   for (const modelName of SOFT_DELETE_MODELS) {
     try {
-      const count = await (db as any)[modelName].count({
+      const count = await (db as any)[getPrismaModel(modelName)].count({
         where: {
           deletedAt: {
             not: null,
@@ -264,7 +264,7 @@ export async function runTrashCleanup(
 
   for (const modelName of SOFT_DELETE_MODELS) {
     try {
-      const records = await (db as any)[modelName].findMany({
+      const records = await (db as any)[getPrismaModel(modelName)].findMany({
         where: {
           deletedAt: {
             not: null,
@@ -370,7 +370,7 @@ const MODEL_LABELS: Record<string, string> = {
   course: 'কোর্স',
   courseLesson: 'কোর্স লেসন',
   banner: 'ব্যানার',
-  fAQ: 'FAQ',
+  faq: 'FAQ',
   testimonial: 'টেস্টিমোনিয়াল',
   notice: 'নোটিশ',
   navigation: 'নেভিগেশন',

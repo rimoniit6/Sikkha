@@ -1,7 +1,7 @@
 import { db } from '@/lib/db'
 import { apiResponse, apiError, withAdmin, withCsrf } from '@/lib/api-utils'
 import { handleApiError } from '@/lib/errors'
-import { analyzeDeleteImpact, analyzeBulkDeleteImpact, SOFT_DELETE_MODELS } from '@/lib/soft-delete'
+import { analyzeDeleteImpact, analyzeBulkDeleteImpact, SOFT_DELETE_MODELS, getPrismaModel } from '@/lib/soft-delete'
 import { NextResponse } from 'next/server'
 
 // POST: Analyze impact of deleting records
@@ -29,7 +29,7 @@ export async function POST(request: Request) {
       if (!resolvedModel) {
         for (const modelName of SOFT_DELETE_MODELS) {
           try {
-            const record = await (db as any)[modelName].findUnique({
+            const record = await (db as any)[getPrismaModel(modelName)].findUnique({
               where: { id },
               includeDeleted: true,
             })
