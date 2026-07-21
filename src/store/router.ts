@@ -102,6 +102,7 @@ export type RoutePath =
   | 'admin-trash'
   | 'admin-audit-logs'
   | 'admin-version-history'
+  | 'blog'
 
 // Single source of truth for admin routes — used by AppShell, page.tsx, and AdminLayout
 export const ADMIN_ROUTES: Set<RoutePath> = new Set([

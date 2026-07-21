@@ -103,6 +103,7 @@ const ROUTE_DEFS: Record<RoutePath, RouteDef> = {
   'admin-trash': { path: '/admin/trash', queryParams: [] },
   'admin-audit-logs': { path: '/admin/audit-logs', queryParams: [] },
   'admin-version-history': { path: '/admin/version-history', queryParams: [] },
+  blog: { path: '/blog', queryParams: [] },
 }
 
 const PARAM_REGEX = /\{(\w+)\}/g

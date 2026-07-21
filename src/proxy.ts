@@ -60,27 +60,14 @@ const PUBLIC_API_ROUTES = [
   '/api/csrf-token',
   '/api/health',
   '/api/navigation',
-]
-
-const PUBLIC_PAGE_ROUTES = [
-  '/',
-  '/login',
-  '/register',
-  '/privacy',
-  '/terms',
-  '/sitemap.xml',
-  '/robots.txt',
+  '/api/blog',
+  '/api/contact',
+  '/api/ready',
 ]
 
 function isPublicApiRoute(pathname: string): boolean {
   return PUBLIC_API_ROUTES.some((route) =>
     pathname === route || pathname.startsWith(route + '/') || pathname.startsWith(route + '?')
-  )
-}
-
-function isPublicPageRoute(pathname: string): boolean {
-  return PUBLIC_PAGE_ROUTES.some((route) =>
-    pathname === route || pathname.startsWith(route + '/')
   )
 }
 
@@ -134,6 +121,7 @@ async function getAuthFromCookie(request: NextRequest): Promise<{ userId: string
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
+  // 1. Static assets: skip middleware processing
   if (
     pathname.startsWith('/_next') ||
     pathname.startsWith('/static') ||
@@ -147,12 +135,7 @@ export async function proxy(request: NextRequest) {
 
   const cspNonce = generateNonce()
 
-  if (isPublicPageRoute(pathname)) {
-    request.headers.set('x-csp-nonce', cspNonce)
-    request.cookies.set('x-csp-nonce', cspNonce)
-    return addSecurityHeaders(NextResponse.next({ request: { headers: request.headers } }), cspNonce)
-  }
-
+  // 2. API routes: enforce auth for non-public endpoints
   if (pathname.startsWith('/api/')) {
     if (isPublicApiRoute(pathname)) {
       return addSecurityHeaders(NextResponse.next(), cspNonce)
@@ -185,11 +168,6 @@ export async function proxy(request: NextRequest) {
       }
     }
 
-    // SECURITY: These headers originate from verified server-side auth.
-    // They are set AFTER JWT verification and DB role lookup.
-    // NO downstream handler should trust these headers for authorization.
-    // Always call verifyAuth() in the handler to re-verify.
-    // These headers exist for logging/debugging only.
     request.headers.set('x-user-id', auth.userId)
     request.headers.set('x-user-role', auth.role)
     request.headers.set('x-csp-nonce', cspNonce)
@@ -200,24 +178,30 @@ export async function proxy(request: NextRequest) {
     return addSecurityHeaders(response, cspNonce)
   }
 
-  const auth = await getAuthFromCookie(request)
+  // 3. Admin routes: enforce auth + admin role
+  if (pathname === '/admin' || pathname.startsWith('/admin/')) {
+    const auth = await getAuthFromCookie(request)
 
-  if (!auth) {
-    const loginUrl = new URL('/login', request.url)
-    loginUrl.searchParams.set('redirect', pathname)
-    const redirect = NextResponse.redirect(loginUrl)
-    redirect.headers.set('X-Request-ID', generateRequestId())
-    return redirect
-  }
+    if (!auth) {
+      const loginUrl = new URL('/login', request.url)
+      loginUrl.searchParams.set('redirect', pathname)
+      const redirect = NextResponse.redirect(loginUrl)
+      redirect.headers.set('X-Request-ID', generateRequestId())
+      return redirect
+    }
 
-  if (pathname.startsWith('/admin/')) {
     if (auth.role !== 'ADMIN' && auth.role !== 'SUPER_ADMIN') {
       const redirect = NextResponse.redirect(new URL('/', request.url))
       redirect.headers.set('X-Request-ID', generateRequestId())
       return redirect
     }
+
+    request.headers.set('x-csp-nonce', cspNonce)
+    request.cookies.set('x-csp-nonce', cspNonce)
+    return addSecurityHeaders(NextResponse.next({ request: { headers: request.headers } }), cspNonce)
   }
 
+  // 4. ALL other page routes: public — just add security headers, no auth required
   request.headers.set('x-csp-nonce', cspNonce)
   request.cookies.set('x-csp-nonce', cspNonce)
   return addSecurityHeaders(NextResponse.next({ request: { headers: request.headers } }), cspNonce)

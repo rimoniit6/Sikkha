@@ -36,13 +36,14 @@ const BOTTOM_NAV_ROUTE_MAP: Record<string, string> = {
   'course-detail': 'course-list',
   'course-viewer': 'course-detail',
   'notices': 'home',
-  'suggestions': 'home',
   'exam-center': 'exam-center',
   'user-dashboard': 'user-dashboard',
+  'suggestions': 'suggestions',
   'class-list': 'class-list',
   'home': 'home',
   'login': 'home',
   'register': 'home',
+  'blog': 'blog',
 }
 
 export default function BottomNav() {
@@ -64,10 +65,6 @@ export default function BottomNav() {
   }
 
   const handleTabClick = (route: string) => {
-    if (!isAuthenticated && (route === 'user-dashboard')) {
-      navigate('login')
-      return
-    }
     navigate(route as RoutePath)
   }
 

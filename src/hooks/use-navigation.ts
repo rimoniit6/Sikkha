@@ -11,6 +11,7 @@ import {
   LayoutDashboard,
   Lightbulb,
   User,
+  Newspaper,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -26,6 +27,7 @@ const iconMap: Record<string, LucideIcon> = {
   LayoutDashboard,
   Lightbulb,
   User,
+  Newspaper,
 }
 
 // ============ Types ============
@@ -59,6 +61,7 @@ const defaultNavItems: NavItemWithIcon[] = [
   { id: 'h6', label: 'নোটিশ', route: 'notices', icon: 'Megaphone', location: 'header', order: 7, isAuthOnly: false, isAdminOnly: false, isActive: true, Icon: Megaphone },
   { id: 'h7', label: 'প্রিমিয়াম', route: 'premium', icon: 'Crown', location: 'header', order: 8, isAuthOnly: false, isAdminOnly: false, isActive: true, Icon: Crown },
   { id: 'h8', label: 'এডমিন', route: 'admin-dashboard', icon: 'LayoutDashboard', location: 'header', order: 9, isAuthOnly: false, isAdminOnly: true, isActive: true, Icon: LayoutDashboard },
+  { id: 'h9', label: 'ব্লগ', route: 'blog', icon: 'Newspaper', location: 'header', order: 10, isAuthOnly: false, isAdminOnly: false, isActive: true, Icon: Newspaper },
 
   // Bottom Nav
   { id: 'b1', label: 'হোম', route: 'home', icon: 'Home', location: 'bottomNav', order: 1, isAuthOnly: false, isAdminOnly: false, isActive: true, Icon: Home },
@@ -66,6 +69,7 @@ const defaultNavItems: NavItemWithIcon[] = [
   { id: 'b3', label: 'এক্সাম', route: 'exam-center', icon: 'ClipboardCheck', location: 'bottomNav', order: 3, isAuthOnly: false, isAdminOnly: false, isActive: true, Icon: ClipboardCheck },
   { id: 'b4', label: 'সাজেশন', route: 'suggestions', icon: 'Lightbulb', location: 'bottomNav', order: 4, isAuthOnly: false, isAdminOnly: false, isActive: true, Icon: Lightbulb },
   { id: 'b5', label: 'প্রোফাইল', route: 'user-dashboard', icon: 'User', location: 'bottomNav', order: 5, isAuthOnly: true, isAdminOnly: false, isActive: true, Icon: User },
+  { id: 'b6', label: 'ব্লগ', route: 'blog', icon: 'Newspaper', location: 'bottomNav', order: 6, isAuthOnly: false, isAdminOnly: false, isActive: true, Icon: Newspaper },
 
   // Footer
   { id: 'f1', label: 'হোম', route: 'home', icon: 'Home', location: 'footer', order: 1, isAuthOnly: false, isAdminOnly: false, isActive: true, Icon: Home },
