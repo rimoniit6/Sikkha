@@ -497,7 +497,7 @@ export async function POST(request: Request) {
 
         const workflow = await db.contentWorkflow.findFirst({ where: { entityType: 'course', entityId: id } })
 
-        const result = await transitionWorkflow(db, {
+        const result = await transitionWorkflow(db as never, {
           entityType: 'course',
           entityId: id,
           action: 'update_content',

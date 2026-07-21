@@ -1,3 +1,15 @@
+// Mock logger to prevent real Sentry/console output in error-path tests
+vi.mock('@/lib/logger', () => ({
+  default: {
+    error: vi.fn(),
+    warn: vi.fn(),
+    info: vi.fn(),
+    debug: vi.fn(),
+    fatal: vi.fn(),
+    request: vi.fn(),
+  }
+}))
+
 import { describe, it, expect, vi } from 'vitest'
 import {
   getRetentionCutoff,

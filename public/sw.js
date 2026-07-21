@@ -28,6 +28,14 @@ self.addEventListener('activate', (event) => {
   self.clients.claim()
 })
 
+// Listen for logout messages to clear user-specific caches
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'LOGOUT') {
+    caches.delete(DYNAMIC_CACHE)
+    caches.delete(OFFLINE_CACHE)
+  }
+})
+
 // Fetch: smart caching strategy
 self.addEventListener('fetch', (event) => {
   const { request } = event
@@ -40,7 +48,7 @@ self.addEventListener('fetch', (event) => {
 
   // API requests: network-first with cache fallback
   if (url.pathname.startsWith('/api/')) {
-    event.respondWith(networkFirst(request))
+    event.respondWith(apiHandler(request))
     return
   }
 
@@ -80,11 +88,13 @@ async function cacheFirst(request, cacheName = STATIC_CACHE) {
   }
 }
 
-// Network-first strategy for API calls
-async function networkFirst(request) {
+// Network-first strategy for API calls — respects Cache-Control headers
+async function apiHandler(request) {
   try {
     const response = await fetch(request)
-    if (response.ok) {
+    // Check Cache-Control header — never cache responses with 'no-store'
+    const cacheControl = response.headers.get('Cache-Control') || ''
+    if (response.ok && !cacheControl.includes('no-store')) {
       const cache = await caches.open(DYNAMIC_CACHE)
       cache.put(request, response.clone())
     }
@@ -151,3 +161,6 @@ async function staleWhileRevalidate(request) {
 
   return cached || fetchPromise
 }
+
+// Clear all protected API caches (called from app on logout)
+self.skipWaiting()

@@ -67,7 +67,7 @@ export function LectureCard({ lecture, index, isPurchased = false, isLocked = fa
               </div>
             </div>
 
-            <PremiumBadge status={accessStatus} size="sm" />
+            <PremiumBadge state={accessStatus} size="sm" />
           </div>
 
           <div className="flex gap-2 mt-4">

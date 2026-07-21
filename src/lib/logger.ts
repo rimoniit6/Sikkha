@@ -116,6 +116,7 @@ export interface RequestContext {
   userId?: string
   route?: string
   method?: string
+  context?: string
 }
 
 const logger = {

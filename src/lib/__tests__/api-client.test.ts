@@ -332,7 +332,7 @@ describe('ApiClient', () => {
           const signal = opts.signal
           if (signal) {
             signal.addEventListener('abort', () => {
-              reject(new DOMException('The operation was aborted', 'AbortError'))
+              reject(new DOMException('Request timeout', 'AbortError'))
             })
           }
         })

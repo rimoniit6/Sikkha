@@ -30,7 +30,7 @@ export default function AdminBlogPage() {
   const navigate = useRouterStore((s) => s.navigate)
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
-  const { blogs, isLoading, invalidate } = useAdminBlogs({ page, search: search || undefined })
+  const { blogs, isLoading, total, totalPages, page: currentPage, invalidate } = useAdminBlogs({ page, search: search || undefined })
 
   const handleDelete = async (id: string) => {
     if (!confirm('ব্লগ পোস্টটি মুছে ফেলবেন?')) return
@@ -181,6 +181,33 @@ export default function AdminBlogPage() {
           </Table>
         )}
       </Card>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-muted-foreground">
+            মোট {total}টি পোস্ট — পৃষ্ঠা {currentPage} / {totalPages}
+          </p>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={currentPage <= 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+            >
+              পূর্ববর্তী
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={currentPage >= totalPages}
+              onClick={() => setPage((p) => p + 1)}
+            >
+              পরবর্তী
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -39,6 +39,14 @@ vi.mock('next/headers', () => ({
   cookies: vi.fn(async () => mockCookieStore),
 }))
 
+vi.mock('@/lib/db', () => ({
+  db: {
+    siteSetting: {
+      findUnique: vi.fn().mockResolvedValue({ value: 'true' }),
+    },
+  },
+}))
+
 vi.mock('@/lib/auth', () => ({
   requireAuth: vi.fn(async () => mockAuthResult),
   requireRole: vi.fn(async (_req: Request, ...roles: string[]) => {
@@ -84,6 +92,9 @@ describe('CSRF', () => {
   })
 
   it('csrfMiddleware returns valid:false when no cookie and sets new token', async () => {
+    mockVerify.mockReset()
+    cookieState.value = null
+
     const request = new Request('http://localhost/api/test', { method: 'GET' })
 
     mockSign.mockImplementationOnce(async () => 'new-token')
@@ -107,8 +118,9 @@ describe('CSRF', () => {
   })
 
   it('verifyCsrfFromRequest returns false when no token provided', async () => {
-    cookieState.value = 'some-cookie'
+    mockVerify.mockReset()
     mockVerify.mockRejectedValueOnce(new Error('no match'))
+    cookieState.value = 'some-cookie'
 
     const request = new Request('http://localhost/api/test', { method: 'POST' })
     const result = await verifyCsrfFromRequest(request)

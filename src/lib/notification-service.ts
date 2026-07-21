@@ -105,9 +105,9 @@ export async function sendEmailNotification(
     subject: string
     html: string
   }
-): Promise<{ sent: boolean; skipped: boolean; error?: string }> {
+): Promise<{ sent: boolean; skipped: boolean; error: string | undefined }> {
   if (!provider) {
-    return { sent: false, skipped: true }
+    return { sent: false, skipped: true, error: undefined }
   }
 
   try {
@@ -150,7 +150,7 @@ export async function dispatchWorkflowNotifications(
   options?: NotificationOptions
 ): Promise<{
   inApp: { sent: boolean; id?: string }
-  email: { sent: boolean; skipped: boolean; error?: string }
+  email: { sent: boolean; skipped: boolean; error: string | undefined }
 }> {
   const { entityType, entityId, fromStatus, toStatus, contentTitle, userId, reason } = context
   const contentType = CONTENT_TYPE_LABELS[entityType] || entityType
@@ -197,7 +197,7 @@ export async function dispatchWorkflowNotifications(
       emailResult = await sendEmailNotification(options.emailProvider, {
         to: user.email,
         subject: notificationContent.emailSubject,
-        html: notificationContent.emailHtml(user.name),
+        html: notificationContent.emailHtml(user.name || ''),
       })
     }
   }

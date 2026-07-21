@@ -42,7 +42,7 @@ export async function POST(request: Request) {
     const ipAddress = getClientIP(request)
     const userAgent = request.headers.get('user-agent') || undefined
 
-    const result = await transitionWorkflow(db, {
+    const result = await transitionWorkflow(db as never, {
       entityType,
       entityId,
       action,
@@ -72,7 +72,7 @@ export async function POST(request: Request) {
     }
 
     // Fetch updated workflow state
-    const workflow = await getWorkflow(db, entityType, entityId)
+    const workflow = await getWorkflow(db as never, entityType, entityId)
 
     return apiResponse({
       success: true,
@@ -102,8 +102,8 @@ export async function GET(request: Request) {
       return apiError('entityType and entityId are required', 400)
     }
 
-    const workflow = await getWorkflow(db, entityType, entityId)
-    const history = await getWorkflowHistory(db, entityType, entityId)
+    const workflow = await getWorkflow(db as never, entityType, entityId)
+    const history = await getWorkflowHistory(db as never, entityType, entityId)
     const comments = await db.workflowComment.findMany({
       where: { entityType, entityId },
       orderBy: { createdAt: 'desc' },

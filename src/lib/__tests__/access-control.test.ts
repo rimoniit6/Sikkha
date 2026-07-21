@@ -333,7 +333,7 @@ describe('batchCheckContentAccess', () => {
       { id: 'mcq-1', classLevel: null },
     ])
     mockDb.payment.findMany.mockResolvedValue([
-      { contentType: 'mcq', contentId: 'mcq-1', status: 'approved', isActive: true },
+      { contentType: 'mcq', contentId: 'mcq-1', status: 'APPROVED', isActive: true },
     ])
     mockDb.userSubscription.findMany.mockResolvedValue([])
     mockDb.bundleItem.findMany.mockResolvedValue([])

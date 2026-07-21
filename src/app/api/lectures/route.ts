@@ -4,6 +4,8 @@ import { handleApiError } from '@/lib/errors'
 import { applyRateLimit } from '@/lib/api-utils'
 import { apiLimiter } from '@/lib/rate-limit'
 import { verifyAuth } from '@/lib/auth'
+import { batchCheckContentAccess } from '@/lib/access-control'
+import { cacheHeaders } from '@/lib/cache-headers'
 
 export async function GET(request: Request) {
   try {
@@ -81,31 +83,67 @@ export async function GET(request: Request) {
       db.lecture.count({ where }),
     ])
 
-    const transformedLectures = lectures.map((lecture) => ({
-      id: lecture.id,
-      title: lecture.title,
-      content: lecture.content,
-      thumbnail: lecture.thumbnail,
-      videoUrl: lecture.videoUrl,
-      audioUrl: lecture.audioUrl,
-      pdfUrl: lecture.pdfUrl,
-      chapterName: lecture.chapter.name,
-      subjectName: lecture.chapter.subject.name,
-      className: lecture.chapter.subject.class.name,
-      classSlug: lecture.chapter.subject.class.slug,
-      subjectId: lecture.chapter.subject.id,
-      chapterId: lecture.chapter.id,
-      progress: 0,
-      order: lecture.order,
-      isPremium: lecture.isPremium,
-      price: lecture.price,
-      duration: lecture.duration,
-      resources: lecture.resources.map((r) => ({
-        name: r.title,
-        url: r.url,
-        type: r.type,
-      })),
-    }))
+    // ── Access control: resolve which premium lectures the user can see ──
+    const auth = await verifyAuth(request)
+    const userId = auth?.user.id
+    const isAdmin = auth?.user && ['ADMIN', 'SUPER_ADMIN'].includes(auth.user.role)
+
+    let accessiblePremiumIds = new Set<string>()
+    if (!isAdmin && userId) {
+      const premiumLectureIds = lectures.filter((l) => l.isPremium).map((l) => l.id)
+      if (premiumLectureIds.length > 0) {
+        const accessMap = await batchCheckContentAccess({
+          userId,
+          items: premiumLectureIds.map((id) => ({ contentType: 'lecture', contentId: id })),
+        })
+        for (const [id, result] of accessMap) {
+          if (result.hasAccess) accessiblePremiumIds.add(id)
+        }
+      }
+    } else if (isAdmin) {
+      // Admins see all lectures
+      accessiblePremiumIds = new Set(lectures.filter((l) => l.isPremium).map((l) => l.id))
+    }
+
+    const transformedLectures = lectures.map((lecture) => {
+      const isPremiumLocked = lecture.isPremium && !accessiblePremiumIds.has(lecture.id)
+
+      // Build safe metadata-only response for locked premium lectures
+      const base = {
+        id: lecture.id,
+        title: lecture.title,
+        slug: lecture.slug,
+        thumbnail: lecture.thumbnail,
+        chapterName: lecture.chapter.name,
+        subjectName: lecture.chapter.subject.name,
+        className: lecture.chapter.subject.class.name,
+        classSlug: lecture.chapter.subject.class.slug,
+        subjectId: lecture.chapter.subject.id,
+        chapterId: lecture.chapter.id,
+        order: lecture.order,
+        isPremium: lecture.isPremium,
+        price: lecture.price,
+        duration: lecture.duration,
+        hasAccess: !isPremiumLocked,
+      }
+
+      if (isPremiumLocked) {
+        return base // metadata only — no content, videoUrl, audioUrl, pdfUrl, resources
+      }
+
+      return {
+        ...base,
+        content: lecture.content,
+        videoUrl: lecture.videoUrl,
+        audioUrl: lecture.audioUrl,
+        pdfUrl: lecture.pdfUrl,
+        resources: lecture.resources.map((r) => ({
+          name: r.title,
+          url: r.url,
+          type: r.type,
+        })),
+      }
+    })
 
     return NextResponse.json({
       success: true,
@@ -116,7 +154,7 @@ export async function GET(request: Request) {
         total,
         totalPages: Math.ceil(total / limit),
       },
-    })
+    }, { headers: cacheHeaders.noCache })
   } catch (error) {
     return handleApiError(error, 'Get lectures error')
   }

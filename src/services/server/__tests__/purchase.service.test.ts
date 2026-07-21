@@ -25,8 +25,8 @@ describe('PurchaseService', () => {
         contentId: 'mcq-1',
         contentTitle: 'What is 2+2?',
         amount: 100,
-        method: 'bkash',
-        status: 'pending',
+        method: 'BKASH',
+        status: 'PENDING',
       })
 
       const result = await PurchaseService.createPayment({
@@ -37,14 +37,14 @@ describe('PurchaseService', () => {
       })
 
       expect(result.contentTitle).toBe('What is 2+2?')
-      expect(result.status).toBe('pending')
+      expect(result.status).toBe('PENDING')
       expect(mockDb.payment.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
           userId: 'user-1',
           contentType: 'mcq',
           contentId: 'mcq-1',
           amount: 100,
-          status: 'pending',
+          status: 'PENDING',
         }),
       })
     })
@@ -65,7 +65,7 @@ describe('PurchaseService', () => {
 
       expect(mockDb.payment.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
-          method: 'nagad',
+          method: 'NAGAD',
           paymentNumber: '01XXXXXXXXX',
           transactionId: 'TXN123',
         }),
@@ -126,8 +126,8 @@ describe('PurchaseService', () => {
   describe('getUserPurchases', () => {
     it('returns approved payments ordered by creation date', async () => {
       const payments = [
-        { id: 'pay-1', amount: 100, status: 'approved', isActive: true },
-        { id: 'pay-2', amount: 200, status: 'approved', isActive: true },
+        { id: 'pay-1', amount: 100, status: 'APPROVED', isActive: true },
+        { id: 'pay-2', amount: 200, status: 'APPROVED', isActive: true },
       ]
       mockDb.payment.findMany.mockResolvedValue(payments)
 
@@ -135,7 +135,7 @@ describe('PurchaseService', () => {
 
       expect(result).toEqual(payments)
       expect(mockDb.payment.findMany).toHaveBeenCalledWith({
-        where: { userId: 'user-1', status: 'approved', isActive: true },
+        where: { userId: 'user-1', status: 'APPROVED', isActive: true },
         orderBy: { createdAt: 'desc' },
       })
     })

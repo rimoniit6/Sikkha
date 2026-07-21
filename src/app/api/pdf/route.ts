@@ -2,6 +2,8 @@ import { apiError } from '@/lib/api-utils'
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyAuth } from '@/lib/auth'
 import { apiLimiter, getClientIdentifier, rateLimitHeaders } from '@/lib/rate-limit'
+import { checkContentAccess } from '@/lib/access-control'
+import { db } from '@/lib/db'
 
 /**
  * Check if a hostname resolves to a private/internal IP address
@@ -50,6 +52,83 @@ function isUrlSafe(url: URL): boolean {
   return true
 }
 
+/**
+ * Resolve the content owner/content type from a file URL by scanning model tables.
+ * This prevents users from downloading arbitrary files through the proxy.
+ */
+async function resolveDownloadPermission(
+  userId: string,
+  fileUrl: string
+): Promise<{ hasPermission: boolean }> {
+  // Check if the URL belongs to a lecture (lecture.pdfUrl, resource.url)
+  const lectureWithPdf = await db.lecture.findFirst({
+    where: { pdfUrl: fileUrl, isActive: true },
+    select: { id: true, isPremium: true },
+  })
+  if (lectureWithPdf) {
+    if (!lectureWithPdf.isPremium) return { hasPermission: true } // Free lecture
+    const access = await checkContentAccess({
+      userId,
+      contentType: 'lecture',
+      contentId: lectureWithPdf.id,
+    })
+    return { hasPermission: access.hasAccess }
+  }
+
+  // Check if the URL belongs to a lecture resource
+  const resource = await db.resource.findFirst({
+    where: { url: fileUrl, isActive: true },
+    select: { id: true, lecture: { select: { id: true, isPremium: true } } },
+  })
+  if (resource) {
+    if (!resource.lecture.isPremium) return { hasPermission: true }
+    const access = await checkContentAccess({
+      userId,
+      contentType: 'lecture',
+      contentId: resource.lecture.id,
+    })
+    return { hasPermission: access.hasAccess }
+  }
+
+  // Check if the URL belongs to a suggestion
+  const suggestionWithPdf = await db.suggestion.findFirst({
+    where: { pdfUrl: fileUrl, isActive: true },
+    select: { id: true, isPremium: true },
+  })
+  if (suggestionWithPdf) {
+    if (!suggestionWithPdf.isPremium) return { hasPermission: true }
+    const access = await checkContentAccess({
+      userId,
+      contentType: 'suggestion',
+      contentId: suggestionWithPdf.id,
+    })
+    return { hasPermission: access.hasAccess }
+  }
+
+  // For URLs not associated with any known content, check against public URL patterns.
+  // Deny the download for unknown URLs that don't match public content paths.
+  // This prevents arbitrary file proxying through the download endpoint.
+  const knownPublicPatterns = [
+    '/public/',
+    '/_next/',
+    '/api/',
+    '/images/',
+    '/uploads/',
+    '/avatars/',
+    '/thumbnails/',
+    '/banners/',
+    '/blog/',
+  ]
+  const urlLower = fileUrl.toLowerCase()
+  const matchesPublicPattern = knownPublicPatterns.some((pattern) => urlLower.includes(pattern))
+  if (matchesPublicPattern) {
+    return { hasPermission: true }
+  }
+
+  // Unknown URLs that don't match any content or public pattern are denied
+  return { hasPermission: false }
+}
+
 export async function GET(request: NextRequest) {
   try {
     // Require authentication
@@ -58,7 +137,7 @@ export async function GET(request: NextRequest) {
       return apiError('প্রমাণীকরণ প্রয়োজন।', 401, 'UNAUTHORIZED')
     }
 
-    // Rate limiting
+    // Rate limiting (stricter for downloads)
     const identifier = getClientIdentifier(request)
     const rateResult = await apiLimiter.limit(identifier)
     if (!rateResult.success) {
@@ -93,6 +172,18 @@ export async function GET(request: NextRequest) {
       return apiError('Access to this URL is not allowed', 403)
     }
 
+    // --- Download access verification ---
+    // Resolve download permission from content ownership
+    // Only URLs matching known content (lecture PDFs, resources, suggestion PDFs) are verified.
+    // Unknown URLs are denied to prevent arbitrary file proxying.
+    const permission = await resolveDownloadPermission(auth.user.id, url)
+    const hasDownloadAccess = permission.hasPermission
+
+    if (!hasDownloadAccess) {
+      // Use consistent 404 to avoid revealing whether the file exists
+      return apiError('ফাইল খুঁজে পাওয়া যায়নি', 404, 'NOT_FOUND')
+    }
+
     const response = await fetch(url, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (compatible; PDFDownloader/1.0)',
@@ -124,7 +215,7 @@ export async function GET(request: NextRequest) {
     const headers: Record<string, string> = {
       'Content-Type': contentType || 'application/pdf',
       'Content-Length': String(buffer.byteLength),
-      'Cache-Control': 'public, max-age=3600',
+      'Cache-Control': 'private, no-cache, no-store, must-revalidate',
     }
 
     if (inline) {

@@ -106,7 +106,7 @@ export async function publishScheduledContent(
     }
 
     // Attempt publish via the existing workflow engine
-    const result: TransitionResponse = await transitionWorkflow(db, {
+    const result: TransitionResponse = await transitionWorkflow(db as never, {
       entityType: current.entityType,
       entityId: current.entityId,
       action: 'publish',

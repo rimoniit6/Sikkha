@@ -76,6 +76,20 @@ export default function Header() {
 
   const handleSearchKeyDown = useCallback((e: React.KeyboardEvent) => { if (e.key === 'Enter') handleSearch() }, [handleSearch])
 
+  // Route prefix matching for active state: e.g. 'blog' matches 'blog', 'blog-detail', 'blog-category', etc.
+  const isRouteActive = useCallback((navRoute: string, current: RoutePath): boolean => {
+    if (current === navRoute) return true
+    // For parent routes with sub-routes, check prefix match
+    if (navRoute === 'blog' && current.startsWith('blog-')) return true
+    if (navRoute === 'class-list' && (current.startsWith('class-') || current.startsWith('subject-') || current.startsWith('chapter-'))) return true
+    if (navRoute === 'exam-center' && (current.startsWith('exam-') || current.startsWith('mcq-exam-') || current.startsWith('cq-exam-'))) return true
+    if (navRoute === 'notices' && current.startsWith('notice-')) return true
+    if (navRoute === 'suggestions' && current.startsWith('suggestion-')) return true
+    if (navRoute === 'course-list' && current.startsWith('course-')) return true
+    if (navRoute === 'cq-list' && current.startsWith('cq-') && !current.startsWith('cq-exam-')) return true
+    return false
+  }, [])
+
   const visibleNav = useMemo(() =>
     headerNav.filter(item => {
       if (item.isAdminOnly && !isAdmin) return false
@@ -116,18 +130,18 @@ export default function Header() {
                   <div key={i} className="w-16 h-9 rounded-lg bg-muted/50 animate-pulse" />
                 ))
               : visibleNav.map((link) => {
-                  const isActive = currentRoute === link.route
+                  const isLinkActive = isRouteActive(link.route, currentRoute)
                   return (
                     <button
                       key={link.id}
                       onClick={() => handleNavClick(link.route)}
                       className={`relative px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200 min-h-[36px] ${
-                        isActive ? 'text-edu-primary bg-edu-primary/5' : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+                        isLinkActive ? 'text-edu-primary bg-edu-primary/5' : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
                       }`}
-                      aria-current={isActive ? 'page' : undefined}
+                      aria-current={isLinkActive ? 'page' : undefined}
                     >
                       {link.label}
-                      {isActive && <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-6 h-0.5 bg-edu-primary rounded-full" />}
+                      {isLinkActive && <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-6 h-0.5 bg-edu-primary rounded-full" />}
                     </button>
                   )
                 })}
@@ -292,13 +306,13 @@ export default function Header() {
                         </div>
                       ))
                     : visibleNav.map((link) => {
-                        const isActive = currentRoute === link.route
+                        const isLinkActive = isRouteActive(link.route, currentRoute)
                         return (
                           <SheetClose asChild key={link.id}>
                             <button
                               onClick={() => handleNavClick(link.route)}
                               className={`flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-all duration-200 min-h-[48px] ${
-                                isActive
+                                isLinkActive
                                   ? 'bg-edu-primary/10 text-edu-primary'
                                   : 'text-muted-foreground hover:bg-accent hover:text-foreground active:bg-accent/80'
                               }`}

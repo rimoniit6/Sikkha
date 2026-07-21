@@ -103,6 +103,14 @@ export type RoutePath =
   | 'admin-audit-logs'
   | 'admin-version-history'
   | 'blog'
+  | 'blog-detail'
+  | 'blog-category'
+  | 'blog-tag'
+  | 'blog-author'
+  | 'admin-blog'
+  | 'admin-blog-editor'
+  | 'admin-blog-categories'
+  | 'admin-blog-tags'
 
 // Single source of truth for admin routes — used by AppShell, page.tsx, and AdminLayout
 export const ADMIN_ROUTES: Set<RoutePath> = new Set([
@@ -160,6 +168,10 @@ export const ADMIN_ROUTES: Set<RoutePath> = new Set([
   'admin-trash',
   'admin-audit-logs',
   'admin-version-history',
+  'admin-blog',
+  'admin-blog-editor',
+  'admin-blog-categories',
+  'admin-blog-tags',
 ])
 
 export function isAdminRoute(route: RoutePath): boolean {
@@ -200,6 +212,7 @@ export interface RouteParams {
   resultId?: string // For exam result viewing
   startSetId?: string // Auto-start a specific exam set on mount
   courseSlug?: string // For course detail page
+  postId?: string // For blog editor
 }
 
 export interface RouterState {

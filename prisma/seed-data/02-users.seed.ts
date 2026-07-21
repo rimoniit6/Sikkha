@@ -34,8 +34,8 @@ export async function seedUsers(db: PrismaClient) {
 
   const allUsers = [
     ...admins,
-    ...students.map(s => ({ email: s.email, name: s.name, role: s.role as const })),
-    ...teachers.map(t => ({ email: t.email, name: t.name, role: t.role as const })),
+    ...students.map(s => ({ email: s.email, name: s.name, role: s.role })),
+    ...teachers.map(t => ({ email: t.email, name: t.name, role: t.role })),
   ]
 
   for (const u of allUsers) {

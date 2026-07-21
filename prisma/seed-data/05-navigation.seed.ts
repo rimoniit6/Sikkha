@@ -26,6 +26,7 @@ const NAV_ITEMS = [
   { label: 'ক্লাসসমূহ', route: 'class-list', icon: 'GraduationCap', location: 'footer', order: 2 },
   { label: 'বোর্ড প্রশ্ন', route: 'board-questions', icon: 'BookOpen', location: 'footer', order: 3 },
   { label: 'প্রিমিয়াম', route: 'premium', icon: 'Crown', location: 'footer', order: 4 },
+  { label: 'ব্লগ', route: 'blog', icon: 'Newspaper', location: 'footer', order: 5 },
 ]
 
 export async function seedNavigation(db: PrismaClient) {

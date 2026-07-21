@@ -26,6 +26,14 @@ export async function GET(request: Request) {
       retryStats,
       averageVersion,
       contentTypeBreakdown,
+    ]: [
+      Array<{ status: string; _count: { id: number } }>,
+      number,
+      Array<{ action: string; _count: { id: number } }>,
+      { _count: { id: number }; _avg: { publishAttempts: number | null }; _sum: { publishAttempts: number | null } },
+      { _count: { id: number } },
+      { _avg: { version: number | null } },
+      Array<{ entityType: string; _count: { id: number } }>,
     ] = await Promise.all([
       // 1. Status distribution (current state of all workflows)
       db.contentWorkflow.groupBy({
@@ -37,7 +45,7 @@ export async function GET(request: Request) {
       db.contentWorkflow.count(),
 
       // 3. Recent transitions (workflow history in last N days)
-      db.workflowHistory.groupBy({
+      (db.workflowHistory.groupBy as any)({
         by: ['action'],
         where: { createdAt: { gte: fromDate } },
         _count: { id: true },

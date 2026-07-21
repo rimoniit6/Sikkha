@@ -38,6 +38,10 @@ export const useAuthStore = create<AuthState>()(
     login: (user) => set({ user, isAuthenticated: true, isLoading: false }),
     logout: async () => {
       await fetch('/api/auth/logout', { method: 'POST' })
+      // Clear service worker caches that may contain premium data
+      if (typeof window !== 'undefined' && 'serviceWorker' in navigator && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({ type: 'LOGOUT' })
+      }
       set({ user: null, isAuthenticated: false, isLoading: false })
     },
     setLoading: (isLoading) => set({ isLoading }),

@@ -22,7 +22,7 @@ export async function seedLectures(db: PrismaClient) {
 
   const chapters = await db.chapter.findMany({
     where: { isActive: true, deletedAt: null },
-    include: { subject: true, subject: { include: { class: true } } },
+    include: { subject: { include: { class: true } } },
     orderBy: [{ subjectId: 'asc' }, { order: 'asc' }],
   })
 

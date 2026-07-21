@@ -1,12 +1,22 @@
 import { api } from '@/lib/api-client'
 import type { BlogPostRecord, BlogPostInput, BlogCategoryRecord, BlogCategoryInput, BlogTagRecord, BlogTagInput } from '@/features/blog/types/blog'
 
+interface PaginatedListResponse<T> {
+  data: T[]
+  pagination?: {
+    page: number
+    limit: number
+    total: number
+    totalPages: number
+  }
+}
+
 type ApiParams = Record<string, string | number | boolean | null | undefined>
 
 export const blogService = {
   admin: {
     list: (params?: ApiParams) =>
-      api.get<BlogPostRecord[]>('admin/blog', params),
+      api.get<PaginatedListResponse<BlogPostRecord>>('admin/blog', params),
     detail: (id: string) =>
       api.get<BlogPostRecord>(`admin/blog/${id}`),
     create: (data: BlogPostInput) =>

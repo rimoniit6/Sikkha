@@ -130,7 +130,7 @@ export async function POST(request: Request) {
 
         const workflow = await db.contentWorkflow.findFirst({ where: { entityType: 'courseLesson', entityId: id } })
 
-        const result = await transitionWorkflow(db, {
+        const result = await transitionWorkflow(db as never, {
           entityType: 'courseLesson',
           entityId: id,
           action: 'update_content',
@@ -223,16 +223,16 @@ export async function POST(request: Request) {
         const { lessonId, title, description, deadline, attachment } = body
         if (!lessonId || !title) return apiError('lessonId, title required', 400)
         const max = await db.lessonAssignment.aggregate({ where: { lessonId }, _max: { displayOrder: true } })
-        await db.$transaction(async (tx) => {
-          const assignment = await tx.lessonAssignment.create({
+        const assignment = await db.$transaction(async (tx) => {
+          const created = await tx.lessonAssignment.create({
             data: {
               lessonId, title, description: description || null,
               deadline: deadline ? new Date(deadline).toISOString() : null, attachment: attachment || null,
               displayOrder: (max._max.displayOrder ?? -1) + 1,
             },
           })
-          await auditFromRequest(request, auth.user.id, 'course_assignment_create', 'course_assignment', assignment.id, body, undefined, tx as never)
-          return assignment
+          await auditFromRequest(request, auth.user.id, 'course_assignment_create', 'course_assignment', created.id, body, undefined, tx as never)
+          return created
         })
         return apiResponse({ assignment }, 201)
       }

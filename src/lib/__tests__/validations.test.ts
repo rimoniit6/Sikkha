@@ -206,7 +206,7 @@ describe('mcqSchema', () => {
     const result = mcqSchema.parse(validMCQ)
     expect(result.question).toBe('What is 2+2?')
     expect(result.correctAnswer).toBe('B')
-    expect(result.difficulty).toBe('medium')
+    expect(result.difficulty).toBe('MEDIUM')
   })
 
   it('rejects missing question', () => {

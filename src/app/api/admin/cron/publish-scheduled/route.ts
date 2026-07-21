@@ -25,7 +25,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    const report = await publishScheduledContent(db)
+    const report = await publishScheduledContent(db as never)
     return apiResponse(report)
   } catch (error) {
     return apiError(
@@ -46,7 +46,7 @@ export async function POST(request: Request) {
   if (auth instanceof NextResponse) return auth
 
   try {
-    const report = await publishScheduledContent(db)
+    const report = await publishScheduledContent(db as never)
 
     await auditFromRequest(
       request,

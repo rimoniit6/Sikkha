@@ -508,6 +508,16 @@ export const AuditActions = {
   // Feedback management
   FEEDBACK_UPDATE: 'feedback_update',
 
+  // Blog management
+  BLOG_CREATE: 'blog_create',
+  BLOG_UPDATE: 'blog_update',
+  BLOG_DELETE: 'blog_delete',
+  BLOG_PUBLISH: 'blog_publish',
+  BLOG_RESTORE: 'blog_restore',
+  BLOG_CATEGORY_CREATE: 'blog_category_create',
+  BLOG_CATEGORY_UPDATE: 'blog_category_update',
+  BLOG_CATEGORY_DELETE: 'blog_category_delete',
+
   // Audit log
   AUDIT_LOG_VIEW: 'audit_log_view',
   AUDIT_LOG_EXPORT: 'audit_log_export',
@@ -577,6 +587,11 @@ export const EntityTypes = {
   CQ_QUESTION: 'cq',
   SUBMISSION: 'cq_exam_submission',
 
+  // Blog
+  BLOG_POST: 'blog_post',
+  BLOG_CATEGORY: 'blog_category',
+  BLOG_TAG: 'blog_tag',
+
   // Other
   SUBSCRIPTION: 'subscription',
   NOTIFICATION: 'notification',
@@ -600,8 +615,8 @@ export type ValidAuditAction = typeof AuditActions[keyof typeof AuditActions]
 /** Union type of all valid EntityType values. */
 export type ValidEntityType = typeof EntityTypes[keyof typeof EntityTypes]
 
-const VALID_ENTITY_TYPES = new Set(Object.values(EntityTypes))
-const VALID_ACTIONS = new Set(Object.values(AuditActions))
+const VALID_ENTITY_TYPES = new Set<string>(Object.values(EntityTypes))
+const VALID_ACTIONS = new Set<string>(Object.values(AuditActions))
 
 /**
  * Validate the audit log input. Warns on unknown entityType/action,
@@ -688,6 +703,16 @@ export const ACTION_LABELS: Record<string, string> = {
   // Notification
   [AuditActions.NOTIFICATION_READ]: 'নোটিফিকেশন পঠিত',
   [AuditActions.NOTIFICATION_MARK_ALL_READ]: 'সব নোটিফিকেশন পঠিত',
+
+  // Blog actions
+  [AuditActions.BLOG_CREATE]: 'ব্লগ তৈরি',
+  [AuditActions.BLOG_UPDATE]: 'ব্লগ আপডেট',
+  [AuditActions.BLOG_DELETE]: 'ব্লগ মুছে ফেলা',
+  [AuditActions.BLOG_PUBLISH]: 'ব্লগ প্রকাশ',
+  [AuditActions.BLOG_RESTORE]: 'ব্লগ পুনরুদ্ধার',
+  [AuditActions.BLOG_CATEGORY_CREATE]: 'ব্লগ ক্যাটাগরি তৈরি',
+  [AuditActions.BLOG_CATEGORY_UPDATE]: 'ব্লগ ক্যাটাগরি আপডেট',
+  [AuditActions.BLOG_CATEGORY_DELETE]: 'ব্লগ ক্যাটাগরি মুছে ফেলা',
 
   // Admin actions
   [AuditActions.GRADE_UPDATE]: 'গ্রেড আপডেট',
@@ -875,6 +900,9 @@ export const ENTITY_TYPE_LABELS: Record<string, string> = {
   [EntityTypes.BOARD]: 'বোর্ড',
   [EntityTypes.EXAM_YEAR]: 'পরীক্ষার সাল',
   [EntityTypes.BOARD_YEAR]: 'বোর্ড সাল',
+  [EntityTypes.BLOG_POST]: 'ব্লগ পোস্ট',
+  [EntityTypes.BLOG_CATEGORY]: 'ব্লগ ক্যাটাগরি',
+  [EntityTypes.BLOG_TAG]: 'ব্লগ ট্যাগ',
   [EntityTypes.SUBSCRIPTION]: 'সাবস্ক্রিপশন',
   [EntityTypes.NOTIFICATION]: 'নোটিফিকেশন',
   [EntityTypes.NOTE]: 'নোট',

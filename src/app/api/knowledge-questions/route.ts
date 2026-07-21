@@ -3,6 +3,8 @@ import { apiResponse, apiError, applyRateLimit } from '@/lib/api-utils'
 import { handleApiError } from '@/lib/errors'
 import { verifyAuth } from '@/lib/auth'
 import { apiLimiter } from '@/lib/rate-limit'
+import { batchCheckContentAccess } from '@/lib/access-control'
+import { cacheHeaders } from '@/lib/cache-headers'
 
 export async function GET(request: Request) {
   try {
@@ -41,9 +43,11 @@ export async function GET(request: Request) {
       db.knowledgeQuestion.count({ where }),
     ])
 
-    // Access control — strip answers for unauthenticated/unsubscribed users
+    // Access control — use unified batchCheckContentAccess instead of manual subscription-only check
     const auth = await verifyAuth(request)
-    let premiumIds = new Set<string>()
+    const userId = auth?.user.id
+    const isAdmin = auth?.user && ['ADMIN', 'SUPER_ADMIN'].includes(auth.user.role)
+    const lockedPremiumIds = new Set<string>()
 
     // Class-based access gate: reject if chapter doesn't belong to user's class
     if (auth?.user?.learningMode === 'CLASS_BASED' && auth?.user?.classLevel) {
@@ -56,50 +60,32 @@ export async function GET(request: Request) {
       }
     }
 
-    if (auth) {
-      // Resolve chapter's class level for subscription check
-      const chapter = await db.chapter.findUnique({
-        where: { id: chapterId },
-        select: { subject: { select: { classId: true } } },
-      })
-      if (chapter) {
-        const classCat = await db.classCategory.findUnique({
-          where: { id: chapter.subject.classId },
-          select: { slug: true },
+    if (!isAdmin && userId) {
+      const premiumItemIds = data.filter((d) => d.isPremium).map((d) => d.id)
+      if (premiumItemIds.length > 0) {
+        const accessMap = await batchCheckContentAccess({
+          userId,
+          items: premiumItemIds.map((id) => ({ contentType: 'mcq' as const, contentId: id })),
         })
-        if (classCat) {
-          const sub = await db.userSubscription.findFirst({
-            where: {
-              userId: auth.user.id,
-              classLevel: classCat.slug,
-              isActive: true,
-              endDate: { gte: new Date() },
-            },
-            select: { id: true },
-          })
-          if (!sub) {
-            // No subscription — mark all premium items as locked
-            premiumIds = new Set(data.filter(d => d.isPremium).map(d => d.id))
-          }
-        } else {
-          premiumIds = new Set(data.filter(d => d.isPremium).map(d => d.id))
+        for (const [id, result] of accessMap) {
+          if (!result.hasAccess) lockedPremiumIds.add(id)
         }
-      } else {
-        premiumIds = new Set(data.filter(d => d.isPremium).map(d => d.id))
       }
-    } else {
-      // Not authenticated — all premium items locked
-      premiumIds = new Set(data.filter(d => d.isPremium).map(d => d.id))
+    } else if (!userId) {
+      // Anonymous users — all premium items locked
+      for (const d of data) {
+        if (d.isPremium) lockedPremiumIds.add(d.id)
+      }
     }
 
     const result = data.map(item => {
-      if (premiumIds.has(item.id)) {
+      if (lockedPremiumIds.has(item.id)) {
         return { ...item, answer: null, answerImage: null }
       }
       return item
     })
 
-    return apiResponse({ data: result, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } })
+    return apiResponse({ data: result, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } }, null, 200, { ...cacheHeaders.noCache })
   } catch (error) {
     return handleApiError(error, 'Get Knowledge Questions')
   }

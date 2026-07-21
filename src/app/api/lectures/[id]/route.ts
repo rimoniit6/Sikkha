@@ -3,6 +3,7 @@ import { apiError } from '@/lib/api-utils'
 import { NextResponse } from 'next/server'
 import { verifyAuth } from '@/lib/auth'
 import { checkContentAccess } from '@/lib/access-control'
+import { cacheHeaders } from '@/lib/cache-headers'
 
 export async function GET(
   _request: Request,
@@ -76,6 +77,7 @@ export async function GET(
         const currentIndex = lecture.chapter.lectures.findIndex(
           (lec) => lec.id === id
         )
+        // Premium content without access — return metadata only
         return NextResponse.json({
           success: true,
           data: {
@@ -98,7 +100,7 @@ export async function GET(
             currentIndex: currentIndex >= 0 ? currentIndex : 0,
             resources: [],
           },
-        })
+        }, { headers: cacheHeaders.noCache })
       }
     }
 
@@ -145,7 +147,7 @@ export async function GET(
       })),
     }
 
-    return NextResponse.json({ success: true, data: result })
+    return NextResponse.json({ success: true, data: result }, { headers: cacheHeaders.noCache })
   } catch (error) {
     console.error('Get lecture detail error:', error)
     return apiError('লেকচারের বিস্তারিত তথ্য আনতে সমস্যা হয়েছে', 500)

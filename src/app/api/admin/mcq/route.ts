@@ -150,13 +150,17 @@ export async function POST(request: Request) {
   }
 }
 
-export async function PUT(request: Request) {
-  const auth = await withAdmin(request)
+export async function PUT(request: Request) {    const auth = await withAdmin(request)
   if (auth instanceof NextResponse) return auth
 
   try {
     const csrfCheck = await withCsrf(request)
     if ('error' in csrfCheck) return csrfCheck.error
+
+    // Granular permission check for content update
+    const { requirePermission } = await import('@/lib/auth')
+    await requirePermission(request, 'content.manage')
+
     const body = await request.json()
     const { id, ...updateData } = body
 
@@ -205,7 +209,7 @@ export async function PUT(request: Request) {
 
     const workflow = await db.contentWorkflow.findFirst({ where: { entityType: 'mCQ', entityId: id } })
 
-    const result = await transitionWorkflow(db, {
+    const result = await transitionWorkflow(db as never, {
       entityType: 'mCQ',
       entityId: id,
       action: 'update_content',
@@ -229,13 +233,17 @@ export async function PUT(request: Request) {
   }
 }
 
-export async function DELETE(request: Request) {
-  const auth = await withAdmin(request)
+export async function DELETE(request: Request) {    const auth = await withAdmin(request)
   if (auth instanceof NextResponse) return auth
 
   try {
     const csrfCheck = await withCsrf(request)
     if ('error' in csrfCheck) return csrfCheck.error
+
+    // Granular permission check for content deletion
+    const { requirePermission } = await import('@/lib/auth')
+    await requirePermission(request, 'content.delete')
+
     const { searchParams } = new URL(request.url)
 
     const ids = parseIdsParam(searchParams)

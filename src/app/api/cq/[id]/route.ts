@@ -4,6 +4,8 @@ import { NextResponse } from 'next/server'
 import { checkContentAccess } from '@/lib/access-control'
 import { apiError, withCsrf } from '@/lib/api-utils'
 import { handleApiError } from '@/lib/errors'
+import { buildPremiumUpdatePayload } from '@/lib/premium'
+import { cacheHeaders } from '@/lib/cache-headers'
 
 
 function transformCQ(cq: {
@@ -137,6 +139,7 @@ export async function GET(
       })
 
       if (!access.hasAccess) {
+    // Premium content without access — return metadata only
         return NextResponse.json({
           success: true,
           data: {
@@ -152,11 +155,11 @@ export async function GET(
             hasAccess: false,
             pendingPayment: access.pendingPayment,
           },
-        })
+        }, { headers: cacheHeaders.noCache })
       }
     }
 
-    return NextResponse.json({ success: true, data: transformCQ(cq as unknown as Parameters<typeof transformCQ>[0]) })
+    return NextResponse.json({ success: true, data: transformCQ(cq as unknown as Parameters<typeof transformCQ>[0]) }, { headers: cacheHeaders.noCache })
   } catch (error) {
     return handleApiError(error, 'Get CQ detail error')
   }
@@ -185,33 +188,8 @@ export async function PUT(
 
     const cq = await db.cQ.update({
       where: { id },
-      data: {
-        ...(body.uddeepok !== undefined && { uddeepok: body.uddeepok }),
-        ...(body.uddeepokImage !== undefined && { uddeepokImage: body.uddeepokImage }),
-        ...(body.question1 !== undefined && { question1: body.question1 }),
-        ...(body.question1Image !== undefined && { question1Image: body.question1Image }),
-        ...(body.question2 !== undefined && { question2: body.question2 }),
-        ...(body.question2Image !== undefined && { question2Image: body.question2Image }),
-        ...(body.question3 !== undefined && { question3: body.question3 }),
-        ...(body.question3Image !== undefined && { question3Image: body.question3Image }),
-        ...(body.question4 !== undefined && { question4: body.question4 }),
-        ...(body.question4Image !== undefined && { question4Image: body.question4Image }),
-        ...(body.answer1 !== undefined && { answer1: body.answer1 }),
-        ...(body.answer1Image !== undefined && { answer1Image: body.answer1Image }),
-        ...(body.answer2 !== undefined && { answer2: body.answer2 }),
-        ...(body.answer2Image !== undefined && { answer2Image: body.answer2Image }),
-        ...(body.answer3 !== undefined && { answer3: body.answer3 }),
-        ...(body.answer3Image !== undefined && { answer3Image: body.answer3Image }),
-        ...(body.answer4 !== undefined && { answer4: body.answer4 }),
-        ...(body.answer4Image !== undefined && { answer4Image: body.answer4Image }),
-        ...(body.difficulty !== undefined && { difficulty: body.difficulty }),
-        ...(body.isPremium !== undefined && { isPremium: body.isPremium }),
-        ...(body.price !== undefined && { price: body.price }),
-        ...(body.tags !== undefined && { tags: body.tags }),
-        ...(body.board !== undefined && { board: body.board }),
-        ...(body.year !== undefined && { year: body.year }),
-        ...(body.isActive !== undefined && { isActive: body.isActive }),
-      },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      data: buildPremiumUpdatePayload(body) as any,
     })
 
     return NextResponse.json({ success: true, data: { message: 'CQ আপডেট হয়েছে', cq } })

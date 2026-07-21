@@ -172,8 +172,8 @@ export default function HeroSection() {
       { name: config?.homepageExam1Name, date: config?.homepageExam1Date },
       { name: config?.homepageExam2Name, date: config?.homepageExam2Date },
     ]
-      .filter((e) => e.name && e.date && !isNaN(new Date(e.date).getTime()))
-      .map((e) => ({ ...e, days: Math.ceil((new Date(e.date).getTime() - now) / DAY) }))
+      .filter((e): e is { name: string; date: string } & typeof e => !!(e.name && e.date && !isNaN(new Date(e.date).getTime())))
+      .map((e) => ({ ...e, days: Math.ceil((new Date(e.date!).getTime() - now) / DAY) }))
 
     const valid = exams.filter((e) => e.days > 0 && e.days < MAX_DAYS)
     if (valid.length === 0) { setUrgency(null); return }

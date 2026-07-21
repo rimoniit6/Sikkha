@@ -30,6 +30,18 @@ export const queryKeys = {
   boardQuestionFilters: ['board-questions', 'filters'] as const,
   boardQuestions: (params?: Record<string, unknown>) => ['board-questions', params] as const,
   premiumPrices: ['premium', 'prices'] as const,
+  blog: {
+    list: (params?: Record<string, unknown>) => ['blog', 'list', params] as const,
+    detail: (slug: string) => ['blog', 'detail', slug] as const,
+    categories: () => ['blog', 'categories'] as const,
+    tags: () => ['blog', 'tags'] as const,
+    admin: {
+      list: (params?: Record<string, unknown>) => ['admin', 'blog', 'list', params] as const,
+      detail: (id: string) => ['admin', 'blog', 'detail', id] as const,
+      categories: () => ['admin', 'blog', 'categories'] as const,
+      tags: () => ['admin', 'blog', 'tags'] as const,
+    },
+  },
   suggestions: (params?: Record<string, unknown>) => ['suggestions', params] as const,
   suggestion: (id: string) => ['suggestion', id] as const,
   packages: () => ['packages'] as const,

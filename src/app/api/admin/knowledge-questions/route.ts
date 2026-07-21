@@ -186,7 +186,7 @@ export async function PUT(request: Request) {
 
     const workflow = await db.contentWorkflow.findFirst({ where: { entityType: 'knowledgeQuestion', entityId: id } })
 
-    const result = await transitionWorkflow(db, {
+    const result = await transitionWorkflow(db as never, {
       entityType: 'knowledgeQuestion',
       entityId: id,
       action: 'update_content',

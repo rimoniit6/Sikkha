@@ -106,9 +106,10 @@ export async function createCustomExam(
   })
   const classSlug = chapter?.subject?.class?.slug || ''
 
-  // Check subscription
-  let hasSubscription = false
+  // Check subscription, direct purchases, and bundle purchases
+  let canAccessPremium = false
   if (classSlug && !freeOnly) {
+    // Check subscription
     const subscription = await db.userSubscription.findFirst({
       where: {
         userId,
@@ -117,7 +118,25 @@ export async function createCustomExam(
         endDate: { gte: new Date() },
       },
     })
-    hasSubscription = !!subscription
+    canAccessPremium = !!subscription
+
+    if (!canAccessPremium) {
+      // Check for direct purchases or bundle purchases that grant premium access
+      // Batch check first chapter's premium MCQs
+      const firstChapterMcqs = await db.mCQ.findMany({
+        where: { chapterId: chapterIds[0], isPremium: true, isActive: true },
+        select: { id: true },
+        take: 5, // Check a sample of premium MCQs
+      })
+      if (firstChapterMcqs.length > 0) {
+        const { batchCheckContentAccess } = await import('@/lib/access-control')
+        const accessMap = await batchCheckContentAccess({
+          userId,
+          items: firstChapterMcqs.map((m) => ({ contentType: 'mcq' as const, contentId: m.id })),
+        })
+        canAccessPremium = Array.from(accessMap.values()).some((r) => r.hasAccess)
+      }
+    }
   }
 
   const maxQuestions = 30
@@ -127,7 +146,7 @@ export async function createCustomExam(
     chapterId: { in: chapterIds },
     isActive: true,
   }
-  if (!hasSubscription) {
+  if (!canAccessPremium) {
     mcqWhere.isPremium = false
   }
   if (difficulty && difficulty !== 'MIXED') {
@@ -143,7 +162,7 @@ export async function createCustomExam(
 
   if (allMcqs.length === 0) {
     throw new ExamError(
-      'নির্বাচিত অধ্যায়ে কোনো' + (hasSubscription ? '' : ' ফ্রি') + ' MCQ পাওয়া যায়নি' +
+      'নির্বাচিত অধ্যায়ে কোনো' + (canAccessPremium ? '' : ' ফ্রি') + ' MCQ পাওয়া যায়নি' +
       (difficulty && difficulty !== 'MIXED' ? ' (এই কঠিনতার জন্য)' : ''),
       404
     )
@@ -191,8 +210,8 @@ export async function createCustomExam(
 
   return {
     examId: result.id,
-    hadPremiumFilter: !hasSubscription,
-    hasSubscription,
+    hadPremiumFilter: !canAccessPremium,
+    hasSubscription: canAccessPremium,
     classSlug,
   }
 }
@@ -368,9 +387,8 @@ export function calculateRemainingTime(
   const totalSeconds = durationMinutes * 60
   const elapsed = Math.floor((now.getTime() - startedAt.getTime()) / 1000)
   const remainingSeconds = Math.max(0, totalSeconds - elapsed)
-  const isExpired = now > expiresAt
 
-  return { remainingSeconds, isExpired, totalSeconds }
+  return { remainingSeconds, isExpired: now > expiresAt, totalSeconds }
 }
 
 // ============ SCORING ============
@@ -473,7 +491,7 @@ export async function submitExam(
   }
 
   // 3. Calculate server-side time
-  const { remainingSeconds, isExpired, totalSeconds } = calculateRemainingTime(
+  const { remainingSeconds, totalSeconds } = calculateRemainingTime(
     session.startedAt,
     session.expiresAt,
     exam.duration

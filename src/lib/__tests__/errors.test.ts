@@ -3,6 +3,25 @@ import { NextResponse } from 'next/server'
 import { z, ZodError as ZodErrorClass } from 'zod'
 import { Prisma } from '@prisma/client'
 
+vi.mock('@/lib/logger', () => ({
+  default: {
+    error: vi.fn((message: string, error?: unknown, ctx?: { context?: string }) => {
+      const code = (error && typeof error === 'object' && error !== null && 'code' in error)
+        ? (error as { code: string }).code
+        : 'UNKNOWN_ERROR'
+      const contextStr = ctx?.context ? `[${ctx.context}]` : '[api]'
+      console.error(`${contextStr} [${code}] ${message}`, message)
+    }),
+    warn: vi.fn((message: string) => {
+      console.warn(message)
+    }),
+    info: vi.fn(),
+    debug: vi.fn(),
+    fatal: vi.fn(),
+    request: vi.fn(),
+  }
+}))
+
 import {
   AppError,
   ValidationError,

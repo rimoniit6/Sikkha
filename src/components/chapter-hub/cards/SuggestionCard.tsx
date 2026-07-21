@@ -63,7 +63,7 @@ export function SuggestionCard({ suggestion, index, isPurchased = false, pending
               </div>
             </div>
 
-            <PremiumBadge status={accessStatus} size="sm" />
+            <PremiumBadge state={accessStatus} size="sm" />
           </div>
 
           <div className="flex gap-2 mt-4">

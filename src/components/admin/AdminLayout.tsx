@@ -43,6 +43,7 @@ import {
   Trash2,
   Activity,
   History,
+  Newspaper,
 } from 'lucide-react'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { useRouterStore, RoutePath, isAdminRoute } from '@/store/router'
@@ -92,6 +93,12 @@ const AdminPages = {
   // CQ Exam
   'admin-cq-exam-packages': lazy(() => import('@/features/cq-exam/admin/CQExamAdminContainer')),
   'admin-exam-results': lazy(() => import('./AdminExamResultsPage')),
+
+  // Blog
+  'admin-blog': lazy(() => import('@/features/blog/admin/AdminBlogPage')),
+  'admin-blog-editor': lazy(() => import('@/features/blog/admin/AdminBlogEditor')),
+  'admin-blog-categories': lazy(() => import('@/features/blog/admin/AdminBlogCategoriesPage')),
+  'admin-blog-tags': lazy(() => import('@/features/blog/admin/AdminBlogTagsPage')),
 
   // Courses
   'admin-courses': lazy(() => import('@/features/course/admin/CourseAdminContainer')),
@@ -194,6 +201,9 @@ const sidebarItems: SidebarItem[] = [
   { label: 'কন্টেন্ট ক্রয়', icon: Filter, route: 'admin-content-purchases', group: GROUPS.RESULTS },
   { label: 'সাবস্ক্রিপশন', icon: CalendarCheck, route: 'admin-subscriptions', group: GROUPS.RESULTS },
   { label: 'পেমেন্ট', icon: CreditCard, route: 'admin-payments', group: GROUPS.FINANCIAL },
+  { label: 'ব্লগ', icon: Newspaper, route: 'admin-blog', group: GROUPS.CMS },
+  { label: 'ব্লগ ক্যাটাগরি', icon: Tags, route: 'admin-blog-categories', group: GROUPS.CMS },
+  { label: 'ব্লগ ট্যাগ', icon: Tags, route: 'admin-blog-tags', group: GROUPS.CMS },
   { label: 'ব্যানার', icon: ImageIcon, route: 'admin-banners', group: GROUPS.CMS },
   { label: 'নোটিফিকেশন', icon: Bell, route: 'admin-notifications', group: GROUPS.CMS },
   { label: 'টেস্টিমোনিয়াল', icon: MessageSquareQuote, route: 'admin-testimonials', group: GROUPS.CMS },
@@ -226,6 +236,14 @@ function SidebarContent({
   const siteName = config?.siteName || 'শিক্ষা বাংলা'
   const activeItemRef = useRef<HTMLButtonElement>(null)
   const prevRouteRef = useRef<RoutePath>(currentRoute)
+
+  // Route prefix matching for admin sidebar active state
+  const isAdminRouteActive = useCallback((sidebarRoute: RoutePath, current: RoutePath): boolean => {
+    if (current === sidebarRoute) return true
+    // Blog: admin-blog also matches admin-blog-editor, admin-blog-categories, admin-blog-tags
+    if (sidebarRoute === 'admin-blog' && current.startsWith('admin-blog')) return true
+    return false
+  }, [])
 
   const groupedItems = useMemo(() => {
     const map = new Map<string, SidebarItem[]>()
@@ -320,7 +338,7 @@ function SidebarContent({
                     </>
                   )}
                   {groupItems.map((item) => {
-                    const isActive = currentRoute === item.route
+                    const isActive = isAdminRouteActive(item.route, currentRoute)
                     const Icon = item.icon
                     return (
                       <Tooltip key={item.route}>

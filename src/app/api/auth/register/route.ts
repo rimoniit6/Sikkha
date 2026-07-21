@@ -66,7 +66,7 @@ export async function POST(request: Request) {
 
     const ipAddress = getClientIP(request)
     const userAgent = request.headers.get('user-agent') || undefined
-    await createAuditLog({ adminId: user.id, action: AuditActions.USER_REGISTER, entityType: 'user', entityId: user.id, ipAddress, userAgent, userName: user.name, userRole: user.role, status: 'success' })
+    await createAuditLog({ adminId: user.id, action: AuditActions.USER_REGISTER, entityType: 'user', entityId: user.id, ipAddress, userAgent, userName: user.name || undefined, userRole: user.role, status: 'success' })
 
     return response
   } catch (error) {

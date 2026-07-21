@@ -38,7 +38,7 @@ export async function findLastAuditLogId(): Promise<{ id: string; hash: string }
     orderBy: { createdAt: 'desc' },
     select: { id: true, hash: true },
   })
-  return last
+  return last as { id: string; hash: string } | null
 }
 
 // ─── Chain Verification ───

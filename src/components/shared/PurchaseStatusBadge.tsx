@@ -14,7 +14,7 @@ import type { ReactNode } from 'react'
  *
  * Plus 'free' for non-premium content.
  */
-export type PurchaseState = 'free' | 'NOT_PURCHASED' | 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED'
+export type PurchaseState = 'free' | 'purchased' | 'pending' | 'rejected' | 'locked' | 'NOT_PURCHASED' | 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED'
 
 // Backward-compatible alias
 export type AccessStatus = PurchaseState
@@ -50,6 +50,26 @@ const badgeConfig: Record<PurchaseState, { text: string; icon: ReactNode; classN
     text: 'বাতিল',
     icon: <XCircle className="size-3" />,
     className: 'bg-rose-100 text-rose-700 border-rose-200 dark:bg-rose-900/30 dark:text-rose-400',
+  },
+  purchased: {
+    text: 'কেনা',
+    icon: <CheckCircle2 className="size-3" />,
+    className: 'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400',
+  },
+  pending: {
+    text: 'অপেক্ষমাণ',
+    icon: <AlertCircle className="size-3" />,
+    className: 'bg-yellow-100 text-yellow-700 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400',
+  },
+  rejected: {
+    text: 'বাতিল',
+    icon: <XCircle className="size-3" />,
+    className: 'bg-rose-100 text-rose-700 border-rose-200 dark:bg-rose-900/30 dark:text-rose-400',
+  },
+  locked: {
+    text: 'প্রিমিয়াম',
+    icon: <Lock className="size-3" />,
+    className: 'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400',
   },
 }
 

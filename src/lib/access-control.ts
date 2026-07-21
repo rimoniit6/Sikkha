@@ -32,6 +32,63 @@ export function getRelatedContentTypes(contentType: ContentType): ContentType[] 
   return types
 }
 
+/**
+ * Validate cross-type content references for consistency.
+ * Ensures that content items sharing cross-type mappings (mcq ↔ board-mcq,
+ * cq ↔ board-cq) have compatible class/subject/chapter values.
+ * Returns a result object indicating whether the references are valid.
+ */
+export interface CrossTypeValidationResult {
+  valid: boolean
+  reason?: string
+}
+
+export async function validateCrossTypeReference(
+  contentType: string,
+  contentId: string,
+  referenceContentType: string,
+  referenceContentId: string
+): Promise<CrossTypeValidationResult> {
+  // Only validate cross-type pairs
+  const isValidPair =
+    (contentType === 'mcq' && referenceContentType === 'board-mcq') ||
+    (contentType === 'board-mcq' && referenceContentType === 'mcq') ||
+    (contentType === 'cq' && referenceContentType === 'board-cq') ||
+    (contentType === 'board-cq' && referenceContentType === 'cq')
+
+  if (!isValidPair) return { valid: true }
+
+  // Fetch both items' class levels
+  const model1 = contentType.includes('cq') ? db.cQ : db.mCQ
+  const model2 = referenceContentType.includes('cq') ? db.cQ : db.mCQ
+
+  const [item1, item2] = await Promise.all([
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (model1 as any).findUnique({ where: { id: contentId }, select: { classLevel: true, subjectId: true, chapterId: true } }),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (model2 as any).findUnique({ where: { id: referenceContentId }, select: { classLevel: true, subjectId: true, chapterId: true } }),
+  ])
+
+  if (!item1 || !item2) return { valid: false, reason: 'Reference not found' }
+
+  // Class levels must match exactly
+  if (item1.classLevel !== item2.classLevel) {
+    return { valid: false, reason: `Class level mismatch: ${item1.classLevel} vs ${item2.classLevel}` }
+  }
+
+  // Subject IDs must match
+  if (item1.subjectId && item2.subjectId && item1.subjectId !== item2.subjectId) {
+    return { valid: false, reason: 'Subject mismatch' }
+  }
+
+  // Chapter IDs must match
+  if (item1.chapterId && item2.chapterId && item1.chapterId !== item2.chapterId) {
+    return { valid: false, reason: 'Chapter mismatch' }
+  }
+
+  return { valid: true }
+}
+
 export async function resolveContentClassLevel(
   contentType: ContentType,
   contentId: string

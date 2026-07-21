@@ -20,7 +20,7 @@ import { db } from '@/lib/db'
  *   8. Default → NOT_PURCHASED
  */
 
-export type PurchaseState = 'NOT_PURCHASED' | 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED'
+export type PurchaseState = 'NOT_PURCHASED' | 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED' | 'purchased' | 'pending' | 'rejected' | 'locked'
 
 export interface PurchaseStatus {
   state: PurchaseState
@@ -61,8 +61,8 @@ async function resolveClassLevel(
   contentId: string
 ): Promise<string | null> {
   if (['mcq', 'cq', 'board-mcq', 'board-cq'].includes(contentType)) {
-    const Model = contentType.includes('cq') ? db.cQ : db.mCQ
-    const item = await Model.findUnique({
+    const Model: typeof db.mCQ | typeof db.cQ = contentType.includes('cq') ? db.cQ : db.mCQ
+    const item = await (Model as typeof db.mCQ).findUnique({
       where: { id: contentId },
       select: { classLevel: true },
     })
@@ -108,17 +108,31 @@ async function resolveClassLevel(
   if (contentType === 'mcq-exam-package') {
     const pkg = await db.mCQExamPackage.findUnique({
       where: { id: contentId },
-      select: { classLevel: true },
+      select: { id: true, classId: true },
     })
-    return pkg?.classLevel || null
+    if (pkg?.classId) {
+      const classCat = await db.classCategory.findUnique({
+        where: { id: pkg.classId },
+        select: { slug: true },
+      })
+      return classCat?.slug || null
+    }
+    return null
   }
 
   if (contentType === 'cq-exam-package') {
     const pkg = await db.cQExamPackage.findUnique({
       where: { id: contentId },
-      select: { classLevel: true },
+      select: { id: true, classId: true },
     })
-    return pkg?.classLevel || null
+    if (pkg?.classId) {
+      const classCat = await db.classCategory.findUnique({
+        where: { id: pkg.classId },
+        select: { slug: true },
+      })
+      return classCat?.slug || null
+    }
+    return null
   }
 
   return null

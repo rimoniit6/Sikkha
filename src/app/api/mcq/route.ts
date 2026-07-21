@@ -4,6 +4,7 @@ import { verifyAuth } from '@/lib/auth'
 import { apiError, withCsrf, applyRateLimit } from '@/lib/api-utils'
 import { handleApiError } from '@/lib/errors'
 import { apiLimiter } from '@/lib/rate-limit'
+import { cacheHeaders } from '@/lib/cache-headers'
 
 
 // Transform raw MCQ Prisma object to frontend-expected format
@@ -125,6 +126,9 @@ export async function GET(request: Request) {
       where.subjectId = subjectId
     } else if (classLevel) {
       where.classLevel = classLevel
+    } else if (auth?.user?.learningMode === 'CLASS_BASED' && auth?.user?.classLevel) {
+      // Student class scoping: restrict to student's own class
+      where.classLevel = auth.user.classLevel
     }
     if (difficulty) where.difficulty = difficulty
     if (board) where.board = board
@@ -177,7 +181,7 @@ export async function GET(request: Request) {
           limit: listLimit,
           totalPages,
         },
-      })
+      }, { headers: cacheHeaders.noCache })
     }
 
     // ─── EXAM MODE: random MCQs with shuffled order ───
@@ -213,10 +217,11 @@ export async function GET(request: Request) {
           total: examMcqs.length,
           mode: 'exam',
         },
-      })
+      }, { headers: cacheHeaders.noCache })
     }
 
     // ─── NORMAL MODE: full data with pagination ───
+    // Apply no-cache headers for premium content responses
     const [mcqs, total] = await Promise.all([
       db.mCQ.findMany({
         where,
@@ -286,7 +291,7 @@ export async function GET(request: Request) {
         total,
         totalPages: Math.ceil(total / limit),
       },
-    })
+    }, { headers: cacheHeaders.noCache })
   } catch (error) {
     return handleApiError(error, 'Get MCQs error')
   }
@@ -302,62 +307,39 @@ export async function POST(request: Request) {
       return apiError('MCQ তৈরি করার অনুমতি নেই', 403, 'FORBIDDEN')
     }
 
-    const body = await request.json()
-    const {
-      question,
-      questionImage,
-      optionA,
-      optionB,
-      optionC,
-      optionD,
-      optionAImage,
-      optionBImage,
-      optionCImage,
-      optionDImage,
-      correctAnswer,
-      explanation,
-      explanationImage,
-      chapterId,
-      classLevel,
-      subjectId,
-      board,
-      year,
-      difficulty,
-      isPremium,
-      price,
-      tags,
-    } = body
+    const { buildPremiumCreatePayload } = await import('@/lib/premium')
+    const body = await request.json() as Record<string, unknown>
+    const sanitized = buildPremiumCreatePayload(body)
+    const data = {
+      question: sanitized.question as string,
+      questionImage: (sanitized.questionImage as string) || null,
+      optionA: sanitized.optionA as string,
+      optionB: sanitized.optionB as string,
+      optionC: sanitized.optionC as string,
+      optionD: sanitized.optionD as string,
+      optionAImage: (sanitized.optionAImage as string) || null,
+      optionBImage: (sanitized.optionBImage as string) || null,
+      optionCImage: (sanitized.optionCImage as string) || null,
+      optionDImage: (sanitized.optionDImage as string) || null,
+      correctAnswer: sanitized.correctAnswer as string,
+      explanation: (sanitized.explanation as string) || null,
+      explanationImage: (sanitized.explanationImage as string) || null,
+      chapterId: sanitized.chapterId as string,
+      classLevel: sanitized.classLevel as string,
+      subjectId: sanitized.subjectId as string,
+      board: (sanitized.board as string) || null,
+      year: (sanitized.year as string) || null,
+      difficulty: (sanitized.difficulty as string) || 'MEDIUM',
+      isPremium: (sanitized.isPremium as boolean) || false,
+      price: (sanitized.price as number) || 0,
+      tags: (sanitized.tags as string) || null,
+    }
 
-    if (!question || !optionA || !optionB || !optionC || !optionD || !correctAnswer || !chapterId || !classLevel || !subjectId) {
+    if (!data.question || !data.optionA || !data.optionB || !data.optionC || !data.optionD || !data.correctAnswer || !data.chapterId || !data.classLevel || !data.subjectId) {
       return apiError('প্রয়োজনীয় ফিল্ড পূরণ করুন', 400)
     }
 
-    const mcq = await db.mCQ.create({
-      data: {
-        question,
-        questionImage: questionImage || null,
-        optionA,
-        optionAImage: optionAImage || null,
-        optionB,
-        optionBImage: optionBImage || null,
-        optionC,
-        optionCImage: optionCImage || null,
-        optionD,
-        optionDImage: optionDImage || null,
-        correctAnswer,
-        explanation: explanation || null,
-        explanationImage: explanationImage || null,
-        chapterId,
-        classLevel,
-        subjectId,
-        board: board || null,
-        year: year || null,
-        difficulty: difficulty || 'MEDIUM',
-        isPremium: isPremium || false,
-        price: price || 0,
-        tags: tags || null,
-      },
-    })
+    const mcq = await db.mCQ.create({ data })
 
     return NextResponse.json(
       { message: 'MCQ সফলভাবে তৈরি হয়েছে', mcq: transformMCQ(mcq as unknown as Parameters<typeof transformMCQ>[0]) },

@@ -8,6 +8,16 @@ import type { BlogPostRecord, BlogCategoryRecord, BlogTagRecord } from '@/featur
 
 type ApiParams = Record<string, string | number | boolean | null | undefined>
 
+interface PaginatedResponse<T> {
+  data: T[]
+  pagination?: {
+    page: number
+    limit: number
+    total: number
+    totalPages: number
+  }
+}
+
 export function useAdminBlogs(params?: ApiParams) {
   const qc = useQueryClient()
   const query = useQuery({
@@ -19,8 +29,13 @@ export function useAdminBlogs(params?: ApiParams) {
     qc.invalidateQueries({ queryKey: ['admin', 'blog'] })
   }, [qc])
 
+  const rawData = query.data as PaginatedResponse<BlogPostRecord> | undefined
+
   return {
-    blogs: (query.data ?? []) as BlogPostRecord[],
+    blogs: (rawData?.data ?? []) as BlogPostRecord[],
+    total: rawData?.pagination?.total ?? 0,
+    totalPages: rawData?.pagination?.totalPages ?? 0,
+    page: rawData?.pagination?.page ?? 1,
     isLoading: query.isLoading,
     isError: query.isError,
     error: query.error,

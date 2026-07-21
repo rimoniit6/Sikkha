@@ -38,25 +38,28 @@ interface MockRecord {
 function createMockDb() {
   const store = new Map<string, MockRecord>()
 
-  function buildDb() {
+  function buildDb(): any {
     return {
       contentWorkflow: {
-        findMany: vi.fn(async ({ where }: { where: Record<string, unknown> }) => {
+        findMany: vi.fn(async ({ where }: { where: any }) => {
           const results: MockRecord[] = []
           const now = new Date()
           for (const record of store.values()) {
             // Match status = 'SCHEDULED'
             if (where.status && record.status !== where.status) continue
             // Match scheduledAt <= now
-            if (where.scheduledAt?.lte && record.scheduledAt) {
-              if (record.scheduledAt > where.scheduledAt.lte) continue
+            const schedAt = where.scheduledAt as { lte?: Date } | undefined
+            if (schedAt?.lte && record.scheduledAt) {
+              if (record.scheduledAt > schedAt.lte) continue
             }
             // Match publishFailedAt = null (skip records where publishFailedAt is set)
             if (where.publishFailedAt === null && record.publishFailedAt !== null) continue
             // Match publishFailedAt: { not: null } (skip records where publishFailedAt is null)
-            if (where.publishFailedAt?.not === null && record.publishFailedAt === null) continue
+            const pubFailAt = where.publishFailedAt as { not?: Date | null } | null | undefined
+            if (pubFailAt?.not === null && record.publishFailedAt === null) continue
             // Match publishAttempts < MAX
-            if (where.publishAttempts?.lt !== undefined && record.publishAttempts >= where.publishAttempts.lt) continue
+            const pubAttempts = where.publishAttempts as { lt?: number } | undefined
+            if (pubAttempts?.lt !== undefined && record.publishAttempts >= pubAttempts.lt) continue
             results.push({ ...record })
           }
           // Sort by scheduledAt asc
@@ -67,7 +70,7 @@ function createMockDb() {
           })
           return results
         }),
-        findFirst: vi.fn(async ({ where }: { where: Record<string, unknown> }) => {
+        findFirst: vi.fn(async ({ where }: { where: any }) => {
           for (const record of store.values()) {
             if (
               (!where.entityType || record.entityType === where.entityType) &&
@@ -78,13 +81,13 @@ function createMockDb() {
           }
           return null
         }),
-        update: vi.fn(async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
+        update: vi.fn(async ({ where, data }: { where: { id: string }; data: any }) => {
           for (const [key, record] of store.entries()) {
             if (record.id === where.id) {
               const updated = { ...record }
               for (const [k, v] of Object.entries(data)) {
                 if (typeof v === 'object' && v !== null && 'increment' in v) {
-                  updated[k] = record[k] + (v as { increment: number }).increment
+                  updated[k] = (record[k] as number) + (v as { increment: number }).increment
                 } else {
                   updated[k] = v
                 }
@@ -95,11 +98,12 @@ function createMockDb() {
           }
           throw new Error('Record not found')
         }),
-        updateMany: vi.fn(async ({ where, data }: { where: Record<string, unknown>; data: Record<string, unknown> }) => {
+        updateMany: vi.fn(async ({ where, data }: { where: any; data: any }) => {
           let count = 0
           for (const [key, record] of store.entries()) {
             let match = true
-            if (where.publishFailedAt?.not === null && record.publishFailedAt === null) match = false
+            const pubFailAt = where.publishFailedAt as { not?: Date | null } | undefined
+            if (pubFailAt?.not === null && record.publishFailedAt === null) match = false
             if (where.entityType && record.entityType !== where.entityType) match = false
             if (where.entityId && record.entityId !== where.entityId) match = false
 
@@ -118,7 +122,7 @@ function createMockDb() {
     }
   }
 
-  const db = buildDb() as Record<string, unknown>
+  const db = buildDb() as any
 
   function addWorkflow(overrides: Partial<MockRecord>) {
     const record: MockRecord = {
@@ -343,7 +347,7 @@ describe('publishScheduledContent', () => {
     })
 
     // Make findFirst return PUBLISHED (simulates race condition)
-    const findFirst = mockDb.db.contentWorkflow.findFirst as ReturnType<typeof vi.fn>
+    const findFirst = (mockDb.db.contentWorkflow as any).findFirst as ReturnType<typeof vi.fn>
     findFirst.mockImplementation(async () => ({
       ...workflow,
       status: 'PUBLISHED', // changed between findMany and findFirst

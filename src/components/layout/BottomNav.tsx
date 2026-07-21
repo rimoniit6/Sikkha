@@ -44,6 +44,10 @@ const BOTTOM_NAV_ROUTE_MAP: Record<string, string> = {
   'login': 'home',
   'register': 'home',
   'blog': 'blog',
+  'blog-detail': 'blog',
+  'blog-category': 'blog',
+  'blog-tag': 'blog',
+  'blog-author': 'blog',
 }
 
 export default function BottomNav() {

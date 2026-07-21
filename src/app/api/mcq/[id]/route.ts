@@ -3,6 +3,8 @@ import { verifyAuth } from '@/lib/auth'
 import { NextResponse } from 'next/server'
 import { checkContentAccess } from '@/lib/access-control'
 import { apiError, withCsrf } from '@/lib/api-utils'
+import { buildPremiumUpdatePayload } from '@/lib/premium'
+import { cacheHeaders } from '@/lib/cache-headers'
 
 
 function transformMCQ(mcq: {
@@ -79,6 +81,7 @@ export async function GET(
       })
 
       if (!access.hasAccess) {
+    // Premium content without access — return metadata only
         return NextResponse.json({
           success: true,
           data: {
@@ -91,11 +94,11 @@ export async function GET(
             hasAccess: false,
             pendingPayment: access.pendingPayment,
           },
-        })
+        }, { headers: cacheHeaders.noCache })
       }
     }
 
-    return NextResponse.json({ success: true, data: transformMCQ(mcq as unknown as Parameters<typeof transformMCQ>[0]) })
+    return NextResponse.json({ success: true, data: transformMCQ(mcq as unknown as Parameters<typeof transformMCQ>[0]) }, { headers: cacheHeaders.noCache })
   } catch (error) {
     console.error('Get MCQ detail error:', error)
     return apiError('MCQ এর বিস্তারিত তথ্য আনতে সমস্যা হয়েছে', 500)
@@ -125,28 +128,8 @@ export async function PUT(
 
     const mcq = await db.mCQ.update({
       where: { id },
-      data: {
-        ...(body.question !== undefined && { question: body.question }),
-        ...(body.questionImage !== undefined && { questionImage: body.questionImage }),
-        ...(body.optionA !== undefined && { optionA: body.optionA }),
-        ...(body.optionAImage !== undefined && { optionAImage: body.optionAImage }),
-        ...(body.optionB !== undefined && { optionB: body.optionB }),
-        ...(body.optionBImage !== undefined && { optionBImage: body.optionBImage }),
-        ...(body.optionC !== undefined && { optionC: body.optionC }),
-        ...(body.optionCImage !== undefined && { optionCImage: body.optionCImage }),
-        ...(body.optionD !== undefined && { optionD: body.optionD }),
-        ...(body.optionDImage !== undefined && { optionDImage: body.optionDImage }),
-        ...(body.correctAnswer !== undefined && { correctAnswer: body.correctAnswer }),
-        ...(body.explanation !== undefined && { explanation: body.explanation }),
-        ...(body.explanationImage !== undefined && { explanationImage: body.explanationImage }),
-        ...(body.difficulty !== undefined && { difficulty: body.difficulty }),
-        ...(body.isPremium !== undefined && { isPremium: body.isPremium }),
-        ...(body.price !== undefined && { price: body.price }),
-        ...(body.tags !== undefined && { tags: body.tags }),
-        ...(body.board !== undefined && { board: body.board }),
-        ...(body.year !== undefined && { year: body.year }),
-        ...(body.isActive !== undefined && { isActive: body.isActive }),
-      },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      data: buildPremiumUpdatePayload(body) as any,
     })
 
     return NextResponse.json({ success: true, data: { message: 'MCQ আপডেট হয়েছে', mcq: transformMCQ(mcq as unknown as Parameters<typeof transformMCQ>[0]) } })

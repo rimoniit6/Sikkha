@@ -3,6 +3,7 @@ import { apiError } from '@/lib/api-utils'
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyAuth } from '@/lib/auth'
 import { checkContentAccess } from '@/lib/access-control'
+import { cacheHeaders } from '@/lib/cache-headers'
 
 export async function GET(
   request: NextRequest,
@@ -64,7 +65,7 @@ export async function GET(
 
     if (!suggestion.isPremium) {
       // Non-premium suggestion — full access for everyone
-      return NextResponse.json({ success: true, ...base, content: suggestion.content })
+      return NextResponse.json({ success: true, ...base, content: suggestion.content }, { headers: cacheHeaders.noCache })
     }
 
     // Premium suggestion — check access via unified system
@@ -76,12 +77,12 @@ export async function GET(
       })
 
       if (access.hasAccess) {
-        return NextResponse.json({ success: true, ...base, content: suggestion.content, purchased: access.reason === 'content_payment' })
+        return NextResponse.json({ success: true, ...base, content: suggestion.content, purchased: access.reason === 'content_payment' }, { headers: cacheHeaders.noCache })
       }
     }
 
     // No access — return basic info without content
-    return NextResponse.json({ success: true, ...base, content: null })
+    return NextResponse.json({ success: true, ...base, content: null }, { headers: cacheHeaders.noCache })
   } catch (error) {
     console.error('Get Suggestion detail error:', error)
     return apiError('সাজেশনের বিস্তারিত তথ্য আনতে সমস্যা হয়েছে', 500)

@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server'
 import { apiError, withCsrf, applyRateLimit } from '@/lib/api-utils'
 import { handleApiError } from '@/lib/errors'
 import { apiLimiter } from '@/lib/rate-limit'
+import { cacheHeaders } from '@/lib/cache-headers'
 
 
 // Transform raw CQ Prisma object to frontend-expected format
@@ -233,10 +234,11 @@ export async function GET(request: Request) {
           limit: listLimit,
           totalPages,
         },
-      })
+      }, { headers: cacheHeaders.noCache })
     }
 
     // ─── NORMAL MODE: full data with pagination ───
+    // Apply no-cache headers for premium content responses
     const [cqs, total] = await Promise.all([
       db.cQ.findMany({
         where,
@@ -335,7 +337,7 @@ export async function GET(request: Request) {
         total,
         totalPages: Math.ceil(total / limit),
       },
-    })
+    }, { headers: cacheHeaders.noCache })
   } catch (error) {
     return handleApiError(error, 'Get CQs error')
   }
@@ -351,72 +353,44 @@ export async function POST(request: Request) {
       return apiError('সৃজনশীল প্রশ্ন তৈরি করার অনুমতি নেই', 403)
     }
 
-    const body = await request.json()
-    const {
-      uddeepok,
-      uddeepokImage,
-      question1,
-      question1Image,
-      question2,
-      question2Image,
-      question3,
-      question3Image,
-      question4,
-      question4Image,
-      answer1,
-      answer1Image,
-      answer2,
-      answer2Image,
-      answer3,
-      answer3Image,
-      answer4,
-      answer4Image,
-      chapterId,
-      classLevel,
-      subjectId,
-      board,
-      year,
-      difficulty,
-      isPremium,
-      price,
-      tags,
-    } = body
+    const { buildPremiumCreatePayload } = await import('@/lib/premium')
+    const body = await request.json() as Record<string, unknown>
+    const sanitized = buildPremiumCreatePayload(body)
+    const data = {
+      uddeepok: sanitized.uddeepok as string,
+      uddeepokImage: (sanitized.uddeepokImage as string) || null,
+      question1: sanitized.question1 as string,
+      question1Image: (sanitized.question1Image as string) || null,
+      question2: (sanitized.question2 as string) || '',
+      question2Image: (sanitized.question2Image as string) || null,
+      question3: (sanitized.question3 as string) || '',
+      question3Image: (sanitized.question3Image as string) || null,
+      question4: (sanitized.question4 as string) || '',
+      question4Image: (sanitized.question4Image as string) || null,
+      answer1: (sanitized.answer1 as string) || '',
+      answer1Image: (sanitized.answer1Image as string) || null,
+      answer2: (sanitized.answer2 as string) || '',
+      answer2Image: (sanitized.answer2Image as string) || null,
+      answer3: (sanitized.answer3 as string) || '',
+      answer3Image: (sanitized.answer3Image as string) || null,
+      answer4: (sanitized.answer4 as string) || '',
+      answer4Image: (sanitized.answer4Image as string) || null,
+      chapterId: sanitized.chapterId as string,
+      classLevel: sanitized.classLevel as string,
+      subjectId: sanitized.subjectId as string,
+      board: (sanitized.board as string) || null,
+      year: (sanitized.year as string) || null,
+      difficulty: (sanitized.difficulty as string) || 'MEDIUM',
+      isPremium: (sanitized.isPremium as boolean) || false,
+      price: (sanitized.price as number) || 0,
+      tags: (sanitized.tags as string) || null,
+    }
 
-    if (!uddeepok || !question1 || !chapterId || !classLevel || !subjectId) {
+    if (!data.uddeepok || !data.question1 || !data.chapterId || !data.classLevel || !data.subjectId) {
       return apiError('প্রয়োজনীয় ফিল্ড পূরণ করুন', 400)
     }
 
-    const cq = await db.cQ.create({
-      data: {
-        uddeepok,
-        uddeepokImage: uddeepokImage || null,
-        question1,
-        question1Image: question1Image || null,
-        question2: question2 || '',
-        question2Image: question2Image || null,
-        question3: question3 || '',
-        question3Image: question3Image || null,
-        question4: question4 || '',
-        question4Image: question4Image || null,
-        answer1: answer1 || '',
-        answer1Image: answer1Image || null,
-        answer2: answer2 || '',
-        answer2Image: answer2Image || null,
-        answer3: answer3 || '',
-        answer3Image: answer3Image || null,
-        answer4: answer4 || '',
-        answer4Image: answer4Image || null,
-        chapterId,
-        classLevel,
-        subjectId,
-        board: board || null,
-        year: year || null,
-        difficulty: difficulty || 'MEDIUM',
-        isPremium: isPremium || false,
-        price: price || 0,
-        tags: tags || null,
-      },
-    })
+    const cq = await db.cQ.create({ data })
 
     return NextResponse.json(
       { success: true, data: { message: 'সৃজনশীল প্রশ্ন সফলভাবে তৈরি হয়েছে', cq } },

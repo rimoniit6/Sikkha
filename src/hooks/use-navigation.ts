@@ -76,6 +76,7 @@ const defaultNavItems: NavItemWithIcon[] = [
   { id: 'f2', label: 'ক্লাসসমূহ', route: 'class-list', icon: 'GraduationCap', location: 'footer', order: 2, isAuthOnly: false, isAdminOnly: false, isActive: true, Icon: GraduationCap },
   { id: 'f3', label: 'বোর্ড প্রশ্ন', route: 'board-questions', icon: 'BookOpen', location: 'footer', order: 3, isAuthOnly: false, isAdminOnly: false, isActive: true, Icon: BookOpen },
   { id: 'f4', label: 'প্রিমিয়াম', route: 'premium', icon: 'Crown', location: 'footer', order: 4, isAuthOnly: false, isAdminOnly: false, isActive: true, Icon: Crown },
+  { id: 'f5', label: 'ব্লগ', route: 'blog', icon: 'Newspaper', location: 'footer', order: 5, isAuthOnly: false, isAdminOnly: false, isActive: true, Icon: Newspaper },
 ]
 
 // ============ Helper ============

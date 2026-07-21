@@ -7,6 +7,7 @@ export type Role = 'SUPER_ADMIN' | 'ADMIN' | 'STUDENT'
 export interface AuthUser {
   id: string
   email: string
+  name: string
   role: Role
   isPremium: boolean
   classLevel: string | null
@@ -33,11 +34,11 @@ export async function verifyAuth(request?: Request): Promise<AuthResult | null> 
     if (!payload) return null
     const dbUser = await db.user.findUnique({
       where: { id: payload.userId },
-      select: { id: true, email: true, role: true, isPremium: true, classLevel: true, learningMode: true },
+      select: { id: true, email: true, name: true, role: true, isPremium: true, classLevel: true, learningMode: true },
     })
     if (!dbUser) return null
     return {
-      user: { ...dbUser, role: dbUser.role as Role, classLevel: dbUser.classLevel ?? null, learningMode: dbUser.learningMode ?? null },
+      user: { ...dbUser, name: dbUser.name ?? '', role: dbUser.role as Role, classLevel: dbUser.classLevel ?? null, learningMode: dbUser.learningMode ?? null },
       isSuperAdmin: dbUser.role === 'SUPER_ADMIN',
       isAdmin: dbUser.role === 'ADMIN' || dbUser.role === 'SUPER_ADMIN',
     }

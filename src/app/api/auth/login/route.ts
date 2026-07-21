@@ -36,7 +36,7 @@ export async function POST(request: Request) {
       const failUa = request.headers.get('user-agent') || undefined
       // If user exists (wrong password), use their real userId;
       // if user doesn't exist (unknown email), fall back to 'system'
-      const failedUserId = user?.id || null
+      const failedUserId: string = user?.id ?? ''
       await createAuditLog({
         adminId: failedUserId,
         action: AuditActions.LOGIN_FAILED,
@@ -76,7 +76,7 @@ export async function POST(request: Request) {
 
     const ipAddress = getClientIP(request)
     const userAgent = request.headers.get('user-agent') || undefined
-    await createAuditLog({ adminId: user.id, action: AuditActions.LOGIN, entityType: 'user', entityId: user.id, ipAddress, userAgent, userName: user.name, userRole: user.role, status: 'success' })
+    await createAuditLog({ adminId: user.id, action: AuditActions.LOGIN, entityType: 'user', entityId: user.id, ipAddress, userAgent, userName: user.name || undefined, userRole: user.role, status: 'success' })
 
     logger.info('User logged in', { userId: user.id, route: '/api/auth/login', method: 'POST' })
 

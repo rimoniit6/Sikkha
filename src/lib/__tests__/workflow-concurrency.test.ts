@@ -33,15 +33,15 @@ function createMockDb() {
   const extraModels = new Map<string, Map<string, unknown>>()
   const counter = { history: 0, audit: 0 }
 
-  function buildDb(): Record<string, unknown> {
+  function buildDb(): any {
     const models: Record<string, unknown> = {
       contentWorkflow: {
-        create: vi.fn(async ({ data }: { data: Record<string, unknown> }) => {
+        create: vi.fn(async ({ data }: { data: any }) => {
           const record = { ...data, id: `cw-${Date.now()}-${Math.random().toString(36).slice(2)}` } as MockRecord
           store.set(`${data.entityType}:${data.entityId}`, record)
           return record
         }),
-        findFirst: vi.fn(async ({ where }: { where: Record<string, unknown> }) => {
+        findFirst: vi.fn(async ({ where }: { where: any }) => {
           for (const record of store.values()) {
             if (record.entityType === where.entityType && record.entityId === where.entityId) {
               return { ...record }
@@ -49,13 +49,13 @@ function createMockDb() {
           }
           return null
         }),
-        update: vi.fn(async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
+        update: vi.fn(async ({ where, data }: { where: { id: string }; data: any }) => {
           for (const [key, record] of store.entries()) {
             if (record.id === where.id) {
               const updated = { ...record }
               for (const [k, v] of Object.entries(data)) {
                 if (typeof v === 'object' && v !== null && 'increment' in v) {
-                  updated[k] = record[k] + (v as { increment: number }).increment
+                  updated[k] = (record[k] as number) + (v as { increment: number }).increment
                 } else {
                   updated[k] = v
                 }
@@ -68,19 +68,19 @@ function createMockDb() {
         }),
       },
       workflowHistory: {
-        create: vi.fn(async ({ data }: { data: Record<string, unknown> }) => {
+        create: vi.fn(async ({ data }: { data: any }) => {
           counter.history++
           return { id: `wh-${counter.history}`, ...data }
         }),
       },
       auditLog: {
-        create: vi.fn(async ({ data }: { data: Record<string, unknown> }) => {
+        create: vi.fn(async ({ data }: { data: any }) => {
           counter.audit++
           return { id: `al-${counter.audit}`, ...data }
         }),
       },
       workflowComment: {
-        create: vi.fn(async ({ data }: { data: Record<string, unknown> }) => {
+        create: vi.fn(async ({ data }: { data: any }) => {
           return { id: `wc-${Date.now()}`, ...data }
         }),
       },
@@ -98,7 +98,7 @@ function createMockDb() {
     return models
   }
 
-  const db = buildDb() as Record<string, unknown>
+  const db = buildDb() as any
 
   db.$transaction = vi.fn(async (fn: (tx: Record<string, unknown>) => Promise<unknown>) => {
     return fn(buildDb())
@@ -115,8 +115,8 @@ function createMockDb() {
   return { db, store, counter, registerModel }
 }
 
-async function setupWorkflow(db: ReturnType<typeof createMockDb>['db'], entityType: string, entityId: string, status = 'DRAFT', version = 0) {
-  await db.contentWorkflow.create({
+async function setupWorkflow(db: Record<string, unknown>, entityType: string, entityId: string, status = 'DRAFT', version = 0) {
+  await (db.contentWorkflow as any).create({
     data: { entityType, entityId, status, version },
   })
 }
@@ -124,7 +124,7 @@ async function setupWorkflow(db: ReturnType<typeof createMockDb>['db'], entityTy
 // ─── Tests ───
 
 describe('Workflow Orchestrator', () => {
-  let db: ReturnType<typeof createMockDb>['db']
+  let db: Record<string, unknown>
   let counter: ReturnType<typeof createMockDb>['counter']
   let registerModel: ReturnType<typeof createMockDb>['registerModel']
 

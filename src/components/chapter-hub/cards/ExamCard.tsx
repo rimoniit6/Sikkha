@@ -43,7 +43,7 @@ export function ExamCard({ exam, index, isPurchased = false, pendingPayment = fa
                 <span className="text-[10px] px-1.5 py-0 rounded bg-muted text-muted-foreground uppercase font-medium">
                   {exam.type}
                 </span>
-                <PremiumBadge status={accessStatus} size="sm" />
+                <PremiumBadge state={accessStatus} size="sm" />
               </div>
               <h4 className="font-medium text-sm sm:text-base truncate">{exam.title}</h4>
               <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
