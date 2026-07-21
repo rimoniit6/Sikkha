@@ -147,6 +147,18 @@ export async function resolveContentClassLevel(
     return classCat?.slug || null
   }
 
+  if (contentType === 'knowledgeQuestion') {
+    const kq = await db.knowledgeQuestion.findUnique({
+      where: { id: contentId },
+      select: {
+        chapter: {
+          select: { subject: { select: { class: { select: { slug: true } } } } },
+        },
+      },
+    })
+    return kq?.chapter?.subject?.class?.slug || null
+  }
+
   return null
 }
 
