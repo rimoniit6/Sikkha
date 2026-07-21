@@ -54,7 +54,9 @@ interface LectureData {
   className: string
   classSlug: string
   subjectId: string
+  subjectSlug: string
   chapterId: string
+  chapterSlug: string
   isPremium: boolean
   price: number
   progress: number
@@ -602,7 +604,7 @@ export default function LectureViewerPage() {
                 </BreadcrumbItem>
                 <BreadcrumbSeparator />
                 <BreadcrumbItem>
-                  <BreadcrumbLink className="cursor-pointer" onClick={() => navigate('subject-detail', { subjectId: lectureData.subjectId, classSlug: lectureData.classSlug })}>
+                  <BreadcrumbLink className="cursor-pointer" onClick={() => navigate('subject-detail', { subjectId: lectureData.subjectId, classSlug: lectureData.classSlug, subjectSlug: lectureData.subjectSlug })}>
                     {lectureData.subjectName}
                   </BreadcrumbLink>
                 </BreadcrumbItem>

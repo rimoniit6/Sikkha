@@ -41,7 +41,9 @@ interface LectureListItem {
   className: string
   classSlug: string
   subjectId: string
+  subjectSlug: string
   chapterId: string
+  chapterSlug: string
   isPremium: boolean
   price: number
   order: number
@@ -194,6 +196,10 @@ export default function LectureListPage() {
   }, [lectureList, purchaseMap, isPremiumUser])
 
   // ─── Page title ────────────────────────────────────────────
+
+  // Extract slugs from lecture data for breadcrumb navigation
+  const subjectSlug = lectureList[0]?.subjectSlug || ''
+  const chapterSlug = lectureList[0]?.chapterSlug || ''
 
   const pageTitle = chapterInfo
     ? `${chapterInfo.name} - লেকচার সমূহ`
@@ -455,7 +461,7 @@ export default function LectureListPage() {
                 <BreadcrumbItem>
                   <BreadcrumbLink
                     className="cursor-pointer"
-                    onClick={() => navigate('subject-detail', { subjectId: subjectId || '', classSlug })}
+                    onClick={() => navigate('subject-detail', { subjectId: subjectId || '', classSlug, subjectSlug })}
                   >
                     {chapterInfo?.subjectName || 'বিষয়'}
                   </BreadcrumbLink>
@@ -468,7 +474,7 @@ export default function LectureListPage() {
                 <BreadcrumbItem>
                   <BreadcrumbLink
                     className="cursor-pointer"
-                    onClick={() => navigate('chapter-detail', { chapterId, subjectId, classSlug })}
+                    onClick={() => navigate('chapter-detail', { chapterId, subjectId, classSlug, subjectSlug, chapterSlug })}
                   >
                     {chapterInfo.name}
                   </BreadcrumbLink>

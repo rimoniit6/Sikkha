@@ -38,11 +38,13 @@ interface CQListItem {
   board: string | null
   year: string | null
   chapterId: string
+  chapterSlug: string
   chapterName: string
   subjectName: string
   className: string
   classSlug: string
   subjectId: string
+  subjectSlug: string
 }
 
 interface PurchaseStatus {
@@ -217,6 +219,10 @@ export default function CQListPage() {
   }, [cqList, isPremiumUser, purchaseMap])
 
   // ─── Page title ────────────────────────────────────────────
+
+  // Extract slugs from CQ data for breadcrumb navigation
+  const subjectSlug = cqList[0]?.subjectSlug || ''
+  const chapterSlug = cqList[0]?.chapterSlug || ''
 
   const pageTitle = chapterId
     ? `${chapterInfo?.name || 'অধ্যায়'} - সৃজনশীল প্রশ্ন`
@@ -517,7 +523,7 @@ export default function CQListPage() {
                 <BreadcrumbItem>
                   <BreadcrumbLink
                     className="cursor-pointer"
-                    onClick={() => navigate('subject-detail', { subjectId: subjectId || '', classSlug })}
+                    onClick={() => navigate('subject-detail', { subjectId: subjectId || '', classSlug, subjectSlug })}
                   >
                     {chapterInfo?.subjectName || subjectInfo?.name || 'বিষয়'}
                   </BreadcrumbLink>
@@ -530,7 +536,7 @@ export default function CQListPage() {
                 <BreadcrumbItem>
                   <BreadcrumbLink
                     className="cursor-pointer"
-                    onClick={() => navigate('chapter-detail', { chapterId, subjectId, classSlug })}
+                    onClick={() => navigate('chapter-detail', { chapterId, subjectId, classSlug, subjectSlug, chapterSlug })}
                   >
                     {chapterInfo.name}
                   </BreadcrumbLink>

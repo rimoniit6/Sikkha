@@ -121,7 +121,8 @@ export const FEATURED_CONTENT_REGISTRY: Record<string, FeaturedContentRegistrati
     getSearchExtra: (e) => {
       const ch = e.chapter as Record<string, unknown> | undefined
       const subj = ch?.subject as Record<string, unknown> | undefined
-      return ch?.id ? { chapterId: ch.id as string, subjectId: subj?.id as string, subjectSlug: subj?.slug as string } : undefined
+      const cls = subj?.class as Record<string, unknown> | undefined
+      return ch?.id ? { chapterId: ch.id as string, chapterSlug: ch.slug as string, subjectId: subj?.id as string, subjectSlug: subj?.slug as string, classSlug: cls?.slug as string } : undefined
     },
   },
 
@@ -139,10 +140,20 @@ export const FEATURED_CONTENT_REGISTRY: Record<string, FeaturedContentRegistrati
     include: CHAPTER_INCLUDE,
     searchFields: ['question'],
     getSearchSubtitle: chapterSubtitle,
-    getSearchExtra: (e) => ({
-      difficulty: e.difficulty as string,
-      classLevel: e.classLevel as string,
-    }),
+    getSearchExtra: (e) => {
+      const ch = e.chapter as Record<string, unknown> | undefined
+      const subj = ch?.subject as Record<string, unknown> | undefined
+      const cls = subj?.class as Record<string, unknown> | undefined
+      return {
+        difficulty: e.difficulty as string,
+        classLevel: e.classLevel as string,
+        chapterId: ch?.id as string,
+        chapterSlug: ch?.slug as string,
+        subjectId: subj?.id as string,
+        subjectSlug: subj?.slug as string,
+        classSlug: cls?.slug as string,
+      }
+    },
   },
 
   cq: {
@@ -159,10 +170,20 @@ export const FEATURED_CONTENT_REGISTRY: Record<string, FeaturedContentRegistrati
     include: CHAPTER_INCLUDE,
     searchFields: ['uddeepok'],
     getSearchSubtitle: chapterSubtitle,
-    getSearchExtra: (e) => ({
-      difficulty: e.difficulty as string,
-      classLevel: e.classLevel as string,
-    }),
+    getSearchExtra: (e) => {
+      const ch = e.chapter as Record<string, unknown> | undefined
+      const subj = ch?.subject as Record<string, unknown> | undefined
+      const cls = subj?.class as Record<string, unknown> | undefined
+      return {
+        difficulty: e.difficulty as string,
+        classLevel: e.classLevel as string,
+        chapterId: ch?.id as string,
+        chapterSlug: ch?.slug as string,
+        subjectId: subj?.id as string,
+        subjectSlug: subj?.slug as string,
+        classSlug: cls?.slug as string,
+      }
+    },
   },
 
   bundle: {

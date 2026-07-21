@@ -39,7 +39,9 @@ interface CQData {
   className: string
   classSlug: string
   subjectId: string
+  subjectSlug: string
   chapterId: string
+  chapterSlug: string
   isPremium: boolean
   price: number
   year?: string
@@ -293,13 +295,13 @@ export default function CQViewerPage() {
             </BreadcrumbItem>
             <BreadcrumbSeparator />
             <BreadcrumbItem>
-              <BreadcrumbLink className="cursor-pointer" onClick={() => navigate('subject-detail', { subjectId: cqData.subjectId, classSlug: cqData.classSlug })}>
+              <BreadcrumbLink className="cursor-pointer" onClick={() => navigate('subject-detail', { subjectId: cqData.subjectId, classSlug: cqData.classSlug, subjectSlug: cqData.subjectSlug })}>
                 {cqData.subjectName}
               </BreadcrumbLink>
             </BreadcrumbItem>
             <BreadcrumbSeparator />
             <BreadcrumbItem>
-              <BreadcrumbLink className="cursor-pointer" onClick={() => navigate('chapter-detail', { chapterId: cqData.chapterId, subjectId: cqData.subjectId, classSlug: cqData.classSlug })}>
+              <BreadcrumbLink className="cursor-pointer" onClick={() => navigate('chapter-detail', { chapterId: cqData.chapterId, subjectId: cqData.subjectId, classSlug: cqData.classSlug, subjectSlug: cqData.subjectSlug, chapterSlug: cqData.chapterSlug })}>
                 {cqData.chapterName}
               </BreadcrumbLink>
             </BreadcrumbItem>

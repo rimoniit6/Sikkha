@@ -80,7 +80,9 @@ function transformCQ(cq: {
     className: cq.chapter?.subject?.class?.name || '',
     classSlug: cq.chapter?.subject?.class?.slug || '',
     subjectId: cq.chapter?.subject?.id || '',
+    subjectSlug: cq.chapter?.subject?.slug || '',
     chapterId: cq.chapterId,
+    chapterSlug: cq.chapter?.slug || '',
     isPremium: cq.isPremium,
     price: cq.price || 0,
     difficulty: cq.difficulty || 'MEDIUM',
@@ -123,11 +125,13 @@ function transformCQList(cq: {
     board: cq.board || null,
     year: cq.year || null,
     chapterId: cq.chapterId,
+    chapterSlug: cq.chapter?.slug || '',
     chapterName: cq.chapter?.name || '',
     subjectName: cq.chapter?.subject?.name || '',
     className: cq.chapter?.subject?.class?.name || '',
     classSlug: cq.chapter?.subject?.class?.slug || '',
     subjectId: cq.chapter?.subject?.id || '',
+    subjectSlug: cq.chapter?.subject?.slug || '',
   }
 }
 
@@ -315,7 +319,9 @@ export async function GET(request: Request) {
             className: baseTransformed.className,
             classSlug: baseTransformed.classSlug,
             subjectId: baseTransformed.subjectId,
+            subjectSlug: baseTransformed.subjectSlug,
             chapterId: baseTransformed.chapterId,
+            chapterSlug: baseTransformed.chapterSlug,
             isPremium: true,
             price: baseTransformed.price,
             difficulty: baseTransformed.difficulty,

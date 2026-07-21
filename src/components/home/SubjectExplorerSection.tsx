@@ -56,7 +56,7 @@ export default function SubjectExplorerSection() {
 
   const handleClassSelect = (slug: string) => setSelectedClass(slug)
   const handleViewAll = () => navigate('class-detail', { classSlug: selectedClass })
-  const handleSubjectClick = (subjectId: string) => navigate('subject-detail', { subjectId, classSlug: selectedClass })
+  const handleSubjectClick = (subjectId: string, subjectSlug: string) => navigate('subject-detail', { subjectId, classSlug: selectedClass, subjectSlug })
 
   return (
     <section ref={sectionRef} className="py-14 sm:py-16 bg-background" aria-labelledby="subject-explorer-title">
@@ -86,7 +86,7 @@ export default function SubjectExplorerSection() {
                 const Icon = getSubjectIcon(subject.name)
                 const chapterCount = chapterCounts.get(subject.id) ?? 0
                 return (
-                  <Card key={subject.id} className="group cursor-pointer border-border/50 hover:border-primary/30 hover:shadow-md transition-all duration-200 rounded-xl sm:rounded-2xl" onClick={() => handleSubjectClick(subject.id)}>
+                  <Card key={subject.id} className="group cursor-pointer border-border/50 hover:border-primary/30 hover:shadow-md transition-all duration-200 rounded-xl sm:rounded-2xl" onClick={() => handleSubjectClick(subject.id, subject.slug)}>
                     <CardContent className="p-3 sm:p-4 flex items-center gap-3 sm:gap-4">
                       <div className="flex-shrink-0 w-10 h-10 sm:w-12 sm:h-12 rounded-lg bg-primary/10 flex items-center justify-center"><Icon className="h-5 w-5 sm:h-6 sm:w-6 text-primary" /></div>
                       <div className="flex-1 min-w-0"><h3 className="font-semibold text-sm sm:text-base text-foreground line-clamp-2 leading-snug">{subject.name}</h3><p className="text-xs sm:text-sm text-muted-foreground mt-0.5">{chapterCount}টি অধ্যায়</p></div>

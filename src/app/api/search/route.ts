@@ -36,8 +36,8 @@ export async function GET(request: Request) {
     const chapterInclude = {
       chapter: {
         select: {
-          id: true, name: true, subjectId: true,
-          subject: { select: { id: true, name: true, classId: true, class: { select: { id: true, name: true, slug: true } } } },
+          id: true, name: true, slug: true, subjectId: true,
+          subject: { select: { id: true, name: true, slug: true, classId: true, class: { select: { id: true, name: true, slug: true } } } },
         },
       },
     } as const

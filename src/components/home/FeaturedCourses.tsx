@@ -23,19 +23,21 @@ export default function FeaturedCourses() {
     const classSlug = item.extra.classSlug as string | undefined
     const subjectId = item.extra.subjectId as string | undefined
     const chapterId = item.extra.chapterId as string | undefined
+    const subjectSlug = item.extra.subjectSlug as string | undefined
+    const chapterSlug = item.extra.chapterSlug as string | undefined
 
     switch (item.contentType) {
       case 'lecture':
         const lectureId = item.extra.lectureId as string | undefined
         if (lectureId) navigate('lecture-viewer', { lectureId, chapterId: chapterId || '', subjectId: subjectId || '', classSlug: classSlug || '' })
-        else if (chapterId && subjectId) navigate('chapter-detail', { chapterId, subjectId, classSlug: classSlug || '' })
-        else if (subjectId) navigate('subject-detail', { subjectId, classSlug: classSlug || '' })
+        else if (chapterId && classSlug && subjectSlug && chapterSlug) navigate('chapter-detail', { chapterId, subjectId: subjectId || '', classSlug, subjectSlug, chapterSlug })
+        else if (subjectId && classSlug && subjectSlug) navigate('subject-detail', { subjectId, classSlug, subjectSlug })
         break
       case 'cq':
         const cqId = item.extra.cqId as string | undefined
         if (cqId && chapterId && subjectId) navigate('cq-viewer', { cqId, chapterId, subjectId, classSlug: classSlug || '' })
         else if (chapterId && subjectId) navigate('cq-list', { chapterId, subjectId, classSlug: classSlug || '' })
-        else if (subjectId) navigate('subject-detail', { subjectId, classSlug: classSlug || '' })
+        else if (subjectId && classSlug && subjectSlug) navigate('subject-detail', { subjectId, classSlug, subjectSlug })
         break
       case 'bundle':
       case 'package':

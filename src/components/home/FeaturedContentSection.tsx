@@ -71,12 +71,14 @@ function navigateToItem(
       const chapterId = item.extra.chapterId as string | undefined
       const subjectId = item.extra.subjectId as string | undefined
       const classSlug = item.extra.classSlug as string | undefined
+      const subjectSlug = item.extra.subjectSlug as string | undefined
+      const chapterSlug = item.extra.chapterSlug as string | undefined
       if (lectureId) {
         navigate('lecture-viewer', { lectureId, chapterId: chapterId || '', subjectId: subjectId || '', classSlug: classSlug || '' })
-      } else if (chapterId && subjectId) {
-        navigate('chapter-detail', { chapterId, subjectId, classSlug: classSlug || '' })
-      } else if (subjectId) {
-        navigate('subject-detail', { subjectId, classSlug: classSlug || '' })
+      } else if (chapterId && classSlug && subjectSlug && chapterSlug) {
+        navigate('chapter-detail', { chapterId, subjectId: subjectId || '', classSlug, subjectSlug, chapterSlug })
+      } else if (subjectId && classSlug && subjectSlug) {
+        navigate('subject-detail', { subjectId, classSlug, subjectSlug })
       }
       break
     }
@@ -84,10 +86,12 @@ function navigateToItem(
       const mcqChapterId = item.extra.chapterId as string | undefined
       const mcqSubjectId = item.extra.subjectId as string | undefined
       const mcqClassSlug = item.extra.classSlug as string | undefined
-      if (mcqChapterId && mcqSubjectId) {
-        navigate('chapter-detail', { chapterId: mcqChapterId, subjectId: mcqSubjectId, classSlug: mcqClassSlug || '' })
-      } else if (mcqSubjectId) {
-        navigate('subject-detail', { subjectId: mcqSubjectId, classSlug: mcqClassSlug || '' })
+      const mcqSubjectSlug = item.extra.subjectSlug as string | undefined
+      const mcqChapterSlug = item.extra.chapterSlug as string | undefined
+      if (mcqChapterId && mcqClassSlug && mcqSubjectSlug && mcqChapterSlug) {
+        navigate('chapter-detail', { chapterId: mcqChapterId, subjectId: mcqSubjectId || '', classSlug: mcqClassSlug, subjectSlug: mcqSubjectSlug, chapterSlug: mcqChapterSlug })
+      } else if (mcqSubjectId && mcqClassSlug && mcqSubjectSlug) {
+        navigate('subject-detail', { subjectId: mcqSubjectId, classSlug: mcqClassSlug, subjectSlug: mcqSubjectSlug })
       }
       break
     }
@@ -95,10 +99,12 @@ function navigateToItem(
       const cqChapterId = item.extra.chapterId as string | undefined
       const cqSubjectId = item.extra.subjectId as string | undefined
       const cqClassSlug = item.extra.classSlug as string | undefined
+      const cqSubjectSlug = item.extra.subjectSlug as string | undefined
+      const cqChapterSlug = item.extra.chapterSlug as string | undefined
       if (cqChapterId && cqSubjectId) {
         navigate('cq-list', { chapterId: cqChapterId, subjectId: cqSubjectId, classSlug: cqClassSlug || '' })
-      } else if (cqSubjectId) {
-        navigate('subject-detail', { subjectId: cqSubjectId, classSlug: cqClassSlug || '' })
+      } else if (cqSubjectId && cqClassSlug && cqSubjectSlug) {
+        navigate('subject-detail', { subjectId: cqSubjectId, classSlug: cqClassSlug, subjectSlug: cqSubjectSlug })
       }
       break
     }

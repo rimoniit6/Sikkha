@@ -18,6 +18,7 @@ interface PurchaseStatus {
 
 export default function KnowledgeQuestionsPage() {
   const navigate = useRouterStore((s) => s.navigate)
+  const goBack = useRouterStore((s) => s.goBack)
   const params = useRouteParams()
   const chapterId = params?.chapterId as string | undefined
   const user = useAuthUser()
@@ -77,7 +78,7 @@ export default function KnowledgeQuestionsPage() {
             variant="ghost"
             size="sm"
             className="text-white/80 hover:text-white mb-3 -ml-2"
-            onClick={() => navigate('chapter-detail', { chapterId })}
+            onClick={() => goBack()}
           >
             <ArrowLeft className="size-4 mr-1" /> ফিরে যান
           </Button>

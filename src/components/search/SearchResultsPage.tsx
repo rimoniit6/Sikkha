@@ -38,7 +38,7 @@ interface SearchMCQ {
   classLevel: string
   isPremium: boolean
   price: number
-  chapter?: { id: string; name: string; subject?: { id: string; name: string; class?: { id: string; name: string; slug: string } } }
+  chapter?: { id: string; name: string; slug: string; subjectId: string; subject?: { id: string; name: string; slug: string; class?: { id: string; name: string; slug: string } } }
 }
 
 interface SearchCQ {
@@ -49,7 +49,7 @@ interface SearchCQ {
   classLevel: string
   isPremium: boolean
   price: number
-  chapter?: { id: string; name: string; subject?: { id: string; name: string; class?: { id: string; name: string; slug: string } } }
+  chapter?: { id: string; name: string; slug: string; subjectId: string; subject?: { id: string; name: string; slug: string; class?: { id: string; name: string; slug: string } } }
 }
 
 interface SearchLecture {
@@ -61,7 +61,7 @@ interface SearchLecture {
   videoUrl: string | null
   thumbnail: string | null
   duration: number
-  chapter?: { id: string; name: string; subject?: { id: string; name: string; class?: { id: string; name: string; slug: string } } }
+  chapter?: { id: string; name: string; slug: string; subjectId: string; subject?: { id: string; name: string; slug: string; class?: { id: string; name: string; slug: string } } }
 }
 
 interface SearchSuggestion {
@@ -216,15 +216,20 @@ export default function SearchResultsPage() {
 
   const goToMCQ = (mcq: SearchMCQ) => {
     const chapterId = mcq.chapter?.id
-    if (chapterId) {
-      navigate('chapter-detail', { chapterId })
+    const classSlug = mcq.chapter?.subject?.class?.slug
+    const subjectId = mcq.chapter?.subjectId
+    const subjectSlug = mcq.chapter?.subject?.slug
+    const chapterSlug = mcq.chapter?.slug
+    if (chapterId && classSlug && subjectSlug && chapterSlug) {
+      navigate('chapter-detail', { chapterId, subjectId: subjectId || '', classSlug, subjectSlug, chapterSlug })
     }
   }
 
   const goToCQ = (cq: SearchCQ) => {
     const chapterId = cq.chapter?.id
+    const subjectId = cq.chapter?.subjectId
     if (chapterId) {
-      navigate('cq-list', { chapterId })
+      navigate('cq-list', { chapterId, subjectId: subjectId || '' })
     }
   }
 

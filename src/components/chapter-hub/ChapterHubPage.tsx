@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 
 import { useChapterData } from '@/hooks/use-chapter-data'
+import { useSubjectResolver } from '@/hooks/use-subject-resolver'
 import { useRouterStore, useRouteParams } from '@/store/router'
 import { ChapterHeader } from './ChapterHeader'
 import { ChapterSkeleton } from './ChapterSkeleton'
@@ -18,15 +19,26 @@ import { SuggestionsTab } from './tabs/SuggestionsTab'
 
 export default function ChapterHubPage() {
   const params = useRouteParams()
-  const chapterId = params.chapterId
-  const subjectId = params.subjectId
-  const { data: chapter, isLoading, error } = useChapterData(chapterId, subjectId)
+  const updateParams = useRouterStore((s) => s.updateParams)
+  // Use chapterSlug from URL path (canonical source of truth)
+  const chapterSlug = params.chapterSlug
+  // Resolve subjectId from subjectSlug (subjectId is not in URL path)
+  const { data: resolvedSubjectId } = useSubjectResolver(params.subjectId || params.subjectSlug, params.classSlug)
+  const subjectId = resolvedSubjectId || params.subjectId
+  const { data: chapter, isLoading, error } = useChapterData(chapterSlug, subjectId)
   const [activeTab, setActiveTab] = useState('all')
+
+  // Store resolved subjectId for child components (LecturesTab, etc.)
+  useEffect(() => {
+    if (resolvedSubjectId && !params.subjectId) {
+      updateParams({ subjectId: resolvedSubjectId })
+    }
+  }, [resolvedSubjectId, params.subjectId, updateParams])
 
   // Set initial tab from params (if coming from content chip click) or reset on chapter change
   useEffect(() => {
     setActiveTab(params.initialTab || 'all')
-  }, [chapterId, params.initialTab])
+  }, [params.chapterSlug, params.initialTab])
 
   // Error state
   if (error) {
