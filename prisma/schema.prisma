@@ -74,6 +74,7 @@ model User {
   assignmentSubmissions AssignmentSubmission[]
   createdExams          Exam[]
   examSessions          ExamSession[]
+  blogPosts             BlogPost[]
 
   @@index([role])
   @@index([classLevel, board])
@@ -1846,4 +1847,116 @@ model WorkflowComment {
   @@index([entityType, entityId])
   @@index([parentId])
   @@index([authorId])
+}
+
+model BlogCategory {
+  id          String    @id @default(cuid())
+  name        String
+  slug        String    @unique
+  description String?
+  color       String?
+  isActive    Boolean   @default(true)
+  order       Int       @default(0)
+  deletedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  posts BlogPost[]
+
+  @@index([isActive, deletedAt])
+}
+
+model BlogTag {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now())
+
+  posts BlogPostTag[]
+}
+
+model BlogPost {
+  id             String      @id @default(cuid())
+  title          String
+  slug           String      @unique
+  excerpt        String?
+  content        String
+  featuredImage  String?
+  gallery        String?
+  authorId       String?
+  categoryId     String?
+  status         String      @default("DRAFT")
+  publishedAt    DateTime?
+  scheduledAt    DateTime?
+  viewCount      Int         @default(0)
+  readingTime    Int?
+  isFeatured     Boolean     @default(false)
+  isPinned       Boolean     @default(false)
+  allowComments  Boolean     @default(true)
+  isActive       Boolean     @default(true)
+  metaTitle      String?
+  metaDescription String?
+  canonicalUrl   String?
+  ogImage        String?
+  robots         String?
+  jsonLd         String?
+  deletedAt      DateTime?
+  deletedBy      String?
+  deleteReason   String?
+  seriesId       String?
+  seriesOrder    Int?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  author   User?         @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  category BlogCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  series   BlogSeries?   @relation(fields: [seriesId], references: [id], onDelete: SetNull)
+
+  tags          BlogPostTag[]
+  relatedBy     BlogRelatedPost[] @relation("RelatedBy")
+  relatedTo     BlogRelatedPost[] @relation("RelatedTo")
+
+  @@index([status, publishedAt, isActive, deletedAt])
+  @@index([categoryId, status, isActive, deletedAt])
+  @@index([authorId])
+  @@index([slug])
+  @@index([isFeatured, status, isActive, deletedAt])
+  @@index([publishedAt])
+  @@index([seriesId])
+}
+
+model BlogPostTag {
+  postId String
+  tagId  String
+
+  post BlogPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  tag  BlogTag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([postId, tagId])
+  @@index([tagId])
+}
+
+model BlogRelatedPost {
+  id             String @id @default(cuid())
+  postId         String
+  relatedPostId  String
+
+  post        BlogPost @relation("RelatedBy", fields: [postId], references: [id], onDelete: Cascade)
+  relatedPost BlogPost @relation("RelatedTo", fields: [relatedPostId], references: [id], onDelete: Cascade)
+
+  @@index([postId])
+  @@unique([postId, relatedPostId])
+}
+
+model BlogSeries {
+  id          String   @id @default(cuid())
+  title       String
+  slug        String   @unique
+  description String?
+  coverImage  String?
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  posts BlogPost[]
 }

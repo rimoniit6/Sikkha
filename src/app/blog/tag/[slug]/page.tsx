@@ -1,0 +1,57 @@
+import { db } from '@/lib/db'
+import { notFound } from 'next/navigation'
+import Link from 'next/link'
+import BlogCard from '@/features/blog/components/BlogCard'
+import type { Metadata } from 'next'
+
+interface Props {
+  params: Promise<{ slug: string }>
+}
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { slug } = await params
+  const tag = await db.blogTag.findUnique({ where: { slug } })
+  if (!tag) return { title: 'ট্যাগ পাওয়া যায়নি' }
+  return { title: `#${tag.name} - ব্লগ` }
+}
+
+export default async function BlogTagPage({ params }: Props) {
+  const { slug } = await params
+  const tag = await db.blogTag.findUnique({ where: { slug } })
+  if (!tag) notFound()
+
+  const posts = await db.blogPost.findMany({
+    where: {
+      status: 'PUBLISHED', isActive: true, deletedAt: null,
+      publishedAt: { lte: new Date() },
+      tags: { some: { tagId: tag.id } },
+    },
+    include: {
+      author: { select: { id: true, name: true, avatar: true } },
+      category: { select: { id: true, name: true, slug: true, color: true } },
+    },
+    orderBy: { publishedAt: 'desc' },
+  })
+
+  return (
+    <div className="min-h-screen bg-background">
+      <div className="max-w-7xl mx-auto px-4 py-8">
+        <div className="mb-8">
+          <Link href="/blog" className="text-sm text-emerald-600 hover:underline">&larr; ব্লগে ফিরুন</Link>
+          <h1 className="text-3xl font-bold mt-2">#{tag.name}</h1>
+          <p className="text-muted-foreground mt-1">{posts.length}টি পোস্ট</p>
+        </div>
+
+        {posts.length === 0 ? (
+          <p className="text-muted-foreground text-center py-12">এই ট্যাগে কোনো পোস্ট নেই</p>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {posts.map((post) => (
+              <BlogCard key={post.id} post={JSON.parse(JSON.stringify(post))} />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}

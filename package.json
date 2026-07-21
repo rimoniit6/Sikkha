@@ -21,7 +21,7 @@
     "revoke-super-admin": "tsx scripts/revoke-super-admin.ts"
   },
   "prisma": {
-    "seed": "tsx prisma/seed-all.ts"
+    "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
     "@libsql/client": "^0.17.4",
