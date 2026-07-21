@@ -3,6 +3,8 @@ import { db } from '@/lib/db'
 import { handleApiError } from '@/lib/errors'
 import { apiLimiter } from '@/lib/rate-limit'
 import { verifyAuth } from '@/lib/auth'
+import { batchCheckContentAccess } from '@/lib/access-control'
+import { cacheHeaders } from '@/lib/cache-headers'
 import { NextResponse } from 'next/server'
 
 export async function GET(request: Request) {
@@ -82,7 +84,30 @@ export async function GET(request: Request) {
     const subjectMap = new Map<string, string>(subjects.map((s) => [s.id, s.name] as [string, string]))
     const chapterMap = new Map<string, string>(chapters.map((c) => [c.id, c.name] as [string, string]))
 
+    // ── Access control: resolve which premium suggestions the user can see ──
+    const auth = await verifyAuth(request)
+    const userId = auth?.user.id
+    const isAdmin = auth?.user && ['ADMIN', 'SUPER_ADMIN'].includes(auth.user.role)
+
+    let accessiblePremiumIds = new Set<string>()
+    if (!isAdmin && userId) {
+      const premiumIds = suggestions.filter((s) => s.isPremium).map((s) => s.id)
+      if (premiumIds.length > 0) {
+        const accessMap = await batchCheckContentAccess({
+          userId,
+          items: premiumIds.map((id) => ({ contentType: 'suggestion', contentId: id })),
+        })
+        for (const [id, result] of accessMap) {
+          if (result.hasAccess) accessiblePremiumIds.add(id)
+        }
+      }
+    } else if (isAdmin) {
+      accessiblePremiumIds = new Set(suggestions.filter((s) => s.isPremium).map((s) => s.id))
+    }
+
     const transformed = suggestions.map((s) => {
+      const isPremiumLocked = s.isPremium && !accessiblePremiumIds.has(s.id)
+
       const base = {
         id: s.id,
         title: s.title,
@@ -94,15 +119,16 @@ export async function GET(request: Request) {
         subjectName: s.subjectId ? subjectMap.get(s.subjectId) || null : null,
         chapterName: s.chapterId ? chapterMap.get(s.chapterId) || null : null,
         thumbnail: s.thumbnail,
-        pdfUrl: s.pdfUrl,
+        pdfUrl: isPremiumLocked ? null : s.pdfUrl,
         isPremium: s.isPremium,
         price: s.price,
         viewCount: s.viewCount,
         order: s.order,
         createdAt: s.createdAt,
+        hasAccess: !isPremiumLocked,
       }
 
-      if (s.isPremium) {
+      if (isPremiumLocked) {
         return { ...base, content: null }
       }
 
@@ -118,7 +144,7 @@ export async function GET(request: Request) {
         total,
         totalPages: Math.ceil(total / limit),
       },
-    })
+    }, { headers: cacheHeaders.noCache })
   } catch (error) {
     return handleApiError(error, 'Get Suggestions error')
   }

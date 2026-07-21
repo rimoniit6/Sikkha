@@ -4,6 +4,7 @@ import { handleApiError } from '@/lib/errors'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { auditFromRequest, AuditActions } from '@/lib/audit'
+import { invalidateMultipleCache } from '@/lib/cache-invalidate'
 import {
   getFeaturedRegistration,
   batchResolveFeaturedContent,
@@ -101,6 +102,9 @@ export async function POST(request: Request) {
       return c
     })
 
+    // Invalidate homepage featured cache so the public API picks up changes
+    await invalidateMultipleCache(['featured'])
+
     return apiResponse(created, 201)
   } catch (error) {
     return handleApiError(error, 'Admin Create Featured')
@@ -138,6 +142,8 @@ export async function PUT(request: Request) {
       return u
     })
 
+    await invalidateMultipleCache(['featured'])
+
     return apiResponse(updated)
   } catch (error) {
     return handleApiError(error, 'Admin Update Featured')
@@ -171,6 +177,8 @@ export async function DELETE(request: Request) {
       })
       await auditFromRequest(request, auth.user.id, AuditActions.FEATURED_DELETE, 'featured_content', id, existing as Record<string, unknown>, undefined, tx as never)
     })
+
+    await invalidateMultipleCache(['featured'])
 
     return apiResponse({ id, message: 'ফিচার্ড কন্টেন্ট সফলভাবে মুছে ফেলা হয়েছে' })
   } catch (error) {

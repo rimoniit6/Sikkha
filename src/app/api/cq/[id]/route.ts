@@ -128,8 +128,23 @@ export async function GET(
       const auth = await verifyAuth()
       const userId = auth?.user.id
 
+      // Anonymous users get preview metadata — never redirect to login
       if (!userId) {
-        return apiError('এই CQ টি দেখতে লগইন করুন', 401, 'PREMIUM_REQUIRES_AUTH')
+        return NextResponse.json({
+          success: true,
+          data: {
+            id: cq.id,
+            uddeepok: cq.uddeepok,
+            isPremium: true,
+            price: cq.price,
+            chapterId: cq.chapterId,
+            chapterName: cq.chapter?.name || '',
+            subjectName: cq.chapter?.subject?.name || '',
+            className: cq.chapter?.subject?.class?.name || '',
+            classSlug: cq.chapter?.subject?.class?.slug || '',
+            hasAccess: false,
+          },
+        }, { headers: cacheHeaders.noCache })
       }
 
       const access = await checkContentAccess({

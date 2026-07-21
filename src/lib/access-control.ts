@@ -1,6 +1,6 @@
 import { db } from '@/lib/db'
 
-export type ContentType = 'mcq' | 'cq' | 'board-mcq' | 'board-cq' | 'lecture' | 'exam' | 'suggestion' | 'bundle' | 'package' | 'mcq-exam-package' | 'cq-exam-package'
+export type ContentType = 'mcq' | 'cq' | 'board-mcq' | 'board-cq' | 'lecture' | 'exam' | 'suggestion' | 'bundle' | 'package' | 'mcq-exam-package' | 'cq-exam-package' | 'knowledgeQuestion'
 
 export interface AccessCheckParams {
   userId: string

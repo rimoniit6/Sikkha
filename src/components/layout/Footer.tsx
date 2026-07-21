@@ -52,7 +52,7 @@ export default function Footer() {
   ]
 
   return (
-    <footer className="relative bg-gradient-to-b from-muted/40 to-muted border-t">
+    <footer className="hidden lg:block relative bg-gradient-to-b from-muted/40 to-muted border-t">
       {/* Decorative top border gradient */}
       <div className="h-0.5 bg-gradient-to-r from-transparent via-edu-primary/40 to-transparent" />
 

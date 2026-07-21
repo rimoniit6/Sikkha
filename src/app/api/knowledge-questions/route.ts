@@ -65,7 +65,7 @@ export async function GET(request: Request) {
       if (premiumItemIds.length > 0) {
         const accessMap = await batchCheckContentAccess({
           userId,
-          items: premiumItemIds.map((id) => ({ contentType: 'mcq' as const, contentId: id })),
+          items: premiumItemIds.map((id) => ({ contentType: 'knowledgeQuestion' as const, contentId: id })),
         })
         for (const [id, result] of accessMap) {
           if (!result.hasAccess) lockedPremiumIds.add(id)

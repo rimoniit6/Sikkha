@@ -1,5 +1,6 @@
 import { db } from '@/lib/db'
-import { apiResponse, apiError, withAdmin, withCsrf, parsePaginationParams } from '@/lib/api-utils'
+import { apiResponse, apiError, withAdmin, withCsrf, parsePaginationParams, applyRateLimit } from '@/lib/api-utils'
+import { apiLimiter } from '@/lib/rate-limit'
 import { handleApiError } from '@/lib/errors'
 import { createAuditLog, auditFromRequest, AuditActions } from '@/lib/audit'
 import { restore, bulkRestore, forceDelete, bulkForceDelete, previewForceDelete, bulkPreviewForceDelete, SOFT_DELETE_MODELS, getPrismaModel } from '@/lib/soft-delete'
@@ -38,6 +39,8 @@ const MODEL_LABELS: Record<string, string> = {
   userSubscription: 'সাবস্ক্রিপশন',
   mcqExamPackagePurchase: 'MCQ ক্রয়',
   cqExamPackagePurchase: 'CQ ক্রয়',
+  blogPost: 'ব্লগ পোস্ট',
+  blogCategory: 'ব্লগ ক্যাটাগরি',
 }
 
 // Fields to display per model type (first non-id field for display)
@@ -73,10 +76,16 @@ const DISPLAY_FIELDS: Record<string, string[]> = {
   userSubscription: ['classLevel'],
   mcqExamPackagePurchase: ['purchasedAt'],
   cqExamPackagePurchase: ['purchasedAt'],
+  blogPost: ['title', 'slug'],
+  blogCategory: ['name', 'slug'],
 }
 
 // GET: List all soft-deleted records across all Category A models
 export async function GET(request: Request) {
+  // Rate limiting for trash listing
+  const rateCheck = await applyRateLimit(apiLimiter, request)
+  if ('error' in rateCheck) return rateCheck.error
+
   const auth = await withAdmin(request)
   if (auth instanceof NextResponse) return auth
 
@@ -105,12 +114,12 @@ export async function GET(request: Request) {
       ? [model]
       : Array.from(SOFT_DELETE_MODELS)
 
-    for (const modelName of modelsToQuery) {
-      const label = MODEL_LABELS[modelName] || modelName
-      const displayFields = DISPLAY_FIELDS[modelName] || []
+    // Parallel fetch across all models
+    const results = await Promise.allSettled(
+      modelsToQuery.map(async (modelName) => {
+        const label = MODEL_LABELS[modelName] || modelName
+        const displayFields = DISPLAY_FIELDS[modelName] || []
 
-      try {
-        // Query with includeDeleted to bypass the auto-filter
         const where: Record<string, unknown> = {
           deletedAt: { not: null },
         }
@@ -133,6 +142,17 @@ export async function GET(request: Request) {
           take: 200, // Cap per model to prevent OOM
         })
 
+        const items: Array<{
+          id: string
+          model: string
+          modelLabel: string
+          displayTitle: string
+          deletedAt: Date | null
+          deletedBy: string | null
+          deleteReason: string | null
+          extra: Record<string, unknown>
+        }> = []
+
         for (const record of records) {
           // Build display title from display fields
           const titleParts = displayFields
@@ -142,7 +162,7 @@ export async function GET(request: Request) {
             .slice(0, 2)
           const displayTitle = titleParts.join(' — ') || record.id
 
-          allItems.push({
+          items.push({
             id: record.id,
             model: modelName,
             modelLabel: label,
@@ -153,9 +173,17 @@ export async function GET(request: Request) {
             extra: record,
           })
         }
-      } catch {
-        // Model might not exist in DB, skip silently
+
+        return items
+      })
+    )
+
+    // Merge results from all parallel queries
+    for (const result of results) {
+      if (result.status === 'fulfilled') {
+        allItems.push(...result.value)
       }
+      // Rejected models are silently skipped
     }
 
     // Sort

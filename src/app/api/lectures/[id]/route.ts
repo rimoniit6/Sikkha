@@ -56,8 +56,38 @@ export async function GET(
     }
 
     if (lecture.isPremium) {
+      // If user is not logged in, return preview metadata — never redirect to login
       if (!userId) {
-        return apiError('এই লেকচারটি দেখতে লগইন করুন', 401, 'PREMIUM_REQUIRES_AUTH')
+        const siblingLectures = lecture.chapter.lectures.map((lec) => ({
+          id: lec.id,
+          title: lec.title,
+          number: lec.order,
+          isCompleted: false,
+          isCurrent: lec.id === id,
+        }))
+        const currentIndex = lecture.chapter.lectures.findIndex((lec) => lec.id === id)
+        return NextResponse.json({
+          success: true,
+          data: {
+            id: lecture.id,
+            title: lecture.title,
+            thumbnail: lecture.thumbnail,
+            isPremium: true,
+            price: lecture.price,
+            chapterName: lecture.chapter.name,
+            subjectName: lecture.chapter.subject.name,
+            className: lecture.chapter.subject.class.name,
+            classSlug: lecture.chapter.subject.class.slug,
+            subjectSlug: lecture.chapter.subject.slug,
+            subjectId: lecture.chapter.subject.id,
+            chapterId: lecture.chapter.id,
+            hasAccess: false,
+            progress: userProgress,
+            lectures: siblingLectures,
+            currentIndex: currentIndex >= 0 ? currentIndex : 0,
+            resources: [],
+          },
+        }, { headers: cacheHeaders.noCache })
       }
 
       const access = await checkContentAccess({

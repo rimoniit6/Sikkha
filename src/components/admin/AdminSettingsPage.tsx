@@ -14,7 +14,6 @@ AlertTriangle,
 CheckCircle2,
 Database,
 Loader2,
-MessageSquareText,
 Palette,
 Phone,
 Save,
@@ -26,7 +25,6 @@ Trash2,
 Wallet
 } from 'lucide-react'
 import React,{ useEffect,useState } from 'react'
-import AdminFeedbackTab from './AdminFeedbackTab'
 import { GeneralTab } from './settings/GeneralTab'
 import { AppearanceTab } from './settings/AppearanceTab'
 import { UIContentTab } from './settings/UIContentTab'
@@ -36,7 +34,6 @@ import { PaymentTab } from './settings/PaymentTab'
 import { LegalTab } from './settings/LegalTab'
 import { DatabaseTab } from './settings/DatabaseTab'
 import { SecurityTab } from './settings/SecurityTab'
-import AdminTrashCleanupTab from './AdminTrashCleanupTab'
 
 export default function AdminSettingsPage() {
   const { toast } = useToast()
@@ -376,7 +373,7 @@ export default function AdminSettingsPage() {
       </div>
 
       <Tabs defaultValue="general" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-10 max-w-4xl">
+        <TabsList className="grid w-full grid-cols-9 max-w-4xl">
           <TabsTrigger value="general">সাধারণ</TabsTrigger>
           <TabsTrigger value="appearance" className="gap-1.5">
             <Palette className="size-3.5" />
@@ -384,10 +381,6 @@ export default function AdminSettingsPage() {
           </TabsTrigger>
           <TabsTrigger value="ui-content">হোমপেজ</TabsTrigger>
           <TabsTrigger value="messages">মেসেজ</TabsTrigger>
-          <TabsTrigger value="feedback" className="gap-1.5">
-            <MessageSquareText className="size-3.5" />
-            ফিডব্যাক
-          </TabsTrigger>
           <TabsTrigger value="contact">যোগাযোগ</TabsTrigger>
           <TabsTrigger value="payment">পেমেন্ট</TabsTrigger>
           <TabsTrigger value="legal" className="gap-1.5">
@@ -401,10 +394,6 @@ export default function AdminSettingsPage() {
           <TabsTrigger value="database" className="gap-1.5">
             <Database className="size-3.5" />
             ডাটাবেজ
-          </TabsTrigger>
-          <TabsTrigger value="trash" className="gap-1.5">
-            <Trash2 className="size-3.5" />
-            ট্র্যাশ
           </TabsTrigger>
         </TabsList>
 
@@ -469,10 +458,6 @@ export default function AdminSettingsPage() {
           <MessagesTab messages={messages} setMessages={setMessages} />
         </TabsContent>
 
-        <TabsContent value="feedback">
-          <AdminFeedbackTab />
-        </TabsContent>
-
         <TabsContent value="contact">
           <ContactTab
             contactEmail={contactEmail} setContactEmail={setContactEmail}
@@ -518,10 +503,6 @@ export default function AdminSettingsPage() {
             deleteConfirmText={deleteConfirmText} setDeleteConfirmText={setDeleteConfirmText}
             deleting={deleting} handleDeleteAll={handleDeleteAll} cancelDelete={cancelDelete}
           />
-        </TabsContent>
-
-        <TabsContent value="trash">
-          <AdminTrashCleanupTab />
         </TabsContent>
       </Tabs>
 

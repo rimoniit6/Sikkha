@@ -11,10 +11,49 @@
  *   await forceDelete(db, 'chapter', chapterId, adminId, 'GDPR request')
  */
 
+import { invalidateMultipleCache } from '@/lib/cache-invalidate'
+import type { CacheableContent } from '@/lib/cache-invalidate'
+
 // Using `any` for the db parameter because Prisma's extended client types
 // are incompatible with the base PrismaClient type in interactive transactions.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyPrismaClient = any
+
+// Model name → cache type mapping for automated cache invalidation
+const MODEL_CACHE_MAP: Record<string, CacheableContent | CacheableContent[]> = {
+  classCategory: 'class',
+  subject: 'subject',
+  chapter: 'chapter',
+  lecture: 'lecture',
+  mcq: 'mcq',
+  cq: 'cq',
+  suggestion: 'suggestion',
+  notice: 'notice',
+  faq: 'faq',
+  banner: 'banner',
+  board: 'board',
+  exam: 'exam',
+  contentBundle: 'bundle',
+  contentPackage: 'package',
+  blogPost: 'blog',
+  featuredContent: 'featured',
+}
+
+function getCacheTypesFromModel(model: string): CacheableContent[] {
+  const mapped = MODEL_CACHE_MAP[model]
+  if (!mapped) return []
+  return Array.isArray(mapped) ? mapped : [mapped]
+}
+
+function getCacheTypesFromModels(models: string[]): CacheableContent[] {
+  const types = new Set<CacheableContent>()
+  for (const model of models) {
+    for (const ct of getCacheTypesFromModel(model)) {
+      types.add(ct)
+    }
+  }
+  return Array.from(types)
+}
 
 // ─── Category A Models (support soft delete) ───
 
@@ -50,6 +89,8 @@ export const SOFT_DELETE_MODELS = new Set([
   'userSubscription',
   'mcqExamPackagePurchase',
   'cqExamPackagePurchase',
+  'blogPost',
+  'blogCategory',
 ])
 
 export function isSoftDeleteModel(model: string): boolean {
@@ -79,6 +120,8 @@ export const PRISMA_MODEL_MAP: Record<string, string> = {
   cqExamAnswer: 'cQExamAnswer',
   cqExamAnswerImage: 'cQExamAnswerImage',
   cqExamRetakeRequest: 'cQExamRetakeRequest',
+  blogPost: 'blogPost',
+  blogCategory: 'blogCategory',
 }
 
 export function getPrismaModel(logicalName: string): string {
@@ -96,6 +139,20 @@ export const CASCADE_RULES: Record<string, string[]> = {
   chapter: ['lecture', 'mcq', 'cq', 'knowledgeQuestion', 'topic', 'suggestion'],
   lecture: ['resource'],
   course: ['courseLesson'],
+  blogCategory: ['blogPost'],
+}
+
+/**
+ * Maps parent model names to their actual FK field name in child models.
+ * Falls back to `${parentModel}Id` convention when no entry exists.
+ */
+const FK_FIELD_MAP: Record<string, string> = {
+  classCategory: 'classId',  // Subject uses classId, not classCategoryId
+  blogCategory: 'categoryId', // BlogPost uses categoryId, not blogCategoryId
+}
+
+function fkField(model: string): string {
+  return FK_FIELD_MAP[model] || `${model}Id`
 }
 
 // ─── Soft Delete ───
@@ -150,7 +207,7 @@ export async function softDelete(
       const childModels = CASCADE_RULES[model] || []
       for (const childModel of childModels) {
         const childCount = await tx[getPrismaModel(childModel)].count({
-          where: { [`${model}Id`]: id, deletedAt: null },
+          where: { [fkField(model)]: id, deletedAt: null },
         })
         if (childCount > 0) {
           if (!cascade) {
@@ -160,7 +217,7 @@ export async function softDelete(
           }
           // Cascade: soft-delete all children
           const childIds = await tx[getPrismaModel(childModel)].findMany({
-            where: { [`${model}Id`]: id, deletedAt: null },
+            where: { [fkField(model)]: id, deletedAt: null },
             select: { id: true },
           })
           for (const child of childIds) {
@@ -188,6 +245,12 @@ export async function softDelete(
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error'
     throw new Error(`Soft delete failed for ${model}/${id}: ${message}`)
+  }
+
+  // Invalidate cache after successful soft delete
+  const cacheTypes = getCacheTypesFromModel(model)
+  if (cacheTypes.length > 0) {
+    await invalidateMultipleCache(cacheTypes).catch(() => {})
   }
 
   return { success: true, deletedCount, cascadeCount, errors }
@@ -340,7 +403,7 @@ export async function restore(
           // Find soft-deleted children of this record
           const deletedChildren = await tx[getPrismaModel(childModel)].findMany({
             where: {
-              [`${model}Id`]: id,
+              [fkField(model)]: id,
               deletedAt: { not: null },
             },
             includeDeleted: true,
@@ -365,6 +428,12 @@ export async function restore(
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error'
     throw new Error(`Restore failed for ${model}/${id}: ${message}`)
+  }
+
+  // Invalidate cache after successful restore
+  const cacheTypes = getCacheTypesFromModel(model)
+  if (cacheTypes.length > 0) {
+    await invalidateMultipleCache(cacheTypes).catch(() => {})
   }
 
   return { success: true, restoredCount: 1, cascadeCount, errors, slugChanged, newSlug, auditTrail }
@@ -531,7 +600,7 @@ export async function bulkRestore(
           for (const childModel of childModels) {
             const deletedChildren = await tx[getPrismaModel(childModel)].findMany({
               where: {
-                [`${item.model}Id`]: item.id,
+                [fkField(item.model)]: item.id,
                 deletedAt: { not: null },
               },
               includeDeleted: true,
@@ -585,6 +654,14 @@ export async function bulkRestore(
 
   const restoredCount = results.filter(r => r.success).length
   const failedCount = results.filter(r => !r.success).length
+
+  // Invalidate cache after successful bulk restore
+  if (restoredCount > 0) {
+    const cacheTypes = getCacheTypesFromModels(items.map(i => i.model))
+    if (cacheTypes.length > 0) {
+      await invalidateMultipleCache(cacheTypes).catch(() => {})
+    }
+  }
 
   return {
     success: failedCount === 0,
@@ -664,6 +741,9 @@ const PARENT_HIERARCHY: Record<string, any> = {
   },
   courseLesson: {
     field: 'courseId', model: 'course',
+  },
+  blogPost: {
+    field: 'categoryId', model: 'blogCategory',
   },
   boardYear: {
     // Special: BoardYear has two parents (Board + ExamYear)
@@ -773,6 +853,8 @@ const MODEL_LABELS: Record<string, string> = {
   userSubscription: 'সাবস্ক্রিপশন',
   mcqExamPackagePurchase: 'MCQ ক্রয়',
   cqExamPackagePurchase: 'CQ ক্রয়',
+  blogPost: 'ব্লগ পোস্ট',
+  blogCategory: 'ব্লগ ক্যাটাগরি',
 }
 
 // ─── Force Delete (permanent) ───
@@ -843,8 +925,8 @@ export async function previewForceDelete(
     const childModels = CASCADE_RULES[model] || []
     for (const childModel of childModels) {
       const [activeCount, deletedCount] = await Promise.all([
-        db[getPrismaModel(childModel)].count({ where: { [`${model}Id`]: id, deletedAt: null } }),
-        db[getPrismaModel(childModel)].count({ where: { [`${model}Id`]: id, deletedAt: { not: null } } }),
+        db[getPrismaModel(childModel)].count({ where: { [fkField(model)]: id, deletedAt: null } }),
+        db[getPrismaModel(childModel)].count({ where: { [fkField(model)]: id, deletedAt: { not: null } } }),
       ])
       const label = MODEL_LABELS[childModel] || childModel
       dependencies.push({
@@ -860,14 +942,14 @@ export async function previewForceDelete(
         const grandchildModels = CASCADE_RULES[childModel] || []
         for (const grandchildModel of grandchildModels) {
           const deletedChildren = await db[getPrismaModel(childModel)].findMany({
-            where: { [`${model}Id`]: id, deletedAt: { not: null } },
+            where: { [fkField(model)]: id, deletedAt: { not: null } },
             includeDeleted: true,
             select: { id: true },
           })
           for (const child of deletedChildren) {
             const [gcActive, gcDeleted] = await Promise.all([
-              db[getPrismaModel(grandchildModel)].count({ where: { [`${childModel}Id`]: child.id, deletedAt: null } }),
-              db[getPrismaModel(grandchildModel)].count({ where: { [`${childModel}Id`]: child.id, deletedAt: { not: null } } }),
+              db[getPrismaModel(grandchildModel)].count({ where: { [fkField(childModel)]: child.id, deletedAt: null } }),
+              db[getPrismaModel(grandchildModel)].count({ where: { [fkField(childModel)]: child.id, deletedAt: { not: null } } }),
             ])
             const gcLabel = MODEL_LABELS[grandchildModel] || grandchildModel
             const existing = dependencies.find(d => d.model === grandchildModel)
@@ -939,6 +1021,8 @@ const DISPLAY_FIELDS_MAP: Record<string, string[]> = {
   userSubscription: ['classLevel'],
   mcqExamPackagePurchase: ['purchasedAt'],
   cqExamPackagePurchase: ['purchasedAt'],
+  blogPost: ['title', 'slug'],
+  blogCategory: ['name', 'slug'],
 }
 
 /**
@@ -984,8 +1068,8 @@ export async function forceDelete(
       const childModels = CASCADE_RULES[model] || []
       for (const childModel of childModels) {
         const [activeCount, deletedCount] = await Promise.all([
-          tx[getPrismaModel(childModel)].count({ where: { [`${model}Id`]: id, deletedAt: null } }),
-          tx[getPrismaModel(childModel)].count({ where: { [`${model}Id`]: id, deletedAt: { not: null } } }),
+          tx[getPrismaModel(childModel)].count({ where: { [fkField(model)]: id, deletedAt: null } }),
+          tx[getPrismaModel(childModel)].count({ where: { [fkField(model)]: id, deletedAt: { not: null } } }),
         ])
 
         if (!cascade) {
@@ -1007,7 +1091,7 @@ export async function forceDelete(
           // Cascade: delete soft-deleted children
           if (deletedCount > 0) {
             const deletedChildren = await tx[getPrismaModel(childModel)].findMany({
-              where: { [`${model}Id`]: id, deletedAt: { not: null } },
+              where: { [fkField(model)]: id, deletedAt: { not: null } },
               includeDeleted: true,
               select: { id: true, deletedAt: true, deletedBy: true },
             })
@@ -1044,6 +1128,12 @@ export async function forceDelete(
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error'
     throw new Error(`Force delete failed for ${model}/${id}: ${message}`)
+  }
+
+  // Invalidate cache after successful force delete
+  const cacheTypes = getCacheTypesFromModel(model)
+  if (cacheTypes.length > 0) {
+    await invalidateMultipleCache(cacheTypes).catch(() => {})
   }
 
   return { success: true, deletedCount: 1, cascadeCount, errors, auditTrail }
@@ -1196,8 +1286,8 @@ export async function bulkForceDelete(
         const childModels = CASCADE_RULES[item.model] || []
         for (const childModel of childModels) {
           const [activeCount, deletedCount] = await Promise.all([
-            tx[getPrismaModel(childModel)].count({ where: { [`${item.model}Id`]: item.id, deletedAt: null } }),
-            tx[getPrismaModel(childModel)].count({ where: { [`${item.model}Id`]: item.id, deletedAt: { not: null } } }),
+            tx[getPrismaModel(childModel)].count({ where: { [fkField(item.model)]: item.id, deletedAt: null } }),
+            tx[getPrismaModel(childModel)].count({ where: { [fkField(item.model)]: item.id, deletedAt: { not: null } } }),
           ])
 
           if (!cascade) {
@@ -1235,6 +1325,8 @@ export async function bulkForceDelete(
         resource: 4,
         course: 0,
         courseLesson: 1,
+        blogCategory: 0,
+        blogPost: 1,
       }
       validatedItems.sort((a, b) => (depthMap[b.model] || 0) - (depthMap[a.model] || 0))
 
@@ -1244,7 +1336,7 @@ export async function bulkForceDelete(
           const childModels = CASCADE_RULES[item.model] || []
           for (const childModel of childModels) {
             const deletedChildren = await tx[getPrismaModel(childModel)].findMany({
-              where: { [`${item.model}Id`]: item.id, deletedAt: { not: null } },
+              where: { [fkField(item.model)]: item.id, deletedAt: { not: null } },
               includeDeleted: true,
               select: { id: true },
             })
@@ -1314,6 +1406,14 @@ export async function bulkForceDelete(
 
   const deletedCount = results.filter(r => r.success).length
   const failedCount = results.filter(r => !r.success).length
+
+  // Invalidate cache after successful bulk force delete
+  if (deletedCount > 0) {
+    const cacheTypes = getCacheTypesFromModels(items.map(i => i.model))
+    if (cacheTypes.length > 0) {
+      await invalidateMultipleCache(cacheTypes).catch(() => {})
+    }
+  }
 
   return {
     success: failedCount === 0,
@@ -1426,8 +1526,8 @@ export async function analyzeDeleteImpact(
     const childModels = CASCADE_RULES[model] || []
     for (const childModel of childModels) {
       const [activeCount, deletedCount] = await Promise.all([
-        db[getPrismaModel(childModel)].count({ where: { [`${model}Id`]: id, deletedAt: null } }),
-        db[getPrismaModel(childModel)].count({ where: { [`${model}Id`]: id, deletedAt: { not: null } } }),
+        db[getPrismaModel(childModel)].count({ where: { [fkField(model)]: id, deletedAt: null } }),
+        db[getPrismaModel(childModel)].count({ where: { [fkField(model)]: id, deletedAt: { not: null } } }),
       ])
       const label = MODEL_LABELS[childModel] || childModel
       const impact: ImpactModel = { model: childModel, label, activeCount, deletedCount, totalCount: activeCount + deletedCount }
@@ -1456,7 +1556,7 @@ export async function analyzeDeleteImpact(
 
         // Find soft-deleted children of this direct child
         const deletedChildren = await db[getPrismaModel(directChild.model)].findMany({
-          where: { [`${model}Id`]: id, deletedAt: { not: null } },
+          where: { [fkField(model)]: id, deletedAt: { not: null } },
           includeDeleted: true,
           select: { id: true },
         })
@@ -1466,12 +1566,12 @@ export async function analyzeDeleteImpact(
         for (const grandchildModel of grandchildModels) {
           const gcActiveCounts = await Promise.all(
             deletedChildren.map((child: { id: string }) =>
-              db[getPrismaModel(grandchildModel)].count({ where: { [`${directChild.model}Id`]: child.id, deletedAt: null } })
+              db[getPrismaModel(grandchildModel)].count({ where: { [fkField(directChild.model)]: child.id, deletedAt: null } })
             )
           )
           const gcDeletedCounts = await Promise.all(
             deletedChildren.map((child: { id: string }) =>
-              db[getPrismaModel(grandchildModel)].count({ where: { [`${directChild.model}Id`]: child.id, deletedAt: { not: null } } })
+              db[getPrismaModel(grandchildModel)].count({ where: { [fkField(directChild.model)]: child.id, deletedAt: { not: null } } })
             )
           )
           const totalGcActive = gcActiveCounts.reduce((a: number, b: number) => a + b, 0)
@@ -1659,6 +1759,7 @@ const PARENT_MAP: Record<string, { field: string; model: string }> = {
   suggestion: { field: 'chapterId', model: 'chapter' },
   resource: { field: 'lectureId', model: 'lecture' },
   courseLesson: { field: 'courseId', model: 'course' },
+  blogPost: { field: 'categoryId', model: 'blogCategory' },
 }
 
 async function checkParentActive(
