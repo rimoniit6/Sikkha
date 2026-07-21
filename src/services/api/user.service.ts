@@ -47,4 +47,27 @@ export const userService = {
   update: (data: UserUpdateInput) => api.patch<{ id: string }>('admin/users', data),
   remove: (id: string) => api.delete<{ id: string }>('admin/users', { id }),
   bulkRemove: (ids: string[]) => api.delete<{ deleted: number }>('admin/users', { ids: ids.join(',') }),
+  export: async (params?: UserListParams): Promise<void> => {
+    const queryParams = new URLSearchParams()
+    if (params?.search) queryParams.set('search', params.search)
+    if (params?.role) queryParams.set('role', params.role)
+    if (params?.isPremium !== undefined) queryParams.set('isPremium', String(params.isPremium))
+    queryParams.set('limit', '100000')
+
+    const res = await fetch(`/api/admin/users/export?${queryParams.toString()}`)
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: 'এক্সপোর্ট ব্যর্থ হয়েছে' }))
+      throw new Error(err.error || 'এক্সপোর্ট ব্যর্থ হয়েছে')
+    }
+
+    const blob = await res.blob()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `users-${new Date().toISOString().split('T')[0]}.csv`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  },
 }

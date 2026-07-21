@@ -1,7 +1,9 @@
 import { db } from '@/lib/db'
 import { apiError, withAdmin } from '@/lib/api-utils'
 import { NextResponse } from 'next/server'
-import { toDecimal } from '@/lib/decimal'
+import {
+  getFeaturedRegistration,
+} from '@/lib/featured-content-registry'
 
 export async function GET(request: Request) {
   try {
@@ -23,193 +25,41 @@ export async function GET(request: Request) {
 
     const items: ContentItem[] = []
 
-    switch (type) {
-      case 'lecture': {
-        const lectures = await db.lecture.findMany({
-          where: query ? { title: { contains: query } } : {},
-          include: {
-            chapter: {
-              select: {
-                name: true,
-                subject: {
-                  select: { name: true, slug: true, class: { select: { name: true, slug: true } } },
-                },
-              },
-            },
-          },
-          take: limit,
-          orderBy: { createdAt: 'desc' },
-        })
-        for (const l of lectures) {
-          items.push({
-            id: l.id,
-            title: l.title,
-            subtitle: `${l.chapter.subject.class.name} › ${l.chapter.subject.name} › ${l.chapter.name}`,
-            thumbnail: l.thumbnail,
-            isPremium: l.isPremium,
-          })
-        }
-        break
-      }
+    const reg = getFeaturedRegistration(type)
+    if (!reg) {
+      return apiError(`অবৈধ কন্টেন্ট টাইপ: ${type}`, 400)
+    }
 
-      case 'mcq': {
-        const mcqs = await db.mCQ.findMany({
-          where: query ? { question: { contains: query } } : {},
-          include: {
-            chapter: {
-              select: {
-                name: true,
-                subject: {
-                  select: { name: true, slug: true, class: { select: { name: true, slug: true } } },
-                },
-              },
-            },
-          },
-          take: limit,
-          orderBy: { createdAt: 'desc' },
-        })
-        for (const m of mcqs) {
-          items.push({
-            id: m.id,
-            title: m.question.length > 80 ? m.question.slice(0, 80) + '...' : m.question,
-            subtitle: `${m.chapter.subject.class.name} › ${m.chapter.subject.name} › ${m.chapter.name}`,
-            isPremium: m.isPremium,
-            extra: { difficulty: m.difficulty, classLevel: m.classLevel },
-          })
-        }
-        break
-      }
+    // Build the Prisma where clause from search fields
+    const where: Record<string, unknown> = {}
+    if (query) {
+      where.OR = reg.searchFields.map((field) => ({ [field]: { contains: query } }))
+    }
 
-      case 'cq': {
-        const cqs = await db.cQ.findMany({
-          where: query ? { uddeepok: { contains: query } } : {},
-          include: {
-            chapter: {
-              select: {
-                name: true,
-                subject: {
-                  select: { name: true, slug: true, class: { select: { name: true, slug: true } } },
-                },
-              },
-            },
-          },
-          take: limit,
-          orderBy: { createdAt: 'desc' },
-        })
-        for (const c of cqs) {
-          items.push({
-            id: c.id,
-            title: c.uddeepok.length > 80 ? c.uddeepok.slice(0, 80) + '...' : c.uddeepok,
-            subtitle: `${c.chapter.subject.class.name} › ${c.chapter.subject.name} › ${c.chapter.name}`,
-            isPremium: c.isPremium,
-            extra: { difficulty: c.difficulty, classLevel: c.classLevel },
-          })
-        }
-        break
-      }
+    const model = (db as Record<string, unknown>)[reg.modelKey] as
+      | { findMany: (args: Record<string, unknown>) => Promise<Array<Record<string, unknown>>> }
+      | undefined
 
-      case 'bundle': {
-        const bundles = await db.contentBundle.findMany({
-          where: query ? { title: { contains: query } } : {},
-          take: limit,
-          orderBy: { createdAt: 'desc' },
-        })
-        for (const b of bundles) {
-          items.push({
-            id: b.id,
-            title: b.title,
-            subtitle: b.type === 'MIXED' ? 'মিক্সড বান্ডেল' : `${b.type.toUpperCase()} বান্ডেল`,
-            thumbnail: b.thumbnail,
-            isPremium: toDecimal(b.price) > 0,
-            extra: { price: b.price, originalPrice: b.originalPrice, type: b.type },
-          })
-        }
-        break
-      }
+    if (!model) {
+      return apiError(`কন্টেন্ট টাইপ ${type} এর জন্য মডেল পাওয়া যায়নি`, 500)
+    }
 
-      case 'package': {
-        const packages = await db.contentPackage.findMany({
-          where: query ? { title: { contains: query } } : {},
-          take: limit,
-          orderBy: { createdAt: 'desc' },
-        })
-        for (const p of packages) {
-          items.push({
-            id: p.id,
-            title: p.title,
-            subtitle: p.durationLabel,
-            thumbnail: p.thumbnail,
-            isPremium: toDecimal(p.price) > 0,
-            extra: { price: p.price, duration: p.duration, durationLabel: p.durationLabel },
-          })
-        }
-        break
-      }
+    const results = await model.findMany({
+      where,
+      include: reg.include,
+      take: limit,
+      orderBy: { createdAt: 'desc' as const },
+    })
 
-      case 'suggestion': {
-        const suggestions = await db.suggestion.findMany({
-          where: query ? { title: { contains: query } } : {},
-          take: limit,
-          orderBy: { createdAt: 'desc' },
-        })
-        for (const s of suggestions) {
-          items.push({
-            id: s.id,
-            title: s.title,
-            subtitle: s.classId || '',
-            thumbnail: s.thumbnail,
-            isPremium: s.isPremium,
-            extra: { price: s.price },
-          })
-        }
-        break
-      }
-
-      case 'exam': {
-        const exams = await db.exam.findMany({
-          where: query ? { title: { contains: query } } : {},
-          take: limit,
-          orderBy: { createdAt: 'desc' },
-        })
-        for (const e of exams) {
-          items.push({
-            id: e.id,
-            title: e.title,
-            subtitle: `${e.classLevel} › ${e.type.toUpperCase()} › ${e.duration} মিনিট`,
-            isPremium: e.isPremium,
-            extra: { type: e.type, duration: e.duration, totalMarks: e.totalMarks },
-          })
-        }
-        break
-      }
-
-      case 'course': {
-        const courses = await db.course.findMany({
-          where: query ? { title: { contains: query } } : {},
-          include: {
-            classCategory: { select: { name: true } },
-            subject: { select: { name: true } },
-          },
-          take: limit,
-          orderBy: { createdAt: 'desc' },
-        })
-        for (const c of courses) {
-          items.push({
-            id: c.id,
-            title: c.title,
-            subtitle: c.classCategory && c.subject
-              ? `${c.classCategory.name} › ${c.subject.name}`
-              : c.classCategory?.name || null,
-            thumbnail: c.thumbnail,
-            isPremium: c.isPremium,
-            extra: { price: c.price, originalPrice: c.originalPrice, slug: c.slug },
-          })
-        }
-        break
-      }
-
-      default:
-        return apiError(`অবৈধ কন্টেন্ট টাইপ: ${type}`, 400)
+    for (const entry of results) {
+      items.push({
+        id: entry.id as string,
+        title: reg.getTitle(entry),
+        subtitle: reg.getSearchSubtitle(entry),
+        thumbnail: reg.getThumbnail(entry),
+        isPremium: reg.isPremium(entry),
+        extra: reg.getSearchExtra?.(entry),
+      })
     }
 
     return NextResponse.json({ success: true, data: items })

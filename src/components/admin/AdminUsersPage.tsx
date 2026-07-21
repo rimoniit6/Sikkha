@@ -61,6 +61,7 @@ export default function AdminUsersPage() {
   const [deleteUser, setDeleteUser] = useState<UserRecord | null>(null)
   const [perPage, setPerPage] = useState(10)
   const [isProcessing, setIsProcessing] = useState(false)
+  const [isExporting, setIsExporting] = useState(false)
 
   const params = useMemo(() => ({
     page,
@@ -142,6 +143,19 @@ export default function AdminUsersPage() {
     } catch {
       // Errors are surfaced globally by ApiErrorHandler
     } finally { setIsProcessing(false) }
+  }
+
+  const handleExport = async () => {
+    if (isExporting) return
+    setIsExporting(true)
+    try {
+      await userService.export({ search: search || undefined, role: roleFilter !== 'all' ? roleFilter : undefined, isPremium: premiumFilter === 'premium' ? true : premiumFilter === 'free' ? false : undefined })
+      toast({ title: 'সফল', description: 'ব্যবহারকারী এক্সপোর্ট করা হয়েছে' })
+    } catch (e) {
+      toast({ title: 'ত্রুটি', description: e instanceof Error ? e.message : 'এক্সপোর্ট ব্যর্থ হয়েছে', variant: 'destructive' })
+    } finally {
+      setIsExporting(false)
+    }
   }
 
   const columns: ColumnDef<UserRecord>[] = [
@@ -302,7 +316,10 @@ export default function AdminUsersPage() {
           <h1 className="text-2xl font-bold flex items-center gap-2"><Users className="h-6 w-6 text-emerald-600" /> ব্যবহারকারী ব্যবস্থাপনা</h1>
           <p className="text-muted-foreground text-sm mt-1">মোট {total} জন ব্যবহারকারী</p>
         </div>
-        <Button variant="outline" className="gap-2"><Download className="h-4 w-4" /> রপ্তানি</Button>
+        <Button variant="outline" className="gap-2" onClick={handleExport} disabled={isExporting}>
+          <Download className={`h-4 w-4 ${isExporting ? 'animate-bounce' : ''}`} />
+          {isExporting ? 'এক্সপোর্ট হচ্ছে...' : 'রপ্তানি'}
+        </Button>
       </div>
 
       {/* DataTable */}

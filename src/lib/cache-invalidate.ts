@@ -1,12 +1,12 @@
 const store = new Map<string, number>()
 const CONTENT_VERSION_PREFIX = 'content:version:'
 
-export type CacheableContent = 'mcq' | 'cq' | 'lecture' | 'suggestion' | 'exam' | 'bundle' | 'package' | 'notice' | 'faq' | 'banner' | 'board-question' | 'board' | 'class' | 'subject' | 'chapter' | 'settings' | 'notification' | 'blog'
+export type CacheableContent = 'mcq' | 'cq' | 'lecture' | 'suggestion' | 'exam' | 'bundle' | 'package' | 'notice' | 'faq' | 'banner' | 'board-question' | 'board' | 'class' | 'subject' | 'chapter' | 'settings' | 'notification' | 'blog' | 'featured'
 
 const VALID_CONTENT_TYPES = new Set<string>([
   'mcq', 'cq', 'lecture', 'suggestion', 'exam',
   'bundle', 'package', 'notice', 'faq', 'banner',
-  'board-question', 'board', 'class', 'subject', 'chapter', 'settings', 'notification', 'blog',
+  'board-question', 'board', 'class', 'subject', 'chapter', 'settings', 'notification', 'blog', 'featured',
 ])
 
 export async function invalidateContentCache(contentType: CacheableContent): Promise<void> {

@@ -16,7 +16,6 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
-import { useContentTypes } from '@/hooks/use-content-types'
 import { useToast } from '@/hooks/use-toast'
 import { motion } from 'framer-motion'
 import {
@@ -25,6 +24,7 @@ ArrowDown,
 ArrowUp,
 BookOpen,
 Box,
+Brain,
 Check,
 ClipboardCheck,
 Edit,
@@ -35,6 +35,8 @@ GraduationCap,
 GripVertical,
 Lightbulb,
 Loader2,
+Megaphone,
+Newspaper,
 Package,
 Plus,
 Search,
@@ -43,25 +45,60 @@ Trash2,
 X,
 } from 'lucide-react'
 import Image from 'next/image'
-import { useCallback,useEffect,useState } from 'react'
+import { useCallback,useEffect,useMemo,useState } from 'react'
 
-// Only these content types are supported by the featured system
-const SUPPORTED_FEATURED_TYPES = new Set([
-  'lecture', 'mcq', 'cq', 'bundle',
-  'package', 'suggestion', 'exam', 'course',
-])
+import {
+  getFeaturedRegistration,
+  getRegisteredFeaturedTypes,
+  type FeaturedContentRegistration,
+} from '@/lib/featured-content-registry'
 
-// Fallback content type definitions (used before content types load from DB)
-const FALLBACK_CONTENT_TYPES = [
-  { value: 'lecture', label: 'লেকচার', icon: BookOpen, color: 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300' },
-  { value: 'mcq', label: 'MCQ', icon: FileQuestion, color: 'bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300' },
-  { value: 'cq', label: 'CQ', icon: AlignLeft, color: 'bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300' },
-  { value: 'bundle', label: 'বান্ডেল', icon: Package, color: 'bg-teal-100 text-teal-700 dark:bg-teal-900 dark:text-teal-300' },
-  { value: 'package', label: 'প্যাকেজ', icon: Box, color: 'bg-rose-100 text-rose-700 dark:bg-rose-900 dark:text-rose-300' },
-  { value: 'suggestion', label: 'সাজেশন', icon: Lightbulb, color: 'bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300' },
-  { value: 'exam', label: 'এক্সাম', icon: ClipboardCheck, color: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300' },
-  { value: 'course', label: 'কোর্স', icon: GraduationCap, color: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900 dark:text-cyan-300' },
-] as const
+// ─── Icon map: registry icon name → Lucide component ───
+const ICON_MAP: Record<string, React.ElementType> = {
+  PlayCircle: BookOpen,
+  FileQuestion,
+  AlignLeft,
+  Package,
+  Box,
+  Lightbulb,
+  ClipboardCheck,
+  GraduationCap,
+  Newspaper,
+  Megaphone,
+  Brain,
+  ClipboardList: ClipboardCheck,
+}
+
+function getIconForType(type: string): React.ElementType {
+  const reg = getFeaturedRegistration(type)
+  if (reg && ICON_MAP[reg.icon]) return ICON_MAP[reg.icon]
+  return BookOpen
+}
+
+function getLabelForType(type: string): string {
+  const reg = getFeaturedRegistration(type)
+  return reg?.labelBn || type
+}
+
+function getColorForType(type: string): string {
+  const reg = getFeaturedRegistration(type)
+  return reg?.color || 'bg-gray-100 text-gray-700'
+}
+
+// ─── Build content type options from the registry ───
+interface RegistryTypeOption {
+  value: string
+  label: string
+  color: string
+  icon: React.ElementType
+}
+
+const REGISTRY_CONTENT_TYPES: RegistryTypeOption[] = getRegisteredFeaturedTypes().map((key) => ({
+  value: key,
+  label: getLabelForType(key),
+  color: getColorForType(key),
+  icon: getIconForType(key),
+}))
 
 interface FeaturedItem {
   id: string
@@ -101,19 +138,7 @@ const emptyForm = {
 
 export default function AdminFeaturedPage() {
   const { toast } = useToast()
-  const { contentTypesWithIcons } = useContentTypes()
 
-  // Build CONTENT_TYPES dynamically from DB, filtered to supported types
-  const CONTENT_TYPES = contentTypesWithIcons.length > 0
-    ? contentTypesWithIcons
-        .filter(ct => SUPPORTED_FEATURED_TYPES.has(ct.key))
-        .map(ct => ({
-          value: ct.key,
-          label: ct.labelBn,
-          icon: ct.Icon,
-          color: `${ct.lightColor || 'bg-gray-100'} ${ct.textColor || 'text-gray-700'}`,
-        }))
-    : FALLBACK_CONTENT_TYPES
   const [loading, setLoading] = useState(true)
   const [items, setItems] = useState<FeaturedItem[]>([])
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -127,6 +152,9 @@ export default function AdminFeaturedPage() {
   const [searchResults, setSearchResults] = useState<SearchItem[]>([])
   const [searching, setSearching] = useState(false)
   const [selectedContent, setSelectedContent] = useState<SearchItem | null>(null)
+
+  // All content types from the registry (always available, no DB dependency)
+  const contentTypes = useMemo(() => REGISTRY_CONTENT_TYPES, [])
 
   const fetchItems = useCallback(async () => {
     setLoading(true)
@@ -300,8 +328,8 @@ export default function AdminFeaturedPage() {
     } catch { /* */ }
   }
 
-  const getTypeInfo = (type: string) => {
-    return CONTENT_TYPES.find((t) => t.value === type) || CONTENT_TYPES[0]
+  const getTypeInfo = (type: string): RegistryTypeOption => {
+    return contentTypes.find((t) => t.value === type) || contentTypes[0]
   }
 
   if (loading) {
@@ -337,7 +365,7 @@ export default function AdminFeaturedPage() {
       <Card className="border-emerald-200 dark:border-emerald-800 bg-emerald-50/50 dark:bg-emerald-950/20">
         <CardContent className="p-4">
           <p className="text-sm text-muted-foreground">
-            💡 <strong>ফিচার্ড কন্টেন্ট</strong> হোমপেজের &quot;ফিচার্ড কন্টেন্ট&quot; সেকশনে প্রদর্শিত হয়। আপনি যেকোনো ধরনের কন্টেন্ট (লেকচার, MCQ, CQ, বান্ডেল, প্যাকেজ, সাজেশন, এক্সাম) ফিচার্ড হিসেবে যোগ করতে পারেন। অর্ডার পরিবর্তন করে প্রদর্শন ক্রম নিয়ন্ত্রণ করুন।
+            💡 <strong>ফিচার্ড কন্টেন্ট</strong> হোমপেজের &quot;ফিচার্ড কন্টেন্ট&quot; সেকশনে প্রদর্শিত হয়। আপনি যেকোনো ধরনের কন্টেন্ট (লেকচার, MCQ, CQ, বান্ডেল, প্যাকেজ, সাজেশন, এক্সাম, কোর্স, ব্লগ, নোটিশ, সংক্ষিপ্ত প্রশ্ন, MCQ/ CQ এক্সাম প্যাকেজ) ফিচার্ড হিসেবে যোগ করতে পারেন। অর্ডার পরিবর্তন করে প্রদর্শন ক্রম নিয়ন্ত্রণ করুন।
           </p>
         </CardContent>
       </Card>
@@ -451,7 +479,7 @@ export default function AdminFeaturedPage() {
             <div className="space-y-2">
               <Label className="text-sm font-semibold">ধাপ ১: কন্টেন্ট টাইপ নির্বাচন করুন</Label>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {CONTENT_TYPES.map((ct) => {
+                {contentTypes.map((ct) => {
                   const Icon = ct.icon
                   const isSelected = form.contentType === ct.value
                   return (

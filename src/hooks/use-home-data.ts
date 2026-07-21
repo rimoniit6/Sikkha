@@ -105,8 +105,8 @@ export function useFeaturedCourses() {
   return useQuery({
     queryKey: queryKeys.featuredCourses,
     queryFn: async () => {
-      const json = await fetchJSON<{ items?: FeaturedItem[] }>('/api/courses/featured')
-      return json.items || []
+      const json = await fetchJSON<{ success?: boolean; data?: { items?: FeaturedItem[] } }>('/api/courses/featured')
+      return json.data?.items || []
     },
     select: (data) => data,
   })

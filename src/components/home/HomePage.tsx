@@ -3,13 +3,12 @@
 import ScrollProgress from './ScrollProgress'
 import HeroSection from './HeroSection'
 import AchievementBadgesSection from './AchievementBadgesSection'
+import FeaturedContentSection from './FeaturedContentSection'
 import QuickSearchSection from './QuickSearchSection'
 import SubjectExplorerSection from './SubjectExplorerSection'
 import RecentContentSection from './RecentContentSection'
 import NoticeBoardSection from './NoticeBoardSection'
 import WhyChooseUsSection from './WhyChooseUsSection'
-import FeaturedCourses from './FeaturedCourses'
-import EnhancedStatsSection from './EnhancedStatsSection'
 import ExamCountdownSection from './ExamCountdownSection'
 import BoardQuestionSection from './BoardQuestionSection'
 import PremiumBanner from './PremiumBanner'
@@ -25,13 +24,12 @@ export default function HomePage() {
       <ScrollProgress />
       <HeroSection />
       <AchievementBadgesSection />
+      <FeaturedContentSection />
       <QuickSearchSection />
       <SubjectExplorerSection />
       <RecentContentSection />
       <NoticeBoardSection />
       <WhyChooseUsSection />
-      <FeaturedCourses />
-      <EnhancedStatsSection />
       <ExamCountdownSection />
       <BoardQuestionSection />
       <PremiumBanner />
