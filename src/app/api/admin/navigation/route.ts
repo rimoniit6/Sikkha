@@ -50,20 +50,22 @@ export async function POST(request: Request) {
     if ('error' in validation) return validation.error
     const { label, route, icon, location, order, isAuthOnly, isAdminOnly, isActive } = validation.data
 
-    const item = await db.navigation.create({
-      data: {
-        label,
-        route,
-        icon: icon || 'BookOpen',
-        location: location || 'header',
-        order: order ?? 0,
-        isAuthOnly: isAuthOnly ?? false,
-        isAdminOnly: isAdminOnly ?? false,
-        isActive: isActive ?? true,
-      },
+    const item = await db.$transaction(async (tx) => {
+      const created = await tx.navigation.create({
+        data: {
+          label,
+          route,
+          icon: icon || 'BookOpen',
+          location: location || 'header',
+          order: order ?? 0,
+          isAuthOnly: isAuthOnly ?? false,
+          isAdminOnly: isAdminOnly ?? false,
+          isActive: isActive ?? true,
+        },
+      })
+      await auditFromRequest(request, auth.user.id, AuditActions.NAVIGATION_CREATE, 'navigation', created.id, undefined, created as Record<string, unknown>, tx as never)
+      return created
     })
-
-    await auditFromRequest(request, auth.user.id, AuditActions.NAVIGATION_CREATE, 'navigation', item.id, undefined, item as Record<string, unknown>)
 
     return NextResponse.json({ success: true, data: item }, { status: 201 })
   } catch (error) {
@@ -88,12 +90,14 @@ export async function PUT(request: Request) {
       return apiError('id আবশ্যক', 400)
     }
 
-    const item = await db.navigation.update({
-      where: { id },
-      data: updates,
+    const item = await db.$transaction(async (tx) => {
+      const updated = await tx.navigation.update({
+        where: { id },
+        data: updates,
+      })
+      await auditFromRequest(request, auth.user.id, AuditActions.NAVIGATION_UPDATE, 'navigation', updated.id, undefined, updated as Record<string, unknown>, tx as never)
+      return updated
     })
-
-    await auditFromRequest(request, auth.user.id, AuditActions.NAVIGATION_UPDATE, 'navigation', item.id, undefined, item as Record<string, unknown>)
 
     return NextResponse.json({ success: true, data: item })
   } catch (error) {
@@ -118,12 +122,14 @@ export async function DELETE(request: Request) {
       return apiError('id আবশ্যক', 400)
     }
 
-    const item = await db.navigation.update({
-      where: { id },
-      data: { isActive: false },
+    const item = await db.$transaction(async (tx) => {
+      const deleted = await tx.navigation.update({
+        where: { id },
+        data: { isActive: false },
+      })
+      await auditFromRequest(request, auth.user.id, AuditActions.NAVIGATION_DELETE, 'navigation', deleted.id, undefined, deleted as Record<string, unknown>, tx as never)
+      return deleted
     })
-
-    await auditFromRequest(request, auth.user.id, AuditActions.NAVIGATION_DELETE, 'navigation', item.id, undefined, item as Record<string, unknown>)
 
     return NextResponse.json({ success: true, data: item, message: 'নেভিগেশন আইটেম নিষ্ক্রিয় করা হয়েছে' })
   } catch (error) {

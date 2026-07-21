@@ -1,5 +1,5 @@
 import { apiError,apiResponse,withAdmin,withCsrf } from '@/lib/api-utils'
-import { AuditActions,createAuditLog,EntityTypes,getClientIP } from '@/lib/audit'
+import { AuditActions, auditFromRequest, createAuditLog, EntityTypes, getClientIP } from '@/lib/audit'
 import { createVersion } from '@/lib/version-history'
 import { db } from '@/lib/db'
 import { handleApiError } from '@/lib/errors'
@@ -300,16 +300,20 @@ export async function POST(request: Request) {
         const { title, description, classId, subjectIds, price, originalPrice, thumbnail, isPremium, isActive, order, status } = body
         if (!title || !classId) return apiError('Title and class are required', 400)
 
-        const pkg = await db.cQExamPackage.create({
-          data: {
-            title, description, classId,
-            subjectIds: subjectIds ? JSON.stringify(subjectIds) : '[]',
-            price: price || 0, originalPrice: originalPrice || 0,
-            thumbnail: thumbnail || null,
-            isPremium: deriveIsPremium(price),
-            isActive: isActive ?? true,
-            order: order ?? 0, status: status || 'DRAFT',
-          },
+        const pkg = await db.$transaction(async (tx) => {
+          const created = await tx.cQExamPackage.create({
+            data: {
+              title, description, classId,
+              subjectIds: subjectIds ? JSON.stringify(subjectIds) : '[]',
+              price: price || 0, originalPrice: originalPrice || 0,
+              thumbnail: thumbnail || null,
+              isPremium: deriveIsPremium(price),
+              isActive: isActive ?? true,
+              order: order ?? 0, status: status || 'DRAFT',
+            },
+          })
+          await auditFromRequest(request, auth.user.id, AuditActions.CQ_EXAM_PACKAGE_CREATE, 'cq_exam_package', created.id, body, { title: created.title }, tx as never)
+          return created
         })
         return apiResponse({ package: pkg }, 201)
       }
@@ -338,7 +342,10 @@ export async function POST(request: Request) {
             order: order ?? 0, status: status || 'DRAFT',
           },
         })
-        await recalculatePackageTotalSets(packageId)
+        await db.$transaction(async (tx) => {
+          await recalculatePackageTotalSets(packageId)
+          await auditFromRequest(request, auth.user.id, AuditActions.CQ_EXAM_SET_CREATE, 'cq_exam_set', set.id, body, { title: set.title }, tx as never)
+        })
         return apiResponse({ set }, 201)
       }
 
@@ -379,7 +386,10 @@ export async function POST(request: Request) {
           where: { setId, cqId: { in: newCqIds } },
           orderBy: { order: 'asc' },
         })
-        await recalculateSetTotals(setId)
+        await db.$transaction(async (tx) => {
+          await recalculateSetTotals(setId)
+          await auditFromRequest(request, auth.user.id, AuditActions.CQ_EXAM_SET_QUESTIONS_ADD, 'cq_exam_set', setId, undefined, { cqIds: newCqIds, count: newCqIds.length }, tx as never)
+        })
         return apiResponse({ created })
       }
 
@@ -414,7 +424,10 @@ export async function POST(request: Request) {
             typedQuestion4Image: typedQuestion4Image || null,
           },
         })
-        await recalculateSetTotals(setId)
+        await db.$transaction(async (tx) => {
+          await recalculateSetTotals(setId)
+          await auditFromRequest(request, auth.user.id, AuditActions.CQ_EXAM_SET_QUESTIONS_ADD, 'cq_exam_set', setId, undefined, { questionId: question.id }, tx as never)
+        })
         return apiResponse({ question }, 201)
       }
 
@@ -439,7 +452,10 @@ export async function POST(request: Request) {
             config: config || {},
           },
         })
-        await recalculateSetTotals(setId)
+        await db.$transaction(async (tx) => {
+          await recalculateSetTotals(setId)
+          await auditFromRequest(request, auth.user.id, AuditActions.CQ_EXAM_SET_QUESTIONS_ADD, 'cq_exam_set', setId, undefined, { questionId: question.id }, tx as never)
+        })
         return apiResponse({ question }, 201)
       }
 
@@ -500,7 +516,9 @@ export async function PUT(request: Request) {
           await createVersion(tx, 'cQExamPackage', id, { ...existing }, auth.user.id, changedFields, {
             ipAddress, userAgent,
           })
-          return tx.cQExamPackage.update({ where: { id }, data: updateData as never })
+          const updated = await tx.cQExamPackage.update({ where: { id }, data: updateData as never })
+          await auditFromRequest(request, auth.user.id, AuditActions.CQ_EXAM_PACKAGE_UPDATE, 'cq_exam_package', id, existing as Record<string, unknown>, data as Record<string, unknown>, tx as never)
+          return updated
         }, { maxWait: 10000, timeout: 30000 })
 
         return apiResponse({ package: pkg })
@@ -525,7 +543,11 @@ export async function PUT(request: Request) {
         if (updateData.gradingDeadline) updateData.gradingDeadline = new Date(updateData.gradingDeadline as string)
         if (updateData.gradingDeadline === null) updateData.gradingDeadline = null
 
-        const set = await db.cQExamSet.update({ where: { id: setId }, data: updateData as never })
+        const set = await db.$transaction(async (tx) => {
+          const updated = await tx.cQExamSet.update({ where: { id: setId }, data: updateData as never })
+          await auditFromRequest(request, auth.user.id, AuditActions.CQ_EXAM_SET_UPDATE, 'cq_exam_set', setId, undefined, updateData as Record<string, unknown>, tx as never)
+          return updated
+        })
         return apiResponse({ set })
       }
 
@@ -615,7 +637,7 @@ export async function PUT(request: Request) {
           },
         })
 
-        // Audit log
+        // Audit log — inside the same transaction as grading
         await createAuditLog({
           adminId: auth.user.id,
           action: AuditActions.GRADE_UPDATE,
@@ -809,7 +831,7 @@ export async function PUT(request: Request) {
           }
         }
 
-        // Audit log for bulk grading
+        // Audit log for bulk grading — inside the same transaction
         await createAuditLog({
           adminId: auth.user.id,
           action: AuditActions.GRADE_BULK,
@@ -1144,7 +1166,13 @@ export async function DELETE(request: Request) {
         if (!id) return apiError('Package ID is required', 400)
         const guard = await guardDeleteDependencies('cq-exam-packages', id)
         if (!guard.ok) return guard.response
-        await softDelete(db, 'cqExamPackage', id, auth.user.id)
+        await db.$transaction(async (tx) => {
+          await tx.cQExamPackage.update({
+            where: { id },
+            data: { deletedAt: new Date(), deletedBy: auth.user.id },
+          })
+          await auditFromRequest(request, auth.user.id, AuditActions.CQ_EXAM_PACKAGE_DELETE, 'cq_exam_package', id, undefined, undefined, tx as never)
+        })
         return apiResponse({ success: true })
       }
 
@@ -1152,8 +1180,17 @@ export async function DELETE(request: Request) {
         const id = searchParams.get('id')
         const packageId = searchParams.get('packageId')
         if (!id) return apiError('Set ID is required', 400)
-        await db.cQExamSet.delete({ where: { id } })
-        if (packageId) await recalculatePackageTotalSets(packageId)
+        await db.$transaction(async (tx) => {
+          await tx.cQExamSet.delete({ where: { id } })
+          if (packageId) {
+            const count = await tx.cQExamSet.count({ where: { packageId } })
+            await tx.cQExamPackage.update({
+              where: { id: packageId },
+              data: { totalSets: count },
+            })
+          }
+          await auditFromRequest(request, auth.user.id, AuditActions.CQ_EXAM_SET_DELETE, 'cq_exam_set', id, undefined, undefined, tx as never)
+        })
         return apiResponse({ success: true })
       }
 

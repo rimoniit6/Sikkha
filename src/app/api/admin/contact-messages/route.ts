@@ -54,12 +54,14 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: 'ID আবশ্যক' }, { status: 400 })
     }
 
-    const updated = await db.contactMessage.update({
-      where: { id },
-      data: { isRead: isRead ?? true },
+    const updated = await db.$transaction(async (tx) => {
+      const u = await tx.contactMessage.update({
+        where: { id },
+        data: { isRead: isRead ?? true },
+      })
+      await auditFromRequest(request, auth.user.id, AuditActions.CONTACT_MESSAGE_READ, 'contact_message', u.id, undefined, u as Record<string, unknown>, tx as never)
+      return u
     })
-
-    await auditFromRequest(request, auth.user.id, AuditActions.CONTACT_MESSAGE_READ, 'contact_message', updated.id, undefined, updated as Record<string, unknown>)
 
     return NextResponse.json({ success: true, data: updated })
   } catch (error) {
@@ -82,9 +84,10 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'ID আবশ্যক' }, { status: 400 })
     }
 
-    await db.contactMessage.delete({ where: { id } })
-
-    await auditFromRequest(request, auth.user.id, AuditActions.CONTACT_MESSAGE_DELETE, 'contact_message', id, undefined, undefined)
+    await db.$transaction(async (tx) => {
+      await tx.contactMessage.delete({ where: { id } })
+      await auditFromRequest(request, auth.user.id, AuditActions.CONTACT_MESSAGE_DELETE, 'contact_message', id, undefined, undefined, tx as never)
+    })
 
     return NextResponse.json({ success: true })
   } catch (error) {

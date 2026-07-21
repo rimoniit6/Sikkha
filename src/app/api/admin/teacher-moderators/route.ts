@@ -5,7 +5,6 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { auditFromRequest, AuditActions } from '@/lib/audit'
 import { invalidateContentCache } from '@/lib/cache-invalidate'
-import { softDelete } from '@/lib/soft-delete'
 
 const createTeacherModeratorSchema = z.object({
   name: z.string().min(1, 'নাম আবশ্যক'),
@@ -44,18 +43,21 @@ export async function POST(request: Request) {
     if ('error' in validation) return validation.error
     const { name, image, title, institution, isActive, order } = validation.data
 
-    const data = await db.teacherModerator.create({
-      data: {
-        name,
-        image: image || null,
-        title,
-        institution: institution || null,
-        isActive: isActive ?? true,
-        order: order ?? 0,
-      },
+    const data = await db.$transaction(async (tx) => {
+      const tm = await tx.teacherModerator.create({
+        data: {
+          name,
+          image: image || null,
+          title,
+          institution: institution || null,
+          isActive: isActive ?? true,
+          order: order ?? 0,
+        },
+      })
+      await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_CREATE, 'teacher', tm.id, body, undefined, tx as never)
+      return tm
     })
 
-    await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_CREATE, 'teacher', data.id, body)
     await invalidateContentCache('settings')
     return apiResponse(data, 201)
   } catch (error) {
@@ -92,12 +94,15 @@ export async function PUT(request: Request) {
       }
     }
 
-    const updated = await db.teacherModerator.update({
-      where: { id },
-      data: data as never,
+    const updated = await db.$transaction(async (tx) => {
+      const u = await tx.teacherModerator.update({
+        where: { id },
+        data: data as never,
+      })
+      await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_UPDATE, 'teacher', u.id, undefined, undefined, tx as never)
+      return u
     })
 
-    await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_UPDATE, 'teacher', updated.id)
     await invalidateContentCache('settings')
     return apiResponse(updated)
   } catch (error) {
@@ -136,9 +141,11 @@ export async function DELETE(request: Request) {
       return apiError('টিচার/মডারেটর খুঁজে পাওয়া যায়নি', 404)
     }
 
-    await softDelete(db, 'teacherModerator', id, auth.user.id)
+    await db.$transaction(async (tx) => {
+      await tx.teacherModerator.update({ where: { id }, data: { deletedAt: new Date(), deletedBy: auth.user.id } })
+      await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_DELETE, 'teacher', id, undefined, undefined, tx as never)
+    })
 
-    await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_DELETE, 'teacher', id)
     await invalidateContentCache('settings')
     return apiResponse({ id }, 'সফলভাবে মুছে ফেলা হয়েছে')
   } catch (error) {

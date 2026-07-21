@@ -60,8 +60,11 @@ export async function DELETE(request: Request) {
 
     const ids = parseIdsParam(searchParams)
     if (ids) {
-      const result = await db.note.deleteMany({ where: { id: { in: ids } } })
-      await auditFromRequest(request, auth.user.id, AuditActions.NOTE_DELETE, 'note', ids[0], undefined, undefined)
+      const result = await db.$transaction(async (tx) => {
+        const deleted = await tx.note.deleteMany({ where: { id: { in: ids } } })
+        await auditFromRequest(request, auth.user.id, AuditActions.NOTE_DELETE, 'note', ids[0], undefined, undefined, tx as never)
+        return deleted
+      })
       return apiResponse({ deleted: result.count }, `${result.count}টি সফলভাবে মুছে ফেলা হয়েছে`)
     }
 
@@ -77,9 +80,10 @@ export async function DELETE(request: Request) {
     const existing = await db.note.findUnique({ where: { id } })
     if (!existing) return apiError('নোট খুঁজে পাওয়া যায়নি', 404)
 
-    await db.note.delete({ where: { id } })
-
-    await auditFromRequest(request, auth.user.id, AuditActions.NOTE_DELETE, 'note', id, existing as Record<string, unknown>, undefined)
+    await db.$transaction(async (tx) => {
+      await tx.note.delete({ where: { id } })
+      await auditFromRequest(request, auth.user.id, AuditActions.NOTE_DELETE, 'note', id, existing as Record<string, unknown>, undefined, tx as never)
+    })
 
     return apiResponse({ id, message: 'নোট সফলভাবে মুছে ফেলা হয়েছে' })
   } catch (error) {

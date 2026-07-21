@@ -7,7 +7,6 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { auditFromRequest, AuditActions, EntityTypes, getClientIP } from '@/lib/audit'
 import { guardDeleteDependencies } from '@/lib/delete-guard'
-import { softDelete } from '@/lib/soft-delete'
 import { transitionWorkflow } from '@/lib/workflow'
 
 const createLectureSchema = z.object({
@@ -106,17 +105,20 @@ export async function POST(request: Request) {
 
     const lectureSlug = fields.slug || fields.title.toLowerCase().replace(/[^a-z0-9\u0980-\u09FF]+/g, '-').replace(/^-|-$/g, '')
 
-    const data = await db.lecture.create({
-      data: {
-        title: fields.title, slug: lectureSlug, chapterId: fields.chapterId, content: fields.content,
-        videoUrl: fields.videoUrl || null, audioUrl: fields.audioUrl || null, pdfUrl: fields.pdfUrl || null,
-        thumbnail: fields.thumbnail || null, duration: fields.duration ?? 0, order: fields.order ?? 0,
-        isPremium: deriveIsPremium(fields.price), price: fields.price ?? 0, isActive: fields.isActive ?? true,
-      },
+    const data = await db.$transaction(async (tx) => {
+      const created = await tx.lecture.create({
+        data: {
+          title: fields.title, slug: lectureSlug, chapterId: fields.chapterId, content: fields.content,
+          videoUrl: fields.videoUrl || null, audioUrl: fields.audioUrl || null, pdfUrl: fields.pdfUrl || null,
+          thumbnail: fields.thumbnail || null, duration: fields.duration ?? 0, order: fields.order ?? 0,
+          isPremium: deriveIsPremium(fields.price), price: fields.price ?? 0, isActive: fields.isActive ?? true,
+        },
+      })
+      await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_CREATE, EntityTypes.LECTURE, created.id, body, undefined, tx as never)
+      return created
     })
 
     await invalidateContentCache('lecture')
-    await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_CREATE, EntityTypes.LECTURE, data.id, body)
     return apiResponse(data, 201)
   } catch (error) {
     return handleApiError(error, 'Admin Create Lecture')
@@ -207,11 +209,16 @@ export async function DELETE(request: Request) {
 
     const ids = parseIdsParam(searchParams)
     if (ids) {
-      for (const id of ids) {
-        await softDelete(db, 'lecture', id, auth.user.id)
-      }
+      await db.$transaction(async (tx) => {
+        for (const delId of ids) {
+          await tx.lecture.update({
+            where: { id: delId },
+            data: { deletedAt: new Date(), deletedBy: auth.user.id },
+          })
+        }
+        await Promise.all(ids.map(id => auditFromRequest(request, auth.user.id, AuditActions.CONTENT_DELETE, EntityTypes.LECTURE, id, undefined, undefined, tx as never)))
+      })
       await invalidateContentCache('lecture')
-      await Promise.all(ids.map(id => auditFromRequest(request, auth.user.id, AuditActions.CONTENT_DELETE, EntityTypes.LECTURE, id)))
       return apiResponse({ deleted: ids.length }, `${ids.length}টি লেকচার মুছে ফেলা হয়েছে`)
     }
 
@@ -240,10 +247,15 @@ export async function DELETE(request: Request) {
     const guard = await guardDeleteDependencies('lectures', id)
     if (!guard.ok) return guard.response
 
-    await softDelete(db, 'lecture', id, auth.user.id)
+    await db.$transaction(async (tx) => {
+      await tx.lecture.update({
+        where: { id },
+        data: { deletedAt: new Date(), deletedBy: auth.user.id },
+      })
+      await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_DELETE, EntityTypes.LECTURE, id, undefined, undefined, tx as never)
+    })
 
     await invalidateContentCache('lecture')
-    await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_DELETE, EntityTypes.LECTURE, id)
     return apiResponse({ id }, 'লেকচার সফলভাবে মুছে ফেলা হয়েছে')
   } catch (error) {
     return handleApiError(error, 'Admin Delete Lecture')

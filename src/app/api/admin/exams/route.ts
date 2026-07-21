@@ -5,7 +5,6 @@ import { deriveIsPremium } from '@/lib/premium'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { toDecimal } from '@/lib/decimal'
-import { softDelete } from '@/lib/soft-delete'
 import { createVersion } from '@/lib/version-history'
 import { auditFromRequest, AuditActions, getClientIP } from '@/lib/audit'
 
@@ -101,29 +100,34 @@ export async function POST(request: Request) {
       status, instructions, startsAt, endsAt, questions,
     } = validation.data
 
-    const exam = await db.exam.create({
-      data: {
-        title, description: description || null, classLevel, subjectId: subjectId || null,
-        chapterIds: chapterIds || null, type: type as 'MCQ' | 'CQ' | 'MIXED', duration,
-        totalMarks: totalMarks ?? 0, marksPerMcq: marksPerMcq ?? 1, negativeMarks: negativeMarks ?? 0,
-        isPremium: deriveIsPremium(price), price: price ?? 0, isActive: isActive ?? true,
-        status: ((status ?? 'DRAFT') as string).toUpperCase() as 'DRAFT' | 'PUBLISHED' | 'ARCHIVED', instructions: instructions || null,
-        startsAt: startsAt ? new Date(startsAt) : null,
-        endsAt: endsAt ? new Date(endsAt) : null,
-        questions: questions && questions.length > 0
-          ? { create: questions.map((q: { questionType: string; questionId: string; marks: number; order?: number }) => ({ questionType: q.questionType, questionId: q.questionId, marks: q.marks || 0, order: q.order || 0 })) }
-          : undefined,
-      },
-      include: { questions: true },
+    const exam = await db.$transaction(async (tx) => {
+      const e = await tx.exam.create({
+        data: {
+          title, description: description || null, classLevel, subjectId: subjectId || null,
+          chapterIds: chapterIds || null, type: type as 'MCQ' | 'CQ' | 'MIXED', duration,
+          totalMarks: totalMarks ?? 0, marksPerMcq: marksPerMcq ?? 1, negativeMarks: negativeMarks ?? 0,
+          isPremium: deriveIsPremium(price), price: price ?? 0, isActive: isActive ?? true,
+          status: ((status ?? 'DRAFT') as string).toUpperCase() as 'DRAFT' | 'PUBLISHED' | 'ARCHIVED', instructions: instructions || null,
+          startsAt: startsAt ? new Date(startsAt) : null,
+          endsAt: endsAt ? new Date(endsAt) : null,
+          questions: questions && questions.length > 0
+            ? { create: questions.map((q: { questionType: string; questionId: string; marks: number; order?: number }) => ({ questionType: q.questionType, questionId: q.questionId, marks: q.marks || 0, order: q.order || 0 })) }
+            : undefined,
+        },
+        include: { questions: true },
+      })
+
+      // Calculate totalMarks if not set but questions exist
+      if (e.totalMarks === 0 && e.questions.length > 0) {
+        const calcMarks = e.questions.reduce((sum, q) => sum + toDecimal(q.marks), 0)
+        await tx.exam.update({ where: { id: e.id }, data: { totalMarks: calcMarks } })
+        e.totalMarks = calcMarks
+      }
+
+      await auditFromRequest(request, auth.user.id, AuditActions.EXAM_CREATE, 'exam', e.id, body, { title: e.title }, tx as never)
+      return e
     })
 
-    if (exam.totalMarks === 0 && exam.questions.length > 0) {
-      const calcMarks = exam.questions.reduce((sum, q) => sum + toDecimal(q.marks), 0)
-      await db.exam.update({ where: { id: exam.id }, data: { totalMarks: calcMarks } })
-      exam.totalMarks = calcMarks
-    }
-
-    await auditFromRequest(request, auth.user.id, AuditActions.EXAM_CREATE, 'exam', exam.id, body, { title: exam.title })
     return apiResponse(exam, 201)
   } catch (error) {
     return handleApiError(error, 'Admin Create Exam')
@@ -182,7 +186,7 @@ export async function PUT(request: Request) {
       key => JSON.stringify(updateFields[key]) !== JSON.stringify(existing[key as keyof typeof existing])
     )
 
-    // Create version snapshot + update in single transaction
+    // Create version snapshot + update + audit in single transaction
     const ipAddress = getClientIP(request)
     const userAgent = request.headers.get('user-agent') || undefined
 
@@ -194,17 +198,18 @@ export async function PUT(request: Request) {
       })
 
       // Perform the actual update
-      return tx.exam.update({
+      const u = await tx.exam.update({
         where: { id },
         data: updateFields,
         include: { questions: true },
       })
+      await auditFromRequest(request, auth.user.id, AuditActions.EXAM_UPDATE, 'exam', id, existing, updateFields, tx as never)
+      return u
     }, {
       maxWait: 10000,
       timeout: 30000,
     })
 
-    await auditFromRequest(request, auth.user.id, AuditActions.EXAM_UPDATE, 'exam', id, existing, updateFields)
     return apiResponse(updated)
   } catch (error) {
     return handleApiError(error, 'Admin Update Exam')
@@ -222,10 +227,12 @@ export async function DELETE(request: Request) {
     const { searchParams } = new URL(request.url)
     const ids = parseIdsParam(searchParams)
     if (ids) {
-      for (const id of ids) {
-        await softDelete(db, 'exam', id, auth.user.id)
-      }
-      await auditFromRequest(request, auth.user.id, AuditActions.EXAM_DELETE, 'exam', ids.join(','), undefined, { count: ids.length })
+      await db.$transaction(async (tx) => {
+        for (const delId of ids) {
+          await tx.exam.update({ where: { id: delId }, data: { deletedAt: new Date(), deletedBy: auth.user.id } })
+        }
+        await auditFromRequest(request, auth.user.id, AuditActions.EXAM_DELETE, 'exam', ids.join(','), undefined, { count: ids.length }, tx as never)
+      })
       return apiResponse({ deleted: ids.length }, `${ids.length}টি সফলভাবে মুছে ফেলা হয়েছে`)
     }
     const id = searchParams.get('id')
@@ -235,8 +242,11 @@ export async function DELETE(request: Request) {
     const existing = await db.exam.findUnique({ where: { id } })
     if (!existing) return apiError('পরীক্ষা খুঁজে পাওয়া যায়নি', 404)
 
-    await softDelete(db, 'exam', id, auth.user.id)
-    await auditFromRequest(request, auth.user.id, AuditActions.EXAM_DELETE, 'exam', id)
+    await db.$transaction(async (tx) => {
+      await tx.exam.update({ where: { id }, data: { deletedAt: new Date(), deletedBy: auth.user.id } })
+      await auditFromRequest(request, auth.user.id, AuditActions.EXAM_DELETE, 'exam', id, existing as Record<string, unknown>, undefined, tx as never)
+    })
+
     return apiResponse({ id }, 'পরীক্ষা সফলভাবে মুছে ফেলা হয়েছে')
   } catch (error) {
     return handleApiError(error, 'Admin Delete Exam')

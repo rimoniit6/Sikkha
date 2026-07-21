@@ -52,8 +52,8 @@ export async function PUT(request: Request) {
     if ('error' in validation) return validation.error
     const { permissionId, roles } = validation.data
 
-    // Atomic: delete old + create new in a single transaction
-    // If any create fails, the delete rolls back too — permissions are never left in a partial state
+    // Atomic: delete old + create new + audit log in a single transaction
+    // If anything fails, everything rolls back — permissions are never left in a partial state
     await db.$transaction(async (tx) => {
       await tx.rolePermission.deleteMany({ where: { permissionId } })
       for (const role of roles) {
@@ -61,14 +61,13 @@ export async function PUT(request: Request) {
           data: { role: role as any, permissionId },
         })
       }
+      await auditFromRequest(request, 'system', AuditActions.PERMISSION_UPDATE, 'permission', permissionId, undefined, { permissionId, roles }, tx as never)
     }, {
       maxWait: 5000,
       timeout: 10000,
     })
 
     invalidatePermissionCache()
-
-    await auditFromRequest(request, 'system', AuditActions.PERMISSION_UPDATE, 'permission', permissionId, undefined, { permissionId, roles })
 
     return NextResponse.json({ success: true, message: 'পারমিশন আপডেট করা হয়েছে' })
   } catch (error) {

@@ -164,7 +164,8 @@ export async function POST(request: Request) {
         const { lessonId, title, description, deadline, attachment } = body
         if (!lessonId || !title) return apiError('lessonId and title required', 400)
         const max = await db.lessonAssignment.aggregate({ where: { lessonId }, _max: { displayOrder: true } })
-        const assignment = await db.lessonAssignment.create({
+        const assignment = await db.$transaction(async (tx) => {
+          const created = await tx.lessonAssignment.create({
           data: {
             lessonId, title, description: description || null,
             deadline: deadline ? new Date(deadline).toISOString() : null, attachment: attachment || null,
@@ -172,32 +173,39 @@ export async function POST(request: Request) {
           },
           include: { lesson: { select: { title: true } } },
         })
-        await auditFromRequest(request, auth.user.id, 'course_assignment_create', 'course_assignment', assignment.id, undefined, { lessonId, title })
+        await auditFromRequest(request, auth.user.id, 'course_assignment_create', 'course_assignment', created.id, undefined, { lessonId, title }, tx as never)
+          return created
+        })
         return apiResponse({ assignment }, 201)
       }
 
       case 'update': {
         const { id, title, description, deadline, attachment } = body
         if (!id) return apiError('Assignment ID required', 400)
-        const data: Record<string, unknown> = {}
-        if (title !== undefined) data.title = title
-        if (description !== undefined) data.description = description || null
-        if (deadline !== undefined) data.deadline = deadline ? new Date(deadline).toISOString() : null
-        if (attachment !== undefined) data.attachment = attachment || null
-        const assignment = await db.lessonAssignment.update({
-          where: { id },
-          data,
-          include: { lesson: { select: { title: true } } },
+        const upd: Record<string, unknown> = {}
+        if (title !== undefined) upd.title = title
+        if (description !== undefined) upd.description = description || null
+        if (deadline !== undefined) upd.deadline = deadline ? new Date(deadline).toISOString() : null
+        if (attachment !== undefined) upd.attachment = attachment || null
+        const assignment = await db.$transaction(async (tx) => {
+          const updated = await tx.lessonAssignment.update({
+            where: { id },
+            data: upd,
+            include: { lesson: { select: { title: true } } },
+          })
+          await auditFromRequest(request, auth.user.id, 'course_assignment_update', 'course_assignment', id, undefined, upd, tx as never)
+          return updated
         })
-        await auditFromRequest(request, auth.user.id, 'course_assignment_update', 'course_assignment', id, undefined, data)
         return apiResponse({ assignment })
       }
 
       case 'delete': {
         const { id } = body
         if (!id) return apiError('Assignment ID required', 400)
-        await db.lessonAssignment.delete({ where: { id } })
-        await auditFromRequest(request, auth.user.id, 'course_assignment_delete', 'course_assignment', id)
+        await db.$transaction(async (tx) => {
+          await tx.lessonAssignment.delete({ where: { id } })
+          await auditFromRequest(request, auth.user.id, 'course_assignment_delete', 'course_assignment', id, undefined, undefined, tx as never)
+        })
         return apiResponse({ success: true })
       }
 
@@ -208,17 +216,20 @@ export async function POST(request: Request) {
         const submission = await db.assignmentSubmission.findUnique({ where: { id: submissionId } })
         if (!submission) return apiError('Submission not found', 404)
 
-        const updated = await db.assignmentSubmission.update({
-          where: { id: submissionId },
-          data: {
-            marks,
-            feedback: feedback || null,
-            status: 'graded',
-            gradedBy: auth.user.id,
-            gradedAt: new Date(),
-          },
+        const updated = await db.$transaction(async (tx) => {
+          const result = await tx.assignmentSubmission.update({
+            where: { id: submissionId },
+            data: {
+              marks,
+              feedback: feedback || null,
+              status: 'graded',
+              gradedBy: auth.user.id,
+              gradedAt: new Date(),
+            },
+          })
+          await auditFromRequest(request, auth.user.id, AuditActions.GRADE_UPDATE, 'course_assignment', submissionId, { marks: submission.marks, status: submission.status }, { marks, feedback, status: 'graded' }, tx as never)
+          return result
         })
-        await auditFromRequest(request, auth.user.id, AuditActions.GRADE_UPDATE, 'course_assignment', submissionId, { marks: submission.marks, status: submission.status }, { marks, feedback, status: 'graded' })
         return apiResponse({ submission: updated })
       }
 
@@ -226,16 +237,19 @@ export async function POST(request: Request) {
         const { assignmentId, defaultMarks } = body
         if (!assignmentId || defaultMarks === undefined) return apiError('assignmentId and defaultMarks required', 400)
 
-        const result = await db.assignmentSubmission.updateMany({
-          where: { assignmentId, status: 'submitted' },
-          data: {
-            marks: defaultMarks,
-            status: 'graded',
-            gradedBy: auth.user.id,
-            gradedAt: new Date(),
-          },
+        const result = await db.$transaction(async (tx) => {
+          const r = await tx.assignmentSubmission.updateMany({
+            where: { assignmentId, status: 'submitted' },
+            data: {
+              marks: defaultMarks,
+              status: 'graded',
+              gradedBy: auth.user.id,
+              gradedAt: new Date(),
+            },
+          })
+          await auditFromRequest(request, auth.user.id, AuditActions.GRADE_BULK, 'course_assignment', assignmentId, undefined, { defaultMarks, count: r.count }, tx as never)
+          return r
         })
-        await auditFromRequest(request, auth.user.id, AuditActions.GRADE_BULK, 'course_assignment', assignmentId, undefined, { defaultMarks, count: result.count })
         return apiResponse({ count: result.count })
       }
 

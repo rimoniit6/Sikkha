@@ -73,23 +73,26 @@ export async function POST(request: Request) {
     })
     if (existingSlug) return apiError('এই বিষয়ে এই স্লাগ ইতিমধ্যে ব্যবহৃত হয়েছে।', 409)
 
-    const data = await db.chapter.create({
-      data: {
-        name,
-        slug: chapterSlug,
-        subjectId,
-        order: order ?? 0,
-        description: description || null,
-        isActive: isActive ?? true,
-      },
-      include: {
-        subject: { select: { id: true, name: true, slug: true, classId: true } },
-        _count: { select: { lectures: true, mcqs: true, cqs: true } },
-      },
+    const data = await db.$transaction(async (tx) => {
+      const created = await (tx as any).chapter.create({
+        data: {
+          name,
+          slug: chapterSlug,
+          subjectId,
+          order: order ?? 0,
+          description: description || null,
+          isActive: isActive ?? true,
+        },
+        include: {
+          subject: { select: { id: true, name: true, slug: true, classId: true } },
+          _count: { select: { lectures: true, mcqs: true, cqs: true } },
+        },
+      })
+      await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_CREATE, 'chapter', created.id, body, undefined, tx as never)
+      return created
     })
 
     await invalidateContentCache('chapter')
-    await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_CREATE, 'chapter', data.id, body)
     return apiResponse(data, 201)
   } catch (error) {
     return handleApiError(error, 'Admin Create Chapter')
@@ -132,17 +135,20 @@ export async function PUT(request: Request) {
       }
     }
 
-    const updated = await db.chapter.update({
-      where: { id },
-      data,
-      include: {
-        subject: { select: { id: true, name: true, slug: true, classId: true } },
-        _count: { select: { lectures: true, mcqs: true, cqs: true } },
-      },
+    const updated = await db.$transaction(async (tx) => {
+      const result = await (tx as any).chapter.update({
+        where: { id },
+        data,
+        include: {
+          subject: { select: { id: true, name: true, slug: true, classId: true } },
+          _count: { select: { lectures: true, mcqs: true, cqs: true } },
+        },
+      })
+      await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_UPDATE, 'chapter', existing.id, { ...existing }, data, tx as never)
+      return result
     })
 
     await invalidateContentCache('chapter')
-    await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_UPDATE, 'chapter', existing.id, { ...existing }, data)
     return apiResponse(updated)
   } catch (error) {
     return handleApiError(error, 'Admin Update Chapter')
@@ -173,9 +179,12 @@ export async function DELETE(request: Request) {
     const guard = await guardDeleteDependencies('chapters', id)
     if (!guard.ok) return guard.response
 
-    await softDelete(db, 'chapter', id, auth.user.id)
+    await db.$transaction(async (tx) => {
+      await softDelete(tx, 'chapter', id, auth.user.id)
+      await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_DELETE, 'chapter', id, undefined, undefined, tx as never)
+    })
+
     await invalidateContentCache('chapter')
-    await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_DELETE, 'chapter', id)
     return apiResponse({ id, message: 'অধ্যায় সফলভাবে মুছে ফেলা হয়েছে' })
   } catch (error) {
     return handleApiError(error, 'Admin Delete Chapter')

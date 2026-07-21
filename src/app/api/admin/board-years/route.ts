@@ -47,15 +47,17 @@ export async function POST(request: Request) {
     if ('error' in validation) return validation.error
     const { board, year, isActive } = validation.data
 
-    const data = await db.boardYear.create({
-      data: {
-        board,
-        year,
-        isActive: isActive ?? true,
-      },
+    const data = await db.$transaction(async (tx) => {
+      const created = await (tx as any).boardYear.create({
+        data: {
+          board,
+          year,
+          isActive: isActive ?? true,
+        },
+      })
+      await auditFromRequest(request, auth.user.id, AuditActions.BOARD_YEAR_CREATE, 'board_year', created.id, undefined, created as Record<string, unknown>, tx as never)
+      return created
     })
-
-    await auditFromRequest(request, auth.user.id, AuditActions.BOARD_YEAR_CREATE, 'board_year', data.id, undefined, data as Record<string, unknown>)
 
     return NextResponse.json({ success: true, data }, { status: 201 })
   } catch (error) {
@@ -91,12 +93,14 @@ export async function PUT(request: Request) {
       }
     }
 
-    const updated = await db.boardYear.update({
-      where: { id },
-      data,
+    const updated = await db.$transaction(async (tx) => {
+      const result = await (tx as any).boardYear.update({
+        where: { id },
+        data,
+      })
+      await auditFromRequest(request, auth.user.id, AuditActions.BOARD_YEAR_UPDATE, 'board_year', result.id, existing as Record<string, unknown>, result as Record<string, unknown>, tx as never)
+      return result
     })
-
-    await auditFromRequest(request, auth.user.id, AuditActions.BOARD_YEAR_UPDATE, 'board_year', updated.id, existing as Record<string, unknown>, updated as Record<string, unknown>)
 
     return NextResponse.json({ success: true, data: updated })
   } catch (error) {
@@ -136,9 +140,10 @@ export async function DELETE(request: Request) {
     const guard = await guardDeleteDependencies('board-years', id)
     if (!guard.ok) return guard.response
 
-    await softDelete(db, 'boardYear', id, auth.user.id)
-
-    await auditFromRequest(request, auth.user.id, AuditActions.BOARD_YEAR_DELETE, 'board_year', id, existing as Record<string, unknown>, undefined)
+    await db.$transaction(async (tx) => {
+      await softDelete(tx, 'boardYear', id, auth.user.id)
+      await auditFromRequest(request, auth.user.id, AuditActions.BOARD_YEAR_DELETE, 'board_year', id, existing as Record<string, unknown>, undefined, tx as never)
+    })
 
     return NextResponse.json({ success: true, data: { id }, message: 'বোর্ড সাল সফলভাবে মুছে ফেলা হয়েছে' })
   } catch (error) {

@@ -34,7 +34,20 @@ export async function POST(request: Request) {
     if (!user || !user.password || !verifyPassword(password, user.password)) {
       const failIp = getClientIP(request)
       const failUa = request.headers.get('user-agent') || undefined
-      await createAuditLog({ adminId: 'system', action: AuditActions.LOGIN_FAILED, entityType: 'user', entityId: email, ipAddress: failIp, userAgent: failUa, status: 'failed' })
+      // If user exists (wrong password), use their real userId;
+      // if user doesn't exist (unknown email), fall back to 'system'
+      const failedUserId = user?.id || null
+      await createAuditLog({
+        adminId: failedUserId,
+        action: AuditActions.LOGIN_FAILED,
+        entityType: 'user',
+        entityId: email,
+        ipAddress: failIp,
+        userAgent: failUa,
+        userName: user?.name || undefined,
+        userRole: user?.role || undefined,
+        status: 'failed',
+      })
       throw new AuthenticationError('ইমেইল বা পাসওয়ার্ড সঠিক নয়')
     }
 

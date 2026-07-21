@@ -49,16 +49,18 @@ export async function POST(request: Request) {
     if ('error' in validation) return validation.error
     const { key, labelBn, labelEn, description, icon, color, lightColor, textColor, route, paramKey, buttonLabel, showInChapterDetail, order, isActive } = validation.data
 
-    const contentType = await db.contentType.create({
-      data: {
-        key, labelBn, labelEn, description, icon, color, lightColor, textColor,
-        route, paramKey, buttonLabel,
-        showInChapterDetail: showInChapterDetail ?? true,
-        order: order ?? 0, isActive: isActive ?? true,
-      },
+    const contentType = await db.$transaction(async (tx) => {
+      const created = await (tx as any).contentType.create({
+        data: {
+          key, labelBn, labelEn, description, icon, color, lightColor, textColor,
+          route, paramKey, buttonLabel,
+          showInChapterDetail: showInChapterDetail ?? true,
+          order: order ?? 0, isActive: isActive ?? true,
+        },
+      })
+      await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_TYPE_CREATE, 'content_type', created.id, undefined, created as Record<string, unknown>, tx as never)
+      return created
     })
-
-    await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_TYPE_CREATE, 'content_type', contentType.id, undefined, contentType as Record<string, unknown>)
 
     return apiResponse(contentType, 201)
   } catch (error) {
@@ -80,12 +82,14 @@ export async function PUT(request: Request) {
       return apiError('id আবশ্যক', 400)
     }
 
-    const contentType = await db.contentType.update({
-      where: { id },
-      data: updates,
+    const contentType = await db.$transaction(async (tx) => {
+      const result = await (tx as any).contentType.update({
+        where: { id },
+        data: updates,
+      })
+      await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_TYPE_UPDATE, 'content_type', result.id, undefined, result as Record<string, unknown>, tx as never)
+      return result
     })
-
-    await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_TYPE_UPDATE, 'content_type', contentType.id, undefined, contentType as Record<string, unknown>)
 
     return apiResponse(contentType)
   } catch (error) {
@@ -107,8 +111,11 @@ export async function DELETE(request: Request) {
       return apiError('id আবশ্যক', 400)
     }
 
-    await softDelete(db, 'contentType', id, auth.user.id)
-    await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_TYPE_DELETE, 'content_type', id, undefined, undefined)
+    await db.$transaction(async (tx) => {
+      await softDelete(tx, 'contentType', id, auth.user.id)
+      await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_TYPE_DELETE, 'content_type', id, undefined, undefined, tx as never)
+    })
+
     return apiResponse({ id }, 'কন্টেন্ট টাইপ মুছে ফেলা হয়েছে')
   } catch (error) {
     return handleApiError(error, 'Admin Delete Content Type')

@@ -86,8 +86,13 @@ export async function PUT(request: Request) {
     if (Array.isArray(ids) && ids.length > 0) {
       const updateData: Record<string, unknown> = {}
       if (isActive !== undefined) updateData.isActive = isActive
-      const result = await db.userSubscription.updateMany({ where: { id: { in: ids } }, data: updateData })
-      await auditFromRequest(request, auth.user.id, AuditActions.SUBSCRIPTION_UPDATE, 'subscription', ids[0], undefined, updateData as Record<string, unknown>)
+
+      const result = await db.$transaction(async (tx) => {
+        const r = await tx.userSubscription.updateMany({ where: { id: { in: ids } }, data: updateData })
+        await auditFromRequest(request, auth.user.id, AuditActions.SUBSCRIPTION_UPDATE, 'subscription', ids[0], undefined, updateData as Record<string, unknown>, tx as never)
+        return r
+      })
+
       return apiResponse({ updated: result.count }, `${result.count}টি আপডেট হয়েছে`)
     }
 
@@ -112,16 +117,18 @@ export async function PUT(request: Request) {
       updateData.isActive = true
     }
 
-    const updated = await db.userSubscription.update({
-      where: { id },
-      data: updateData,
-      include: {
-        user: { select: { id: true, name: true, email: true } },
-        package: { select: { id: true, title: true, duration: true, durationLabel: true, price: true } },
-      },
+    const updated = await db.$transaction(async (tx) => {
+      const u = await tx.userSubscription.update({
+        where: { id },
+        data: updateData,
+        include: {
+          user: { select: { id: true, name: true, email: true } },
+          package: { select: { id: true, title: true, duration: true, durationLabel: true, price: true } },
+        },
+      })
+      await auditFromRequest(request, auth.user.id, AuditActions.SUBSCRIPTION_UPDATE, 'subscription', u.id, existing as Record<string, unknown>, u as Record<string, unknown>, tx as never)
+      return u
     })
-
-    await auditFromRequest(request, auth.user.id, AuditActions.SUBSCRIPTION_UPDATE, 'subscription', updated.id, existing as Record<string, unknown>, updated as Record<string, unknown>)
 
     return apiResponse({ message: 'সাবস্ক্রিপশন আপডেট হয়েছে', data: updated })
   } catch (error) {
@@ -139,8 +146,11 @@ export async function DELETE(request: Request) {
     const { searchParams } = new URL(request.url)
     const ids = parseIdsParam(searchParams)
     if (ids) {
-      const result = await db.userSubscription.updateMany({ where: { id: { in: ids } }, data: { isActive: false } })
-      await auditFromRequest(request, auth.user.id, AuditActions.SUBSCRIPTION_DELETE, 'subscription', ids[0], undefined, undefined)
+      const result = await db.$transaction(async (tx) => {
+        const r = await tx.userSubscription.updateMany({ where: { id: { in: ids } }, data: { isActive: false } })
+        await auditFromRequest(request, auth.user.id, AuditActions.SUBSCRIPTION_DELETE, 'subscription', ids[0], undefined, undefined, tx as never)
+        return r
+      })
       return apiResponse({ updated: result.count }, `${result.count}টি নিষ্ক্রিয় করা হয়েছে`)
     }
     const id = searchParams.get('id')
@@ -150,12 +160,13 @@ export async function DELETE(request: Request) {
     const existing = await db.userSubscription.findUnique({ where: { id } })
     if (!existing) return apiError('সাবস্ক্রিপশন পাওয়া যায়নি', 404)
 
-    await db.userSubscription.update({
-      where: { id },
-      data: { isActive: false },
+    await db.$transaction(async (tx) => {
+      await tx.userSubscription.update({
+        where: { id },
+        data: { isActive: false },
+      })
+      await auditFromRequest(request, auth.user.id, AuditActions.SUBSCRIPTION_DELETE, 'subscription', id, existing as Record<string, unknown>, undefined, tx as never)
     })
-
-    await auditFromRequest(request, auth.user.id, AuditActions.SUBSCRIPTION_DELETE, 'subscription', id, existing as Record<string, unknown>, undefined)
 
     return apiResponse({ message: 'সাবস্ক্রিপশন নিষ্ক্রিয় করা হয়েছে' })
   } catch (error) {

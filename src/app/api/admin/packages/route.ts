@@ -4,7 +4,6 @@ import { db } from '@/lib/db'
 import { handleApiError } from '@/lib/errors'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
-import { softDelete } from '@/lib/soft-delete'
 import { createVersion } from '@/lib/version-history'
 import { auditFromRequest, AuditActions, getClientIP } from '@/lib/audit'
 
@@ -132,24 +131,27 @@ export async function POST(request: Request) {
       counter++
     }
 
-    const newPackage = await db.contentPackage.create({
-      data: {
-        title,
-        slug,
-        description: description || null,
-        thumbnail: thumbnail || null,
-        price: price || 0,
-        originalPrice: originalPrice || 0,
-        duration: duration || 30,
-        durationLabel: durationLabel || '৩০ দিন',
-        classLevel: classLevel || null,
-        isActive: isActive !== undefined ? isActive : true,
-        order: order || 0,
-      },
+    const newPackage = await db.$transaction(async (tx) => {
+      const pkg = await tx.contentPackage.create({
+        data: {
+          title,
+          slug,
+          description: description || null,
+          thumbnail: thumbnail || null,
+          price: price || 0,
+          originalPrice: originalPrice || 0,
+          duration: duration || 30,
+          durationLabel: durationLabel || '৩০ দিন',
+          classLevel: classLevel || null,
+          isActive: isActive !== undefined ? isActive : true,
+          order: order || 0,
+        },
+      })
+      await auditFromRequest(request, auth.user.id, AuditActions.PACKAGE_CREATE, 'content_package', pkg.id, body, { title: pkg.title }, tx as never)
+      return pkg
     })
 
     await invalidateContentCache('package')
-    await auditFromRequest(request, auth.user.id, AuditActions.PACKAGE_CREATE, 'content_package', newPackage.id, body, { title: newPackage.title })
     return apiResponse(newPackage, 'প্যাকেজ তৈরি হয়েছে', 201)
   } catch (error) {
     return handleApiError(error, 'Create package error')
@@ -197,13 +199,13 @@ export async function PUT(request: Request) {
 
         // Perform the bulk update
         await tx.contentPackage.updateMany({ where: { id: { in: ids } }, data: updateData })
+        await auditFromRequest(request, auth.user.id, AuditActions.PACKAGE_UPDATE, 'content_package', ids.join(','), undefined, { count: ids.length, updateData }, tx as never)
       }, {
         maxWait: 10000,
         timeout: 30000,
       })
 
       await invalidateContentCache('package')
-      await auditFromRequest(request, auth.user.id, AuditActions.PACKAGE_UPDATE, 'content_package', ids.join(','), undefined, { count: ids.length, updateData })
       return apiResponse({ updated: ids.length }, `${ids.length}টি আপডেট হয়েছে`)
     }
 
@@ -233,7 +235,7 @@ export async function PUT(request: Request) {
       key => JSON.stringify(updateData[key]) !== JSON.stringify(existing[key as keyof typeof existing])
     )
 
-    // Create version snapshot + update in single transaction
+    // Create version snapshot + update + audit in single transaction
     const ipAddress = getClientIP(request)
     const userAgent = request.headers.get('user-agent') || undefined
 
@@ -245,17 +247,18 @@ export async function PUT(request: Request) {
       })
 
       // Perform the actual update
-      return tx.contentPackage.update({
+      const u = await tx.contentPackage.update({
         where: { id },
         data: updateData,
       })
+      await auditFromRequest(request, auth.user.id, AuditActions.PACKAGE_UPDATE, 'content_package', id, existing, updateData, tx as never)
+      return u
     }, {
       maxWait: 10000,
       timeout: 30000,
     })
 
     await invalidateContentCache('package')
-    await auditFromRequest(request, auth.user.id, AuditActions.PACKAGE_UPDATE, 'content_package', id, existing, updateData)
     return apiResponse(updated, 'প্যাকেজ আপডেট হয়েছে')
   } catch (error) {
     return handleApiError(error, 'Update package error')
@@ -272,15 +275,17 @@ export async function DELETE(request: Request) {
     const { searchParams } = new URL(request.url)
     const ids = parseIdsParam(searchParams)
     if (ids) {
-      for (const pkgId of ids) {
-        const subs = await db.userSubscription.findMany({ where: { packageId: pkgId }, select: { id: true } })
-        for (const sub of subs) {
-          await softDelete(db, 'userSubscription', sub.id, auth.user.id)
+      await db.$transaction(async (tx) => {
+        for (const pkgId of ids) {
+          const subs = await tx.userSubscription.findMany({ where: { packageId: pkgId }, select: { id: true } })
+          for (const sub of subs) {
+            await tx.userSubscription.update({ where: { id: sub.id }, data: { deletedAt: new Date(), deletedBy: auth.user.id } })
+          }
+          await tx.contentPackage.update({ where: { id: pkgId }, data: { deletedAt: new Date(), deletedBy: auth.user.id } })
         }
-        await softDelete(db, 'contentPackage', pkgId, auth.user.id)
-      }
+        await auditFromRequest(request, auth.user.id, AuditActions.PACKAGE_DELETE, 'content_package', ids.join(','), undefined, { count: ids.length }, tx as never)
+      })
       await invalidateContentCache('package')
-      await auditFromRequest(request, auth.user.id, AuditActions.PACKAGE_DELETE, 'content_package', ids.join(','), undefined, { count: ids.length })
       return apiResponse({ deleted: ids.length }, `${ids.length}টি সফলভাবে মুছে ফেলা হয়েছে`)
     }
     const id = searchParams.get('id')
@@ -294,15 +299,17 @@ export async function DELETE(request: Request) {
       return apiResponse(null, 'প্যাকেজ পাওয়া যায়নি', 404)
     }
 
-    // Delete all subscriptions first (cascade should handle this, but be explicit)
-    const subs = await db.userSubscription.findMany({ where: { packageId: id }, select: { id: true } })
-    for (const sub of subs) {
-      await softDelete(db, 'userSubscription', sub.id, auth.user.id)
-    }
-    await softDelete(db, 'contentPackage', id, auth.user.id)
+    await db.$transaction(async (tx) => {
+      // Delete all subscriptions first
+      const subs = await tx.userSubscription.findMany({ where: { packageId: id }, select: { id: true } })
+      for (const sub of subs) {
+        await tx.userSubscription.update({ where: { id: sub.id }, data: { deletedAt: new Date(), deletedBy: auth.user.id } })
+      }
+      await tx.contentPackage.update({ where: { id }, data: { deletedAt: new Date(), deletedBy: auth.user.id } })
+      await auditFromRequest(request, auth.user.id, AuditActions.PACKAGE_DELETE, 'content_package', id, undefined, undefined, tx as never)
+    })
 
     await invalidateContentCache('package')
-    await auditFromRequest(request, auth.user.id, AuditActions.PACKAGE_DELETE, 'content_package', id)
     return apiResponse({ id }, 'প্যাকেজ মুছে ফেলা হয়েছে')
   } catch (error) {
     return handleApiError(error, 'Delete package error')

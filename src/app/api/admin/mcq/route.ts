@@ -1,7 +1,6 @@
 import { apiError,apiResponse,paginatedApiResponse,parseIdsParam,validateBody,withAdmin,withCsrf } from '@/lib/api-utils'
 import { AuditActions,auditFromRequest,EntityTypes,getClientIP } from '@/lib/audit'
 import { guardDeleteDependencies } from '@/lib/delete-guard'
-import { softDelete } from '@/lib/soft-delete'
 import { invalidateContentCache } from '@/lib/cache-invalidate'
 import { deriveIsPremium } from '@/lib/premium'
 import { db } from '@/lib/db'
@@ -111,37 +110,40 @@ export async function POST(request: Request) {
     if ('error' in validated) return validated.error
     const { data: fields } = validated
 
-    const data = await db.mCQ.create({
-      data: {
-        question: fields.question,
-        questionImage: fields.questionImage ?? null,
-        optionA: fields.optionA,
-        optionAImage: fields.optionAImage ?? null,
-        optionB: fields.optionB,
-        optionBImage: fields.optionBImage ?? null,
-        optionC: fields.optionC,
-        optionCImage: fields.optionCImage ?? null,
-        optionD: fields.optionD,
-        optionDImage: fields.optionDImage ?? null,
-        correctAnswer: fields.correctAnswer,
-        explanation: fields.explanation ?? null,
-        explanationImage: fields.explanationImage ?? null,
-        chapterId: fields.chapterId,
-        classLevel: fields.classLevel,
-        subjectId: fields.subjectId,
-        board: fields.board ?? null,
-        year: fields.year ?? null,
-        topic: fields.topic ?? null,
-        difficulty: (fields.difficulty || 'MEDIUM').toUpperCase() as 'EASY' | 'MEDIUM' | 'HARD',
-        isPremium: deriveIsPremium(fields.price),
-        price: fields.price ?? 0,
-        tags: fields.tags ?? null,
-        isActive: fields.isActive ?? true,
-      },
+    const data = await db.$transaction(async (tx) => {
+      const created = await tx.mCQ.create({
+        data: {
+          question: fields.question,
+          questionImage: fields.questionImage ?? null,
+          optionA: fields.optionA,
+          optionAImage: fields.optionAImage ?? null,
+          optionB: fields.optionB,
+          optionBImage: fields.optionBImage ?? null,
+          optionC: fields.optionC,
+          optionCImage: fields.optionCImage ?? null,
+          optionD: fields.optionD,
+          optionDImage: fields.optionDImage ?? null,
+          correctAnswer: fields.correctAnswer,
+          explanation: fields.explanation ?? null,
+          explanationImage: fields.explanationImage ?? null,
+          chapterId: fields.chapterId,
+          classLevel: fields.classLevel,
+          subjectId: fields.subjectId,
+          board: fields.board ?? null,
+          year: fields.year ?? null,
+          topic: fields.topic ?? null,
+          difficulty: (fields.difficulty || 'MEDIUM').toUpperCase() as 'EASY' | 'MEDIUM' | 'HARD',
+          isPremium: deriveIsPremium(fields.price),
+          price: fields.price ?? 0,
+          tags: fields.tags ?? null,
+          isActive: fields.isActive ?? true,
+        },
+      })
+      await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_CREATE, EntityTypes.MCQ_QUESTION, created.id, body, undefined, tx as never)
+      return created
     })
 
     await invalidateContentCache('mcq')
-    await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_CREATE, EntityTypes.MCQ_QUESTION, data.id, body)
     return apiResponse(data, 201)
   } catch (error) {
     return handleApiError(error, 'Admin Create MCQ')
@@ -238,11 +240,16 @@ export async function DELETE(request: Request) {
 
     const ids = parseIdsParam(searchParams)
     if (ids) {
-      for (const id of ids) {
-        await softDelete(db, 'mcq', id, auth.user.id)
-      }
+      await db.$transaction(async (tx) => {
+        for (const delId of ids) {
+          await tx.mCQ.update({
+            where: { id: delId },
+            data: { deletedAt: new Date(), deletedBy: auth.user.id },
+          })
+        }
+        await Promise.all(ids.map(id => auditFromRequest(request, auth.user.id, AuditActions.CONTENT_DELETE, EntityTypes.MCQ_QUESTION, id, undefined, undefined, tx as never)))
+      })
       await invalidateContentCache('mcq')
-      await Promise.all(ids.map(id => auditFromRequest(request, auth.user.id, AuditActions.CONTENT_DELETE, EntityTypes.MCQ_QUESTION, id)))
       return apiResponse({ deleted: ids.length }, `${ids.length}টি MCQ মুছে ফেলা হয়েছে`)
     }
 
@@ -271,10 +278,15 @@ export async function DELETE(request: Request) {
     const guard = await guardDeleteDependencies('mcq', id)
     if (!guard.ok) return guard.response
 
-    await softDelete(db, 'mcq', id, auth.user.id)
+    await db.$transaction(async (tx) => {
+      await tx.mCQ.update({
+        where: { id },
+        data: { deletedAt: new Date(), deletedBy: auth.user.id },
+      })
+      await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_DELETE, EntityTypes.MCQ_QUESTION, id, undefined, undefined, tx as never)
+    })
 
     await invalidateContentCache('mcq')
-    await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_DELETE, EntityTypes.MCQ_QUESTION, id)
     return apiResponse({ id }, 'MCQ সফলভাবে মুছে ফেলা হয়েছে')
   } catch (error) {
     return handleApiError(error, 'Admin Delete MCQ')

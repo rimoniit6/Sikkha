@@ -1,7 +1,9 @@
 import { db } from '@/lib/db'
-import { apiResponse, paginatedApiResponse, apiError, withAdmin, parsePaginationParams } from '@/lib/api-utils'
+import { apiResponse, paginatedApiResponse, apiError, withAdmin } from '@/lib/api-utils'
 import { handleApiError } from '@/lib/errors'
 import { NextResponse } from 'next/server'
+import { z } from 'zod'
+import { createAuditLog, getClientIP, AuditActions } from '@/lib/audit'
 
 // ============================================================
 // Admin Audit Log API
@@ -14,10 +16,34 @@ import { NextResponse } from 'next/server'
 //   action               exact action filter
 //   adminId              admin/user filter
 //   entityType           entity type filter
+//   sessionId            session ID filter
+//   requestId            request ID filter
+//   correlationId        correlation ID filter
 //   from, to             ISO date range filter (createdAt)
 // GET params (detail):
 //   id                   single audit log id
 // ============================================================
+
+// ── Zod validation schema (exported for testing) ──────────────────
+export const auditLogQuerySchema = z.object({
+  id: z.string().trim().min(1).optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(10000).default(20),
+  q: z.string().trim().max(500).optional(),
+  action: z.string().trim().optional(),
+  adminId: z.string().trim().min(1).optional(),
+  entityType: z.string().trim().optional(),
+  sessionId: z.string().trim().min(1).optional(),
+  requestId: z.string().trim().min(1).optional(),
+  correlationId: z.string().trim().min(1).optional(),
+  from: z.string().refine((v) => !isNaN(Date.parse(v)), {
+    message: 'Invalid date format for \"from\"',
+  }).optional(),
+  to: z.string().refine((v) => !isNaN(Date.parse(v)), {
+    message: 'Invalid date format for \"to\"',
+  }).optional(),
+  export: z.coerce.boolean().optional(),
+})
 
 export async function GET(request: Request) {
   const auth = await withAdmin(request)
@@ -25,7 +51,24 @@ export async function GET(request: Request) {
 
   try {
     const { searchParams } = new URL(request.url)
-    const id = searchParams.get('id')
+
+    // ── Parse and validate query params with Zod ──────────────────
+    let parsed: z.infer<typeof auditLogQuerySchema>
+    try {
+      const raw = Object.fromEntries(searchParams.entries())
+      parsed = auditLogQuerySchema.parse(raw)
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        const details = err.issues.map((e) => ({
+          field: e.path.join('.'),
+          message: e.message,
+        }))
+        return apiError('ভ্যালিডেশন ব্যর্থ', 422, 'VALIDATION_ERROR', details)
+      }
+      throw err
+    }
+
+    const { id, page, limit, q, action, adminId, entityType, sessionId, requestId, correlationId, from, to, export: isExport } = parsed
 
     // ── Detail view ─────────────────────────────────────────────
     if (id) {
@@ -36,22 +79,29 @@ export async function GET(request: Request) {
         },
       })
       if (!log) return apiError('Audit log not found', 404, 'NOT_FOUND')
+
+      // Record the view for audit trail
+      void createAuditLog({
+        adminId: auth.user.id,
+        action: AuditActions.AUDIT_LOG_VIEW,
+        entityType: 'audit_log',
+        entityId: id,
+        ipAddress: getClientIP(request),
+        userAgent: request.headers.get('user-agent') || undefined,
+      })
+
       return apiResponse(mapLog(log))
     }
 
     // ── List view ───────────────────────────────────────────────
-    const { page, limit } = parsePaginationParams(searchParams)
-    const q = searchParams.get('q')?.trim()
-    const action = searchParams.get('action')?.trim()
-    const adminId = searchParams.get('adminId')?.trim()
-    const entityType = searchParams.get('entityType')?.trim()
-    const from = searchParams.get('from')?.trim()
-    const to = searchParams.get('to')?.trim()
 
     const where: Record<string, unknown> = {}
     if (action) where.action = action
     if (adminId) where.adminId = adminId
     if (entityType) where.entityType = entityType
+    if (sessionId) where.sessionId = sessionId
+    if (requestId) where.requestId = requestId
+    if (correlationId) where.correlationId = correlationId
     if (from || to) {
       where.createdAt = {}
       if (from) (where.createdAt as Record<string, unknown>).gte = new Date(from)
@@ -77,6 +127,19 @@ export async function GET(request: Request) {
       }),
       db.auditLog.count({ where }),
     ])
+
+    // Record export events for audit trail (fire-and-forget)
+    if (isExport) {
+      void createAuditLog({
+        adminId: auth.user.id,
+        action: AuditActions.AUDIT_LOG_EXPORT,
+        entityType: 'audit_log',
+        entityId: `export-${Date.now()}`,
+        newData: { q, action, adminId, entityType, from, to, total, limit } as Record<string, unknown>,
+        ipAddress: getClientIP(request),
+        userAgent: request.headers.get('user-agent') || undefined,
+      })
+    }
 
     return paginatedApiResponse(
       data.map(mapLog),
@@ -111,6 +174,9 @@ function mapLog(log: Record<string, unknown>) {
     os: log.os ?? null,
     browser: log.browser ?? null,
     country: log.country ?? null,
+    sessionId: log.sessionId ?? null,
+    requestId: log.requestId ?? null,
+    correlationId: log.correlationId ?? null,
     createdAt: log.createdAt,
     deletedAt: log.deletedAt ?? null,
   }

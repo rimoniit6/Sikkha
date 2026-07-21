@@ -1,6 +1,7 @@
 import { db } from '@/lib/db'
 import { publishScheduledContent } from '@/lib/scheduled-publish'
 import { apiResponse, apiError, withAdmin } from '@/lib/api-utils'
+import { auditFromRequest } from '@/lib/audit'
 import { NextResponse } from 'next/server'
 
 /**
@@ -46,6 +47,23 @@ export async function POST(request: Request) {
 
   try {
     const report = await publishScheduledContent(db)
+
+    await auditFromRequest(
+      request,
+      auth.user.id,
+      'scheduled_publish_trigger',
+      'cron',
+      `batch-${Date.now()}`,
+      undefined,
+      {
+        total: report.total,
+        published: report.published,
+        failed: report.failed,
+        skipped: report.skipped,
+        duration: report.duration,
+      } as Record<string, unknown>
+    )
+
     return apiResponse(report)
   } catch (error) {
     return apiError(

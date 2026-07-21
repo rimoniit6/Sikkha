@@ -12,7 +12,7 @@ import { useToast } from '@/hooks/use-toast'
 
 interface AuditLog {
   id: string
-  adminId: string
+  adminId: string | null
   admin: { id: string; name: string; email: string; role: string } | null
   action: string
   entityType: string
@@ -28,6 +28,9 @@ interface AuditLog {
   os: string | null
   browser: string | null
   country: string | null
+  sessionId: string | null
+  requestId: string | null
+  correlationId: string | null
   createdAt: string
 }
 
@@ -268,6 +271,9 @@ export default function AdminAuditLogsPage() {
   const [entityTypeFilter, setEntityTypeFilter] = useState<string>('all')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
+  const [sessionIdFilter, setSessionIdFilter] = useState('')
+  const [requestIdFilter, setRequestIdFilter] = useState('')
+  const [correlationIdFilter, setCorrelationIdFilter] = useState('')
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null)
   const [detailOpen, setDetailOpen] = useState(false)
 
@@ -281,6 +287,9 @@ export default function AdminAuditLogsPage() {
       if (search) params.set('q', search)
       if (actionFilter !== 'all') params.set('action', actionFilter)
       if (entityTypeFilter !== 'all') params.set('entityType', entityTypeFilter)
+      if (sessionIdFilter) params.set('sessionId', sessionIdFilter)
+      if (requestIdFilter) params.set('requestId', requestIdFilter)
+      if (correlationIdFilter) params.set('correlationId', correlationIdFilter)
       if (dateFrom) params.set('from', dateFrom)
       if (dateTo) params.set('to', dateTo)
 
@@ -296,16 +305,19 @@ export default function AdminAuditLogsPage() {
     } finally {
       setLoading(false)
     }
-  }, [page, search, actionFilter, entityTypeFilter, dateFrom, dateTo, toast])
+  }, [page, search, actionFilter, entityTypeFilter, sessionIdFilter, requestIdFilter, correlationIdFilter, dateFrom, dateTo, toast])
 
   useEffect(() => { fetchLogs() }, [fetchLogs])
 
   const handleExport = async () => {
     try {
-      const params = new URLSearchParams({ limit: '10000' })
+      const params = new URLSearchParams({ limit: '10000', export: 'true' })
       if (search) params.set('q', search)
       if (actionFilter !== 'all') params.set('action', actionFilter)
       if (entityTypeFilter !== 'all') params.set('entityType', entityTypeFilter)
+      if (sessionIdFilter) params.set('sessionId', sessionIdFilter)
+      if (requestIdFilter) params.set('requestId', requestIdFilter)
+      if (correlationIdFilter) params.set('correlationId', correlationIdFilter)
       if (dateFrom) params.set('from', dateFrom)
       if (dateTo) params.set('to', dateTo)
 
@@ -316,7 +328,7 @@ export default function AdminAuditLogsPage() {
         const headers = ['তারিখ', 'ব্যবহারকারী', 'অ্যাকশন', 'এন্টিটি', 'এন্টিটি আইডি', 'আইপি', 'পুরানো ডাটা', 'নতুন ডাটা']
         const rows = json.data.items.map((log: AuditLog) => [
           new Date(log.createdAt).toLocaleString('bn-BD'),
-          log.admin?.name || log.adminId,
+          log.admin?.name || log.adminId || '—',
           ACTION_LABELS[log.action] || log.action,
           ENTITY_LABELS[log.entityType] || log.entityType,
           log.entityId,
@@ -418,6 +430,24 @@ export default function AdminAuditLogsPage() {
         </Select>
 
         <Input
+          placeholder="Session ID"
+          value={sessionIdFilter}
+          onChange={(e) => { setSessionIdFilter(e.target.value); setPage(1) }}
+          className="w-[150px] font-mono text-xs"
+        />
+        <Input
+          placeholder="Request ID"
+          value={requestIdFilter}
+          onChange={(e) => { setRequestIdFilter(e.target.value); setPage(1) }}
+          className="w-[150px] font-mono text-xs"
+        />
+        <Input
+          placeholder="Correlation ID"
+          value={correlationIdFilter}
+          onChange={(e) => { setCorrelationIdFilter(e.target.value); setPage(1) }}
+          className="w-[150px] font-mono text-xs"
+        />
+        <Input
           type="date"
           value={dateFrom}
           onChange={(e) => { setDateFrom(e.target.value); setPage(1) }}
@@ -481,7 +511,7 @@ export default function AdminAuditLogsPage() {
                 <div className="flex items-center gap-4 mt-1 text-xs text-muted-foreground">
                   <span className="flex items-center gap-1">
                     <User className="h-3 w-3" />
-                    {log.userName || log.admin?.name || log.adminId}
+                    {log.userName || log.admin?.name || log.adminId || '—'}
                   </span>
                   <span className="flex items-center gap-1">
                     <Clock className="h-3 w-3" />
@@ -587,7 +617,7 @@ export default function AdminAuditLogsPage() {
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground">ব্যবহারকারী</label>
-                  <p className="text-sm">{selectedLog.userName || selectedLog.admin?.name || selectedLog.adminId}</p>
+                  <p className="text-sm">{selectedLog.userName || selectedLog.admin?.name || selectedLog.adminId || '—'}</p>
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground">ভূমিকা</label>
@@ -612,6 +642,18 @@ export default function AdminAuditLogsPage() {
                 <div>
                   <label className="text-xs text-muted-foreground">দেশ</label>
                   <p className="text-sm">{selectedLog.country || '—'}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Session ID</label>
+                  <p className="text-sm font-mono text-xs">{selectedLog.sessionId || '—'}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Request ID</label>
+                  <p className="text-sm font-mono text-xs">{selectedLog.requestId || '—'}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Correlation ID</label>
+                  <p className="text-sm font-mono text-xs">{selectedLog.correlationId || '—'}</p>
                 </div>
               </div>
 

@@ -71,9 +71,20 @@ function createPrismaClient() {
   const xclient = client.$extends({
     query: {
       $allModels: {
-        async $allOperations({ model, args: queryArgs, query }) {
+        async $allOperations({ model, operation, args: queryArgs, query }) {
           const modelName = model?.toLowerCase() || ''
           const args = queryArgs as Record<string, unknown>
+
+          // 0. AuditLog immutability guard — block destructive operations
+          if (modelName === 'auditlog') {
+            if (operation === 'update' || operation === 'updateMany' || operation === 'upsert' ||
+                operation === 'delete' || operation === 'deleteMany') {
+              throw new Error(
+                'AuditLog records are immutable. Append-only writes are enforced at the database layer. ' +
+                'To create audit entries, use createAuditLog() from @/lib/audit.'
+              )
+            }
+          }
 
           // 1. HTML sanitization for write operations
           if (MODELS_WITH_HTML.has(modelName)) {
@@ -89,7 +100,6 @@ function createPrismaClient() {
 
           // 2. Soft delete auto-filter for Category A models (read operations only)
           if (SOFT_DELETE_MODELS.has(modelName)) {
-            const operation = args
             // Only filter on read operations: findMany, findFirst, findUnique, count
             // Skip: create, update, delete, upsert, aggregate
             if ('where' in args || 'include' in args || 'select' in args) {

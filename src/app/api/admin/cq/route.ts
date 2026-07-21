@@ -7,7 +7,6 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { auditFromRequest, AuditActions, EntityTypes, getClientIP } from '@/lib/audit'
 import { guardDeleteDependencies } from '@/lib/delete-guard'
-import { softDelete } from '@/lib/soft-delete'
 import { transitionWorkflow } from '@/lib/workflow'
 
 const createCqSchema = z.object({
@@ -125,27 +124,30 @@ export async function POST(request: Request) {
       board, year, topic, difficulty, isPremium, price, tags, isActive,
     } = validation.data
 
-    const data = await db.cQ.create({
-      data: {
-        uddeepok, uddeepokImage: uddeepokImage || null,
-        question1, question1Image: question1Image || null,
-        question2: question2 || '', question2Image: question2Image || null,
-        question3: question3 || '', question3Image: question3Image || null,
-        question4: question4 || '', question4Image: question4Image || null,
-        answer1, answer1Image: answer1Image || null,
-        answer2: answer2 || '', answer2Image: answer2Image || null,
-        answer3: answer3 || '', answer3Image: answer3Image || null,
-        answer4: answer4 || '', answer4Image: answer4Image || null,
-        chapterId, classLevel, subjectId,
-        board: board || null, year: year || null, topic: topic || null,
-        difficulty: (difficulty || 'MEDIUM').toUpperCase() as 'EASY' | 'MEDIUM' | 'HARD',
-        isPremium: deriveIsPremium(price), price: price ?? 0,
-        tags: tags || null, isActive: isActive ?? true,
-      },
+    const data = await db.$transaction(async (tx) => {
+      const created = await tx.cQ.create({
+        data: {
+          uddeepok, uddeepokImage: uddeepokImage || null,
+          question1, question1Image: question1Image || null,
+          question2: question2 || '', question2Image: question2Image || null,
+          question3: question3 || '', question3Image: question3Image || null,
+          question4: question4 || '', question4Image: question4Image || null,
+          answer1, answer1Image: answer1Image || null,
+          answer2: answer2 || '', answer2Image: answer2Image || null,
+          answer3: answer3 || '', answer3Image: answer3Image || null,
+          answer4: answer4 || '', answer4Image: answer4Image || null,
+          chapterId, classLevel, subjectId,
+          board: board || null, year: year || null, topic: topic || null,
+          difficulty: (difficulty || 'MEDIUM').toUpperCase() as 'EASY' | 'MEDIUM' | 'HARD',
+          isPremium: deriveIsPremium(price), price: price ?? 0,
+          tags: tags || null, isActive: isActive ?? true,
+        },
+      })
+      await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_CREATE, EntityTypes.CQ_QUESTION, created.id, body, undefined, tx as never)
+      return created
     })
 
     await invalidateContentCache('cq')
-    await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_CREATE, EntityTypes.CQ_QUESTION, data.id, body)
     return apiResponse(data, 201)
   } catch (error) {
     return handleApiError(error, 'Admin Create CQ')
@@ -239,11 +241,16 @@ export async function DELETE(request: Request) {
 
     const ids = parseIdsParam(searchParams)
     if (ids) {
-      for (const id of ids) {
-        await softDelete(db, 'cq', id, auth.user.id)
-      }
+      await db.$transaction(async (tx) => {
+        for (const delId of ids) {
+          await tx.cQ.update({
+            where: { id: delId },
+            data: { deletedAt: new Date(), deletedBy: auth.user.id },
+          })
+        }
+        await Promise.all(ids.map(id => auditFromRequest(request, auth.user.id, AuditActions.CONTENT_DELETE, EntityTypes.CQ_QUESTION, id, undefined, undefined, tx as never)))
+      })
       await invalidateContentCache('cq')
-      await Promise.all(ids.map(id => auditFromRequest(request, auth.user.id, AuditActions.CONTENT_DELETE, EntityTypes.CQ_QUESTION, id)))
       return apiResponse({ deleted: ids.length }, `${ids.length}টি CQ মুছে ফেলা হয়েছে`)
     }
 
@@ -272,10 +279,15 @@ export async function DELETE(request: Request) {
     const guard = await guardDeleteDependencies('cq', id)
     if (!guard.ok) return guard.response
 
-    await softDelete(db, 'cq', id, auth.user.id)
+    await db.$transaction(async (tx) => {
+      await tx.cQ.update({
+        where: { id },
+        data: { deletedAt: new Date(), deletedBy: auth.user.id },
+      })
+      await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_DELETE, EntityTypes.CQ_QUESTION, id, undefined, undefined, tx as never)
+    })
 
     await invalidateContentCache('cq')
-    await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_DELETE, EntityTypes.CQ_QUESTION, id)
     return apiResponse({ id }, 'CQ সফলভাবে মুছে ফেলা হয়েছে')
   } catch (error) {
     return handleApiError(error, 'Admin Delete CQ')

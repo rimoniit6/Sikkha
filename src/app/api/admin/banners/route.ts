@@ -54,21 +54,23 @@ export async function POST(request: Request) {
     if ('error' in validated) return validated.error
     const { data: { title, subtitle, image, link, buttonText, isActive, order, startDate, endDate } } = validated
 
-    const data = await db.banner.create({
-      data: {
-        title,
-        subtitle: subtitle || null,
-        image: image || null,
-        link: link || null,
-        buttonText: buttonText || null,
-        isActive: isActive ?? true,
-        order: order ?? 0,
-        startDate: startDate ? new Date(startDate) : null,
-        endDate: endDate ? new Date(endDate) : null,
-      },
+    const data = await db.$transaction(async (tx) => {
+      const created = await (tx as any).banner.create({
+        data: {
+          title,
+          subtitle: subtitle || null,
+          image: image || null,
+          link: link || null,
+          buttonText: buttonText || null,
+          isActive: isActive ?? true,
+          order: order ?? 0,
+          startDate: startDate ? new Date(startDate) : null,
+          endDate: endDate ? new Date(endDate) : null,
+        },
+      })
+      await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_CREATE, 'banner', created.id, body, undefined, tx as never)
+      return created
     })
-
-    await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_CREATE, 'banner', data.id, body)
 
     await invalidateContentCache('banner')
     return apiResponse(data, 201)
@@ -90,8 +92,11 @@ export async function PUT(request: Request) {
     if (Array.isArray(ids) && ids.length > 0) {
       const updateData: Record<string, unknown> = {}
       if (isActive !== undefined) updateData.isActive = isActive
-      const result = await db.banner.updateMany({ where: { id: { in: ids } }, data: updateData })
-      await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_UPDATE, 'banner', 'bulk:' + ids.join(','))
+      const result = await db.$transaction(async (tx) => {
+        const updateResult = await (tx as any).banner.updateMany({ where: { id: { in: ids } }, data: updateData })
+        await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_UPDATE, 'banner', 'bulk:' + ids.join(','), undefined, undefined, tx as never)
+        return updateResult
+      })
       await invalidateContentCache('banner')
       return apiResponse({ updated: result.count }, `${result.count}টি আপডেট হয়েছে`)
     }
@@ -125,12 +130,14 @@ export async function PUT(request: Request) {
       data.endDate = updateData.endDate ? new Date(updateData.endDate) : null
     }
 
-    const updated = await db.banner.update({
-      where: { id },
-      data: data as never,
+    const updated = await db.$transaction(async (tx) => {
+      const result = await (tx as any).banner.update({
+        where: { id },
+        data: data as never,
+      })
+      await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_UPDATE, 'banner', result.id, undefined, undefined, tx as never)
+      return result
     })
-
-    await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_UPDATE, 'banner', updated.id)
     await invalidateContentCache('banner')
     return apiResponse(updated)
   } catch (error) {
@@ -153,7 +160,9 @@ export async function DELETE(request: Request) {
       for (const id of ids) {
         await softDelete(db, 'banner', id, auth.user.id)
       }
-      await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_DELETE, 'banner', 'bulk:' + ids.join(','))
+      await db.$transaction(async (tx) => {
+        await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_DELETE, 'banner', 'bulk:' + ids.join(','), undefined, undefined, tx as never)
+      })
       await invalidateContentCache('banner')
       return apiResponse({ deleted: ids.length }, `${ids.length}টি সফলভাবে মুছে ফেলা হয়েছে`)
     }
@@ -180,9 +189,10 @@ export async function DELETE(request: Request) {
       return apiError('ব্যানার খুঁজে পাওয়া যায়নি', 404)
     }
 
-    await softDelete(db, 'banner', id, auth.user.id)
-
-    await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_DELETE, 'banner', id)
+    await db.$transaction(async (tx) => {
+      await softDelete(tx, 'banner', id, auth.user.id)
+      await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_DELETE, 'banner', id, undefined, undefined, tx as never)
+    })
 
     await invalidateContentCache('banner')
     return apiResponse({ id }, 'ব্যানার সফলভাবে মুছে ফেলা হয়েছে')

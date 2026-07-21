@@ -4,7 +4,6 @@ import { db } from '@/lib/db'
 import { handleApiError } from '@/lib/errors'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
-import { softDelete } from '@/lib/soft-delete'
 import { createVersion } from '@/lib/version-history'
 import { auditFromRequest, AuditActions, getClientIP } from '@/lib/audit'
 
@@ -58,22 +57,25 @@ export async function POST(request: Request) {
     const existingSlug = await db.contentPackage.findFirst({ where: { slug } })
     const finalSlug = existingSlug ? `${slug}-${Date.now()}` : slug
 
-    const data = await db.contentPackage.create({
-      data: {
-        title,
-        slug: finalSlug,
-        price: parseFloat(String(price)),
-        originalPrice: parseFloat(String(price)),
-        duration: parseInt(String(duration)),
-        durationLabel: durationLabel || `${duration} দিন`,
-        description: description || null,
-        classLevel: classLevel || null,
-        isActive: isActive ?? true,
-      },
+    const data = await db.$transaction(async (tx) => {
+      const pkg = await tx.contentPackage.create({
+        data: {
+          title,
+          slug: finalSlug,
+          price: parseFloat(String(price)),
+          originalPrice: parseFloat(String(price)),
+          duration: parseInt(String(duration)),
+          durationLabel: durationLabel || `${duration} দিন`,
+          description: description || null,
+          classLevel: classLevel || null,
+          isActive: isActive ?? true,
+        },
+      })
+      await auditFromRequest(request, auth.user.id, AuditActions.PACKAGE_CREATE, 'content_package', pkg.id, body, { title: pkg.title }, tx as never)
+      return pkg
     })
 
     await invalidateContentCache('package')
-    await auditFromRequest(request, auth.user.id, AuditActions.PACKAGE_CREATE, 'content_package', data.id, body, { title: data.title })
     return apiResponse(data, null, 201)
   } catch (error) {
     return handleApiError(error, 'Admin Create Plan error')
@@ -118,7 +120,7 @@ export async function PUT(request: Request) {
       key => JSON.stringify(data[key]) !== JSON.stringify(existing[key as keyof typeof existing])
     )
 
-    // Create version snapshot + update in single transaction
+    // Create version snapshot + update + audit in single transaction
     const ipAddress = getClientIP(request)
     const userAgent = request.headers.get('user-agent') || undefined
 
@@ -130,17 +132,18 @@ export async function PUT(request: Request) {
       })
 
       // Perform the actual update
-      return tx.contentPackage.update({
+      const u = await tx.contentPackage.update({
         where: { id },
         data,
       })
+      await auditFromRequest(request, auth.user.id, AuditActions.PACKAGE_UPDATE, 'content_package', id, existing, data, tx as never)
+      return u
     }, {
       maxWait: 10000,
       timeout: 30000,
     })
 
     await invalidateContentCache('package')
-    await auditFromRequest(request, auth.user.id, AuditActions.PACKAGE_UPDATE, 'content_package', id, existing, data)
     return apiResponse(updated)
   } catch (error) {
     return handleApiError(error, 'Admin Update Plan error')
@@ -177,10 +180,12 @@ export async function DELETE(request: Request) {
       return apiResponse(null, 'প্ল্যান খুঁজে পাওয়া যায়নি', 404)
     }
 
-    await softDelete(db, 'contentPackage', id, auth.user.id)
+    await db.$transaction(async (tx) => {
+      await tx.contentPackage.update({ where: { id }, data: { deletedAt: new Date(), deletedBy: auth.user.id } })
+      await auditFromRequest(request, auth.user.id, AuditActions.PACKAGE_DELETE, 'content_package', id, undefined, undefined, tx as never)
+    })
 
     await invalidateContentCache('package')
-    await auditFromRequest(request, auth.user.id, AuditActions.PACKAGE_DELETE, 'content_package', id)
     return apiResponse({ id }, 'সাবস্ক্রিপশন প্ল্যান সফলভাবে মুছে ফেলা হয়েছে')
   } catch (error) {
     return handleApiError(error, 'Admin Delete Plan error')

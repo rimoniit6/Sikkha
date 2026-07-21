@@ -60,22 +60,25 @@ export async function POST(request: Request) {
     const existingSlug = await db.classCategory.findFirst({ where: { slug: classSlug } })
     if (existingSlug) return apiError('এই স্লাগ ইতিমধ্যে ব্যবহৃত হয়েছে।', 409)
 
-    const data = await db.classCategory.create({
-      data: {
-        name,
-        slug: classSlug,
-        order: order ?? 0,
-        icon: icon || null,
-        color: color || null,
-        gradient: gradient || null,
-        description: description || null,
-        isActive: isActive ?? true,
-      },
-      include: { _count: { select: { subjects: true } } },
+    const data = await db.$transaction(async (tx) => {
+      const created = await (tx as any).classCategory.create({
+        data: {
+          name,
+          slug: classSlug,
+          order: order ?? 0,
+          icon: icon || null,
+          color: color || null,
+          gradient: gradient || null,
+          description: description || null,
+          isActive: isActive ?? true,
+        },
+        include: { _count: { select: { subjects: true } } },
+      })
+      await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_CREATE, 'class', created.id, body, undefined, tx as never)
+      return created
     })
 
     await invalidateContentCache('class')
-    await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_CREATE, 'class', data.id, body)
     return apiResponse(data, 201)
   } catch (error) {
     return handleApiError(error, 'Admin Create Class')
@@ -113,14 +116,17 @@ export async function PUT(request: Request) {
       }
     }
 
-    const updated = await db.classCategory.update({
-      where: { id },
-      data,
-      include: { _count: { select: { subjects: true } } },
+    const updated = await db.$transaction(async (tx) => {
+      const result = await (tx as any).classCategory.update({
+        where: { id },
+        data,
+        include: { _count: { select: { subjects: true } } },
+      })
+      await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_UPDATE, 'class', existing.id, { ...existing }, data, tx as never)
+      return result
     })
 
     await invalidateContentCache('class')
-    await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_UPDATE, 'class', existing.id, { ...existing }, data)
     return apiResponse(updated)
   } catch (error) {
     return handleApiError(error, 'Admin Update Class')
@@ -151,9 +157,11 @@ export async function DELETE(request: Request) {
     const guard = await guardDeleteDependencies('classes', id)
     if (!guard.ok) return guard.response
 
-    await softDelete(db, 'classCategory', id, auth.user.id)
+    await db.$transaction(async (tx) => {
+      await softDelete(tx, 'classCategory', id, auth.user.id)
+      await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_DELETE, 'class', id, undefined, undefined, tx as never)
+    })
     await invalidateContentCache('class')
-    await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_DELETE, 'class', id)
     return apiResponse({ id, message: 'শ্রেণি সফলভাবে মুছে ফেলা হয়েছে' })
   } catch (error) {
     return handleApiError(error, 'Admin Delete Class')

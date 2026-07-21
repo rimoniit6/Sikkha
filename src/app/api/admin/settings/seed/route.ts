@@ -19,34 +19,34 @@ export async function POST(request: Request) {
   if ('error' in csrfCheck) return csrfCheck.error
 
   try {
-    const results: Array<Record<string, unknown>> = []
-
-    for (const seed of SEO_SEEDS) {
-      const existing = await db.siteSetting.findUnique({ where: { key: seed.key } })
-      if (existing) {
-        // Update if group/label missing, but keep existing value
-        const data = await db.siteSetting.update({
-          where: { key: seed.key },
-          data: {
-            group: existing.group || seed.group,
-            label: existing.label || seed.label,
-          },
-        })
-        results.push({ key: seed.key, action: 'updated', data })
-      } else {
-        const data = await db.siteSetting.create({
-          data: {
-            key: seed.key,
-            value: seed.value,
-            group: seed.group,
-            label: seed.label,
-          },
-        })
-        results.push({ key: seed.key, action: 'created', data })
+    const results = await db.$transaction(async (tx) => {
+      const res: Array<Record<string, unknown>> = []
+      for (const seed of SEO_SEEDS) {
+        const existing = await tx.siteSetting.findUnique({ where: { key: seed.key } })
+        if (existing) {
+          const data = await tx.siteSetting.update({
+            where: { key: seed.key },
+            data: {
+              group: existing.group || seed.group,
+              label: existing.label || seed.label,
+            },
+          })
+          res.push({ key: seed.key, action: 'updated', data })
+        } else {
+          const data = await tx.siteSetting.create({
+            data: {
+              key: seed.key,
+              value: seed.value,
+              group: seed.group,
+              label: seed.label,
+            },
+          })
+          res.push({ key: seed.key, action: 'created', data })
+        }
       }
-    }
-
-    await auditFromRequest(request, auth.user.id, AuditActions.SETTINGS_BATCH_UPDATE, 'site_setting', 'seed', undefined, { results } as Record<string, unknown>)
+      await auditFromRequest(request, auth.user.id, AuditActions.SETTINGS_BATCH_UPDATE, 'site_setting', 'seed', undefined, { results: res } as Record<string, unknown>, tx as never)
+      return res
+    })
 
     return apiResponse(results, 'SEO সেটিংস সফলভাবে সিড করা হয়েছে')
   } catch (error) {

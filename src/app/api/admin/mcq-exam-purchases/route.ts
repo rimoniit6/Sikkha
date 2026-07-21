@@ -3,7 +3,7 @@ import { apiError, withCsrf } from '@/lib/api-utils'
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/auth'
 import { handleApiError } from '@/lib/errors'
-import { auditFromRequest, AuditActions } from '@/lib/audit'
+import { auditFromRequest } from '@/lib/audit'
 
 export async function GET(request: NextRequest) {
   try {
@@ -93,12 +93,13 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Deactivate instead of delete
-    await db.mCQExamPackagePurchase.update({
-      where: { id },
-      data: { isActive: false },
+    await db.$transaction(async (tx) => {
+      await tx.mCQExamPackagePurchase.update({
+        where: { id },
+        data: { isActive: false },
+      })
+      await auditFromRequest(request, auth.user.id, 'mcq_exam_purchase_delete', 'mcq_exam_package_purchase', id, existing as Record<string, unknown>, undefined, tx as never)
     })
-
-    await auditFromRequest(request, auth.user.id, 'mcq_exam_purchase_delete', 'mcq_exam_package_purchase', id, existing as Record<string, unknown>, undefined)
 
     return NextResponse.json({ success: true, data: { message: 'ক্রয় নিষ্ক্রিয় করা হয়েছে' } })
   } catch (error) {

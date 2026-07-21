@@ -1,7 +1,6 @@
 import { apiResponse,parseIdsParam,validateBody,withAdmin,withCsrf } from '@/lib/api-utils'
 import { auditFromRequest, AuditActions, getClientIP } from '@/lib/audit'
 import { guardDeleteDependencies } from '@/lib/delete-guard'
-import { softDelete } from '@/lib/soft-delete'
 import { invalidateContentCache } from '@/lib/cache-invalidate'
 import { deriveIsPremium } from '@/lib/premium'
 import { db } from '@/lib/db'
@@ -121,25 +120,28 @@ export async function POST(request: Request) {
 
     const suggestionSlug = slug || title.toLowerCase().replace(/[^a-z0-9\u0980-\u09FF]+/g, '-').replace(/^-|-$/g, '')
 
-    const data = await db.suggestion.create({
-      data: {
-        title,
-        slug: suggestionSlug,
-        content,
-        classId: classId || null,
-        subjectId: subjectId || null,
-        chapterId: chapterId || null,
-        thumbnail: thumbnail || null,
-        pdfUrl: pdfUrl || null,
-        isPremium: deriveIsPremium(price),
-        price: price ?? 0,
-        order: order ?? 0,
-        isActive: isActive ?? true,
-      },
+    const data = await db.$transaction(async (tx) => {
+      const created = await tx.suggestion.create({
+        data: {
+          title,
+          slug: suggestionSlug,
+          content,
+          classId: classId || null,
+          subjectId: subjectId || null,
+          chapterId: chapterId || null,
+          thumbnail: thumbnail || null,
+          pdfUrl: pdfUrl || null,
+          isPremium: deriveIsPremium(price),
+          price: price ?? 0,
+          order: order ?? 0,
+          isActive: isActive ?? true,
+        },
+      })
+      await auditFromRequest(request, auth.user.id, AuditActions.SUGGESTION_CREATE, 'suggestion', created.id, body as Record<string, unknown>, { title: created.title } as Record<string, unknown>, tx as never)
+      return created
     })
 
     await invalidateContentCache('suggestion')
-    await auditFromRequest(request, auth.user.id, AuditActions.SUGGESTION_CREATE, 'suggestion', data.id, body as Record<string, unknown>, { title: data.title } as Record<string, unknown>)
     return apiResponse(data, null, 201)
   } catch (error) {
     return handleApiError(error, 'Admin Create Suggestion error')
@@ -231,11 +233,16 @@ export async function DELETE(request: Request) {
 
     const ids = parseIdsParam(searchParams)
     if (ids) {
-      for (const id of ids) {
-        await softDelete(db, 'suggestion', id, auth.user.id)
-      }
+      await db.$transaction(async (tx) => {
+        for (const delId of ids) {
+          await tx.suggestion.update({
+            where: { id: delId },
+            data: { deletedAt: new Date(), deletedBy: auth.user.id },
+          })
+        }
+        await auditFromRequest(request, auth.user.id, AuditActions.SUGGESTION_DELETE, 'suggestion', ids.join(','), undefined, { count: ids.length } as Record<string, unknown>, tx as never)
+      })
       await invalidateContentCache('suggestion')
-      await auditFromRequest(request, auth.user.id, AuditActions.SUGGESTION_DELETE, 'suggestion', ids.join(','), undefined, { count: ids.length } as Record<string, unknown>)
       return apiResponse({ deleted: ids.length }, `${ids.length}টি সফলভাবে মুছে ফেলা হয়েছে`)
     }
 
@@ -264,10 +271,15 @@ export async function DELETE(request: Request) {
     const guard = await guardDeleteDependencies('suggestions', id)
     if (!guard.ok) return guard.response
 
-    await softDelete(db, 'suggestion', id, auth.user.id)
+    await db.$transaction(async (tx) => {
+      await tx.suggestion.update({
+        where: { id },
+        data: { deletedAt: new Date(), deletedBy: auth.user.id },
+      })
+      await auditFromRequest(request, auth.user.id, AuditActions.SUGGESTION_DELETE, 'suggestion', id, existing as Record<string, unknown>, undefined, tx as never)
+    })
 
     await invalidateContentCache('suggestion')
-    await auditFromRequest(request, auth.user.id, AuditActions.SUGGESTION_DELETE, 'suggestion', id, existing as Record<string, unknown>, undefined)
     return apiResponse({ id }, 'সাজেশন সফলভাবে মুছে ফেলা হয়েছে')
   } catch (error) {
     return handleApiError(error, 'Admin Delete Suggestion error')

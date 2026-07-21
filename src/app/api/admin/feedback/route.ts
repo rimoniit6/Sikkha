@@ -74,12 +74,14 @@ export async function PUT(request: Request) {
     if ('error' in validation) return validation.error
     const { id, status } = validation.data
 
-    const updated = await db.userFeedback.update({
-      where: { id },
-      data: { status: status.toUpperCase() as 'PENDING' | 'REPLIED' | 'CLOSED' },
+    const updated = await db.$transaction(async (tx) => {
+      const u = await tx.userFeedback.update({
+        where: { id },
+        data: { status: status.toUpperCase() as 'PENDING' | 'REPLIED' | 'CLOSED' },
+      })
+      await auditFromRequest(request, auth.user.id, AuditActions.FEEDBACK_UPDATE, 'feedback', u.id, undefined, u as Record<string, unknown>, tx as never)
+      return u
     })
-
-    await auditFromRequest(request, auth.user.id, AuditActions.FEEDBACK_UPDATE, 'feedback', updated.id, undefined, updated as Record<string, unknown>)
 
     return NextResponse.json({ success: true, data: updated })
   } catch (error) {

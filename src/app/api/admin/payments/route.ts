@@ -224,19 +224,20 @@ export async function PATCH(request: Request) {
         }
       }
 
-      return { existing, updated }
-    })
+      // Audit log inside the transaction — atomic with payment state change
+      await createAuditLog({
+        adminId: auth.user.id,
+        action: status === 'APPROVED' ? AuditActions.PAYMENT_APPROVE : AuditActions.PAYMENT_REJECT,
+        entityType: EntityTypes.PAYMENT,
+        entityId: id,
+        oldData: { status: existing.status, adminNote: existing.adminNote },
+        newData: { status, adminNote: adminNote?.trim() || null },
+        ipAddress: getClientIP(request),
+        userAgent: request.headers.get('user-agent') || undefined,
+        tx: tx as never,
+      })
 
-    // Audit log (non-critical — run outside transaction)
-    await createAuditLog({
-      adminId: auth.user.id,
-      action: status === 'APPROVED' ? AuditActions.PAYMENT_APPROVE : AuditActions.PAYMENT_REJECT,
-      entityType: EntityTypes.PAYMENT,
-      entityId: id,
-      oldData: { status: result.existing.status, adminNote: result.existing.adminNote },
-      newData: { status: result.updated.status, adminNote: result.updated.adminNote },
-      ipAddress: getClientIP(request),
-      userAgent: request.headers.get('user-agent') || undefined,
+      return { existing, updated }
     })
 
     return apiResponse(result.updated)

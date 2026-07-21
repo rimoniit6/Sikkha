@@ -96,12 +96,15 @@ export async function PATCH(request: Request) {
       if (isPremium !== undefined) updateData.isPremium = isPremium
       if (isVerified !== undefined) updateData.isVerified = isVerified
 
-      const result = await db.user.updateMany({
-        where: { id: { in: ids }, ...(auth.user.role !== SUPER_ADMIN_ROLE && { role: { not: SUPER_ADMIN_ROLE } }) },
-        data: updateData,
+      const result = await db.$transaction(async (tx) => {
+        const r = await tx.user.updateMany({
+          where: { id: { in: ids }, ...(auth.user.role !== SUPER_ADMIN_ROLE && { role: { not: SUPER_ADMIN_ROLE } }) },
+          data: updateData,
+        })
+        await auditFromRequest(request, auth.user.id, AuditActions.USER_UPDATE, EntityTypes.USER, ids.join(','), undefined, updateData, tx as never)
+        return r
       })
 
-      await auditFromRequest(request, auth.user.id, AuditActions.USER_UPDATE, EntityTypes.USER, ids.join(','), undefined, updateData)
       return apiResponse({ updated: result.count }, `${result.count} জন ব্যবহারকারী আপডেট হয়েছে`)
     }
 
@@ -121,28 +124,31 @@ export async function PATCH(request: Request) {
 
     const oldData = { role: existingUser.role, isPremium: existingUser.isPremium, isVerified: existingUser.isVerified }
 
-    const user = await db.user.update({
-      where: { id },
-      data: {
-        ...(name !== undefined && { name }),
-        ...(role !== undefined && { role }),
-        ...(phone !== undefined && { phone }),
-        ...(institute !== undefined && { institute }),
-        ...(classLevel !== undefined && { classLevel }),
-        ...(board !== undefined && { board }),
-        ...(isVerified !== undefined && { isVerified }),
-        ...(isPremium !== undefined && { isPremium }),
-        ...(premiumExpiry !== undefined && { premiumExpiry: premiumExpiry ? new Date(premiumExpiry) : null }),
-      },
-      select: {
-        id: true, email: true, name: true, role: true, avatar: true,
-        phone: true, institute: true, classLevel: true, board: true,
-        isVerified: true, isPremium: true, premiumExpiry: true,
-        createdAt: true, updatedAt: true,
-      },
+    const user = await db.$transaction(async (tx) => {
+      const u = await tx.user.update({
+        where: { id },
+        data: {
+          ...(name !== undefined && { name }),
+          ...(role !== undefined && { role }),
+          ...(phone !== undefined && { phone }),
+          ...(institute !== undefined && { institute }),
+          ...(classLevel !== undefined && { classLevel }),
+          ...(board !== undefined && { board }),
+          ...(isVerified !== undefined && { isVerified }),
+          ...(isPremium !== undefined && { isPremium }),
+          ...(premiumExpiry !== undefined && { premiumExpiry: premiumExpiry ? new Date(premiumExpiry) : null }),
+        },
+        select: {
+          id: true, email: true, name: true, role: true, avatar: true,
+          phone: true, institute: true, classLevel: true, board: true,
+          isVerified: true, isPremium: true, premiumExpiry: true,
+          createdAt: true, updatedAt: true,
+        },
+      })
+      await auditFromRequest(request, auth.user.id, AuditActions.USER_UPDATE, EntityTypes.USER, id, oldData, { role: u.role, isPremium: u.isPremium }, tx as never)
+      return u
     })
 
-    await auditFromRequest(request, auth.user.id, AuditActions.USER_UPDATE, EntityTypes.USER, id, oldData, { role: user.role, isPremium: user.isPremium })
     return apiResponse(user, 'ব্যবহারকারী আপডেট হয়েছে')
   } catch (error) {
     return handleApiError(error, 'Update user')
@@ -207,9 +213,10 @@ export async function DELETE(request: Request) {
         await tx.cQExamSubmission.deleteMany({ where: { userId: { in: ids } } })
         await tx.userFeedback.deleteMany({ where: { userId: { in: ids } } })
         await tx.mCQExamSetResult.deleteMany({ where: { userId: { in: ids } } })
-        return tx.user.deleteMany({ where: { id: { in: ids }, role: { not: SUPER_ADMIN_ROLE } } })
+        const r = await tx.user.deleteMany({ where: { id: { in: ids }, role: { not: SUPER_ADMIN_ROLE } } })
+        await auditFromRequest(request, auth.user.id, AuditActions.USER_DELETE, EntityTypes.USER, ids.join(','), undefined, undefined, tx as never)
+        return r
       })
-      await auditFromRequest(request, auth.user.id, AuditActions.USER_DELETE, EntityTypes.USER, ids.join(','))
       return apiResponse({ deleted: result.count }, `${result.count} জন ব্যবহারকারী মুছে ফেলা হয়েছে`)
     }
 
@@ -254,10 +261,10 @@ export async function DELETE(request: Request) {
       }
       await tx.cQExamSubmission.deleteMany({ where: { userId: id } })
       await tx.userFeedback.deleteMany({ where: { userId: id } })
-      await tx.mCQExamSetResult.deleteMany({ where: { userId: id } })
+      await tx.mCQExamSetResult.deleteMany({ where: { userId: id } } )
       await tx.user.delete({ where: { id } })
+      await auditFromRequest(request, auth.user.id, AuditActions.USER_DELETE, EntityTypes.USER, id, undefined, undefined, tx as never)
     })
-    await auditFromRequest(request, auth.user.id, AuditActions.USER_DELETE, EntityTypes.USER, id)
     return apiResponse({ id }, 'ব্যবহারকারী সফলভাবে মুছে ফেলা হয়েছে')
   } catch (error) {
     return handleApiError(error, 'Delete user')

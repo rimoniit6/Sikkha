@@ -6,7 +6,6 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { toDecimal } from '@/lib/decimal'
 import { guardDeleteDependencies } from '@/lib/delete-guard'
-import { softDelete } from '@/lib/soft-delete'
 import { auditFromRequest, AuditActions, getClientIP } from '@/lib/audit'
 import { createVersion } from '@/lib/version-history'
 
@@ -117,22 +116,25 @@ export async function POST(request: Request) {
       calculatedOriginalPrice = items.reduce((sum: number, item: { contentId: string }) => sum + toDecimal(priceMap.get(item.contentId) || 0), 0)
     }
 
-    const bundle = await db.contentBundle.create({
-      data: {
-        title, slug: bundleSlug,
-        description: description || null, thumbnail: thumbnail || null,
-        price: price ?? 0, originalPrice: calculatedOriginalPrice,
-        classLevel: classLevel || null, board: board || null, year: year || null,
-        type: (type || 'mixed') as 'MCQ' | 'CQ' | 'MIXED', isActive: isActive ?? true, order: order ?? 0,
-        items: items && items.length > 0
-          ? { create: items.map((item: { contentType: string; contentId: string; order?: number }) => ({ contentType: item.contentType, contentId: item.contentId, order: item.order || 0 })) }
-          : undefined,
-      },
-      include: { items: true },
+    const bundle = await db.$transaction(async (tx) => {
+      const created = await tx.contentBundle.create({
+        data: {
+          title, slug: bundleSlug,
+          description: description || null, thumbnail: thumbnail || null,
+          price: price ?? 0, originalPrice: calculatedOriginalPrice,
+          classLevel: classLevel || null, board: board || null, year: year || null,
+          type: (type || 'mixed') as 'MCQ' | 'CQ' | 'MIXED', isActive: isActive ?? true, order: order ?? 0,
+          items: items && items.length > 0
+            ? { create: items.map((item: { contentType: string; contentId: string; order?: number }) => ({ contentType: item.contentType, contentId: item.contentId, order: item.order || 0 })) }
+            : undefined,
+        },
+        include: { items: true },
+      })
+      await auditFromRequest(request, auth.user.id, AuditActions.BUNDLE_CREATE, 'content_bundle', created.id, body, { title: created.title }, tx as never)
+      return created
     })
 
     await invalidateContentCache('bundle')
-    await auditFromRequest(request, auth.user.id, AuditActions.BUNDLE_CREATE, 'content_bundle', bundle.id, body, { title: bundle.title })
     return apiResponse(bundle, 201)
   } catch (error) {
     return handleApiError(error, 'Admin Create Bundle')
@@ -216,15 +218,16 @@ export async function PUT(request: Request) {
       await createVersion(tx, 'contentBundle', id, { ...existing }, auth.user.id, changedFields, {
         ipAddress, userAgent,
       })
-      return tx.contentBundle.update({
+      const result = await tx.contentBundle.update({
         where: { id },
         data,
         include: { items: true },
       })
+      await auditFromRequest(request, auth.user.id, AuditActions.BUNDLE_UPDATE, 'content_bundle', id, existing as Record<string, unknown>, updateData, tx as never)
+      return result
     }, { maxWait: 10000, timeout: 30000 })
 
     await invalidateContentCache('bundle')
-    await auditFromRequest(request, auth.user.id, AuditActions.BUNDLE_UPDATE, 'content_bundle', id, existing, updateData)
     return apiResponse(updated)
   } catch (error) {
     return handleApiError(error, 'Admin Update Bundle')
@@ -241,11 +244,16 @@ export async function DELETE(request: Request) {
     const { searchParams } = new URL(request.url)
     const ids = parseIdsParam(searchParams)
     if (ids) {
-      for (const id of ids) {
-        await softDelete(db, 'contentBundle', id, auth.user.id)
-      }
+      await db.$transaction(async (tx) => {
+        for (const delId of ids) {
+          await tx.contentBundle.update({
+            where: { id: delId },
+            data: { deletedAt: new Date(), deletedBy: auth.user.id },
+          })
+        }
+        await auditFromRequest(request, auth.user.id, AuditActions.BUNDLE_DELETE, 'content_bundle', ids.join(','), undefined, { count: ids.length }, tx as never)
+      })
       await invalidateContentCache('bundle')
-      await auditFromRequest(request, auth.user.id, AuditActions.BUNDLE_DELETE, 'content_bundle', ids.join(','), undefined, { count: ids.length })
       return apiResponse({ deleted: ids.length }, `${ids.length}টি সফলভাবে মুছে ফেলা হয়েছে`)
     }
     const idFromQuery = searchParams.get('id')
@@ -270,9 +278,14 @@ export async function DELETE(request: Request) {
     const guard = await guardDeleteDependencies('bundles', id)
     if (!guard.ok) return guard.response
 
-    await softDelete(db, 'contentBundle', id, auth.user.id)
+    await db.$transaction(async (tx) => {
+      await tx.contentBundle.update({
+        where: { id },
+        data: { deletedAt: new Date(), deletedBy: auth.user.id },
+      })
+      await auditFromRequest(request, auth.user.id, AuditActions.BUNDLE_DELETE, 'content_bundle', id, undefined, undefined, tx as never)
+    })
     await invalidateContentCache('bundle')
-    await auditFromRequest(request, auth.user.id, AuditActions.BUNDLE_DELETE, 'content_bundle', id)
     return apiResponse({ id }, 'বান্ডেল সফলভাবে মুছে ফেলা হয়েছে')
   } catch (error) {
     return handleApiError(error, 'Admin Delete Bundle')

@@ -228,28 +228,15 @@ export async function POST(request: Request) {
         if (!resolvedModel) {
           for (const modelName of SOFT_DELETE_MODELS) {
             try {
-              const prismaName = getPrismaModel(modelName)
-              const delegate = (db as any)[prismaName]
-              if (!delegate) {
-                console.log(`TRASH-DBG: delegate not found for ${modelName} (${prismaName})`)
-                continue
-              }
-              const record = await delegate.findUnique({
+              const record = await (db as any)[getPrismaModel(modelName)].findUnique({
                 where: { id },
                 includeDeleted: true,
               })
               if (record && record.deletedAt) {
-                console.log(`TRASH-DBG: resolved ${id} -> ${modelName} (${prismaName})`)
                 resolvedModel = modelName
                 break
-              } else if (record) {
-                console.log(`TRASH-DBG: ${modelName} (${prismaName}) record found for ${id} but deletedAt=null`)
-              } else {
-                console.log(`TRASH-DBG: ${modelName} (${prismaName}) no record for ${id}`)
               }
-            } catch (e: unknown) {
-              const msg = e instanceof Error ? e.message : String(e)
-              console.log(`TRASH-DBG: ${modelName} ERROR: ${msg}`)
+            } catch {
               continue
             }
           }
@@ -258,7 +245,6 @@ export async function POST(request: Request) {
         if (resolvedModel) {
           items.push({ model: resolvedModel, id })
         } else {
-          console.log(`TRASH-DBG: UNRESOLVED id=${id}`)
           unresolvedIds.push(id)
         }
       }
@@ -282,52 +268,56 @@ export async function POST(request: Request) {
       const totalFailed = bulkResult.failedCount + unresolvedIds.length
 
       // Comprehensive audit logging for bulk restore operation
-      await createAuditLog({
-        adminId: auth.user.id,
-        action: 'bulk_restore',
-        entityType: 'trash',
-        entityId: `bulk-${Date.now()}`,
-        oldData: {
-          totalSelected: ids.length,
-          totalRestored: bulkResult.restoredCount,
-          cascadeMode: cascade ? 'cascade' : 'single',
-          startedAt: new Date(startTime).toISOString(),
-          finishedAt: new Date().toISOString(),
-          durationMs: duration,
-          models: [...new Set(items.map(i => i.model))],
-        },
-        newData: {
-          restored: bulkResult.restoredCount,
-          cascadeRestored: bulkResult.cascadeCount,
-          failed: totalFailed,
-        },
-        ipAddress: getClientIP(request),
-        userAgent: request.headers.get('user-agent') || undefined,
-      })
-
-      // Individual audit entries for each restored record
-      for (const entry of bulkResult.auditTrail) {
+      await db.$transaction(async (tx) => {
         await createAuditLog({
           adminId: auth.user.id,
-          action: 'restore',
-          entityType: entry.model,
-          entityId: entry.id,
+          action: 'bulk_restore',
+          entityType: 'trash',
+          entityId: `bulk-${Date.now()}`,
           oldData: {
-            deletedAt: entry.previousDeletedAt,
-            deletedBy: entry.previousDeletedBy,
-            slugChanged: entry.slugChanged,
-            restoreMode: cascade ? 'cascade' : 'single',
+            totalSelected: ids.length,
+            totalRestored: bulkResult.restoredCount,
+            cascadeMode: cascade ? 'cascade' : 'single',
+            startedAt: new Date(startTime).toISOString(),
+            finishedAt: new Date().toISOString(),
+            durationMs: duration,
+            models: [...new Set(items.map(i => i.model))],
           },
           newData: {
-            deletedAt: null,
-            deletedBy: null,
-            restoredBy: auth.user.id,
-            restoredAt: new Date().toISOString(),
+            restored: bulkResult.restoredCount,
+            cascadeRestored: bulkResult.cascadeCount,
+            failed: totalFailed,
           },
           ipAddress: getClientIP(request),
           userAgent: request.headers.get('user-agent') || undefined,
+          tx: tx as never,
         })
-      }
+
+        // Individual audit entries for each restored record
+        for (const entry of bulkResult.auditTrail) {
+          await createAuditLog({
+            adminId: auth.user.id,
+            action: 'restore',
+            entityType: entry.model,
+            entityId: entry.id,
+            oldData: {
+              deletedAt: entry.previousDeletedAt,
+              deletedBy: entry.previousDeletedBy,
+              slugChanged: entry.slugChanged,
+              restoreMode: cascade ? 'cascade' : 'single',
+            },
+            newData: {
+              deletedAt: null,
+              deletedBy: null,
+              restoredBy: auth.user.id,
+              restoredAt: new Date().toISOString(),
+            },
+            ipAddress: getClientIP(request),
+            userAgent: request.headers.get('user-agent') || undefined,
+            tx: tx as never,
+          })
+        }
+      })
 
       return apiResponse({
         restored: bulkResult.restoredCount,
@@ -442,45 +432,49 @@ export async function POST(request: Request) {
       const totalFailed = bulkResult.failedCount + unresolvedIds.length
 
       // Comprehensive audit logging for bulk force delete operation
-      await createAuditLog({
-        adminId: auth.user.id,
-        action: 'bulk_force_delete',
-        entityType: 'trash',
-        entityId: `bulk-fd-${Date.now()}`,
-        oldData: {
-          totalSelected: ids.length,
-          totalDeleted: bulkResult.deletedCount,
-          cascadeMode: cascade ? 'cascade' : 'single',
-          startedAt: new Date(startTime).toISOString(),
-          finishedAt: new Date().toISOString(),
-          durationMs: duration,
-          models: [...new Set(items.map(i => i.model))],
-        },
-        newData: undefined, // Records no longer exist
-        ipAddress: getClientIP(request),
-        userAgent: request.headers.get('user-agent') || undefined,
-      })
-
-      // Individual audit entries for each deleted record
-      for (const entry of bulkResult.auditTrail) {
+      await db.$transaction(async (tx) => {
         await createAuditLog({
           adminId: auth.user.id,
-          action: 'force_delete',
-          entityType: entry.model,
-          entityId: entry.id,
+          action: 'bulk_force_delete',
+          entityType: 'trash',
+          entityId: `bulk-fd-${Date.now()}`,
           oldData: {
-            displayTitle: entry.displayTitle,
-            deletedAt: entry.previousDeletedAt,
-            deletedBy: entry.previousDeletedBy,
-            forceDeletedBy: auth.user.id,
-            forceDeletedAt: new Date().toISOString(),
+            totalSelected: ids.length,
+            totalDeleted: bulkResult.deletedCount,
             cascadeMode: cascade ? 'cascade' : 'single',
+            startedAt: new Date(startTime).toISOString(),
+            finishedAt: new Date().toISOString(),
+            durationMs: duration,
+            models: [...new Set(items.map(i => i.model))],
           },
-          newData: undefined,
+          newData: undefined, // Records no longer exist
           ipAddress: getClientIP(request),
           userAgent: request.headers.get('user-agent') || undefined,
+          tx: tx as never,
         })
-      }
+
+        // Individual audit entries for each deleted record
+        for (const entry of bulkResult.auditTrail) {
+          await createAuditLog({
+            adminId: auth.user.id,
+            action: 'force_delete',
+            entityType: entry.model,
+            entityId: entry.id,
+            oldData: {
+              displayTitle: entry.displayTitle,
+              deletedAt: entry.previousDeletedAt,
+              deletedBy: entry.previousDeletedBy,
+              forceDeletedBy: auth.user.id,
+              forceDeletedAt: new Date().toISOString(),
+              cascadeMode: cascade ? 'cascade' : 'single',
+            },
+            newData: undefined,
+            ipAddress: getClientIP(request),
+            userAgent: request.headers.get('user-agent') || undefined,
+            tx: tx as never,
+          })
+        }
+      })
 
       return apiResponse({
         deleted: bulkResult.deletedCount,

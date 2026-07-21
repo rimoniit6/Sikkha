@@ -1,11 +1,10 @@
 import { db } from '@/lib/db'
 import { apiResponse, paginatedApiResponse, apiError, withAdmin, validateBody, withCsrf } from '@/lib/api-utils'
-import { getClientIP } from '@/lib/audit'
+import { AuditActions, createAuditLog, getClientIP } from '@/lib/audit'
 import { handleApiError } from '@/lib/errors'
 import { deriveIsPremium } from '@/lib/premium'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
-import { softDelete } from '@/lib/soft-delete'
 import { transitionWorkflow } from '@/lib/workflow'
 
 const createKnowledgeQuestionSchema = z.object({
@@ -102,21 +101,37 @@ export async function POST(request: Request) {
     const chapter = await db.chapter.findUnique({ where: { id: chapterId } })
     if (!chapter) return apiError('Chapter not found', 404)
 
-    const data = await db.knowledgeQuestion.create({
-      data: {
-        chapterId,
-        type: type.toUpperCase() as 'KNOWLEDGE' | 'COMPREHENSION',
-        question,
-        answer,
-        questionImage: questionImage || null,
-        answerImage: answerImage || null,
-        isPremium: deriveIsPremium(price),
-        price: price ?? 0,
-        order: order ?? 0,
-      },
-      include: {
-        chapter: { select: { id: true, name: true, slug: true } },
-      },
+    const data = await db.$transaction(async (tx) => {
+      const created = await tx.knowledgeQuestion.create({
+        data: {
+          chapterId,
+          type: type.toUpperCase() as 'KNOWLEDGE' | 'COMPREHENSION',
+          question,
+          answer,
+          questionImage: questionImage || null,
+          answerImage: answerImage || null,
+          isPremium: deriveIsPremium(price),
+          price: price ?? 0,
+          order: order ?? 0,
+        },
+        include: {
+          chapter: { select: { id: true, name: true, slug: true } },
+        },
+      })
+      await createAuditLog({
+        adminId: auth.user.id,
+        action: AuditActions.KNOWLEDGE_CREATE,
+        entityType: 'knowledge_question',
+        entityId: created.id,
+        newData: { chapterId, type, question, isPremium: created.isPremium, price: created.price },
+        ipAddress: getClientIP(request),
+        userAgent: request.headers.get('user-agent') || undefined,
+        userName: auth.user.name,
+        userRole: auth.user.role,
+        status: 'success',
+        tx: tx as never,
+      })
+      return created
     })
 
     return apiResponse(data, 201)
@@ -214,13 +229,48 @@ export async function DELETE(request: Request) {
     if (id) {
       const existing = await db.knowledgeQuestion.findUnique({ where: { id } })
       if (!existing) return apiError('Knowledge question not found', 404)
-      await softDelete(db, 'knowledgeQuestion', id, auth.user.id)
+      await db.$transaction(async (tx) => {
+        await tx.knowledgeQuestion.update({
+          where: { id },
+          data: { deletedAt: new Date(), deletedBy: auth.user.id },
+        })
+        await createAuditLog({
+          adminId: auth.user.id,
+          action: AuditActions.KNOWLEDGE_DELETE,
+          entityType: 'knowledge_question',
+          entityId: id,
+          oldData: { question: existing.question },
+          ipAddress: getClientIP(request),
+          userAgent: request.headers.get('user-agent') || undefined,
+          userName: auth.user.name,
+          userRole: auth.user.role,
+          status: 'success',
+          tx: tx as never,
+        })
+      })
     } else if (ids) {
       const idArray = ids.split(',').filter(Boolean)
       if (idArray.length === 0) return apiError('No valid IDs provided', 400)
-      for (const id of idArray) {
-        await softDelete(db, 'knowledgeQuestion', id, auth.user.id)
-      }
+      await db.$transaction(async (tx) => {
+        for (const kid of idArray) {
+          await tx.knowledgeQuestion.update({
+            where: { id: kid },
+            data: { deletedAt: new Date(), deletedBy: auth.user.id },
+          })
+        }
+        await createAuditLog({
+          adminId: auth.user.id,
+          action: AuditActions.KNOWLEDGE_DELETE,
+          entityType: 'knowledge_question',
+          entityId: 'bulk:' + ids,
+          ipAddress: getClientIP(request),
+          userAgent: request.headers.get('user-agent') || undefined,
+          userName: auth.user.name,
+          userRole: auth.user.role,
+          status: 'success',
+          tx: tx as never,
+        })
+      })
     } else {
       return apiError('id or ids is required', 400)
     }

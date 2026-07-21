@@ -63,8 +63,8 @@ export async function POST(
       return apiError('বার্তা আবশ্যক', 400)
     }
 
-    const [msg] = await Promise.all([
-      db.feedbackMessage.create({
+    const msg = await db.$transaction(async (tx) => {
+      const m = await tx.feedbackMessage.create({
         data: {
           feedbackId: id,
           senderId: auth.user.id,
@@ -74,14 +74,14 @@ export async function POST(
         include: {
           sender: { select: { id: true, name: true, role: true } },
         },
-      }),
-      db.userFeedback.update({
+      })
+      await tx.userFeedback.update({
         where: { id },
         data: { status: 'REPLIED', updatedAt: new Date() },
-      }),
-    ])
-
-    await auditFromRequest(request, auth.user.id, AuditActions.FEEDBACK_MESSAGE_SEND, 'feedback_message', msg.id, undefined, msg as Record<string, unknown>)
+      })
+      await auditFromRequest(request, auth.user.id, AuditActions.FEEDBACK_MESSAGE_SEND, 'feedback_message', m.id, undefined, m as Record<string, unknown>, tx as never)
+      return m
+    })
 
     return NextResponse.json({ success: true, data: msg }, { status: 201 })
   } catch (error) {

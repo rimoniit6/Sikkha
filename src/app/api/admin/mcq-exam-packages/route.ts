@@ -7,7 +7,6 @@ import { NextResponse } from 'next/server'
 import { toDecimal } from '@/lib/decimal'
 import { z } from 'zod'
 import { guardDeleteDependencies } from '@/lib/delete-guard'
-import { softDelete } from '@/lib/soft-delete'
 import { auditFromRequest, AuditActions, getClientIP } from '@/lib/audit'
 import { createVersion } from '@/lib/version-history'
 
@@ -373,26 +372,29 @@ export async function POST(request: Request) {
         const classExists = await db.classCategory.findUnique({ where: { id: classId } })
         if (!classExists) return apiError('Class not found', 400)
 
-        const pkg = await db.mCQExamPackage.create({
-          data: {
-            title,
-            description: description || null,
-            classId,
-            subjectIds: subjectIds ? JSON.stringify(subjectIds) : '[]',
-            price: price ?? 0,
-            originalPrice: originalPrice ?? 0,
-            isPremium: deriveIsPremium(price),
-            thumbnail: thumbnail || null,
-            isActive: isActive ?? true,
-            order: order ?? 0,
-          },
-          include: {
-            class: { select: { id: true, name: true, slug: true } },
-            _count: { select: { examSets: true, purchases: true } },
-          },
+        const pkg = await db.$transaction(async (tx) => {
+          const created = await tx.mCQExamPackage.create({
+            data: {
+              title,
+              description: description || null,
+              classId,
+              subjectIds: subjectIds ? JSON.stringify(subjectIds) : '[]',
+              price: price ?? 0,
+              originalPrice: originalPrice ?? 0,
+              isPremium: deriveIsPremium(price),
+              thumbnail: thumbnail || null,
+              isActive: isActive ?? true,
+              order: order ?? 0,
+            },
+            include: {
+              class: { select: { id: true, name: true, slug: true } },
+              _count: { select: { examSets: true, purchases: true } },
+            },
+          })
+          await auditFromRequest(request, auth.user.id, AuditActions.MCQ_EXAM_PACKAGE_CREATE, 'mcq_exam_package', created.id, body, { title: created.title }, tx as never)
+          return created
         })
 
-        await auditFromRequest(request, auth.user.id, AuditActions.MCQ_EXAM_PACKAGE_CREATE, 'mcq_exam_package', pkg.id, body, { title: pkg.title })
         return apiResponse({ package: pkg }, 201)
       }
 
@@ -441,10 +443,15 @@ export async function POST(request: Request) {
           },
         })
 
-        // Update package totalSets
-        await recalculatePackageTotalSets(packageId)
-
-        await auditFromRequest(request, auth.user.id, AuditActions.MCQ_EXAM_SET_CREATE, 'mcq_exam_set', examSet.id, body, { title: examSet.title })
+        // Update package totalSets + audit atomically
+        await db.$transaction(async (tx) => {
+          const count = await tx.mCQExamSet.count({ where: { packageId } })
+          await tx.mCQExamPackage.update({
+            where: { id: packageId },
+            data: { totalSets: count },
+          })
+          await auditFromRequest(request, auth.user.id, AuditActions.MCQ_EXAM_SET_CREATE, 'mcq_exam_set', examSet.id, body, { title: examSet.title }, tx as never)
+        })
         return apiResponse({ set: examSet }, 201)
       }
 
@@ -490,8 +497,10 @@ export async function POST(request: Request) {
           })),
         })
 
-        await recalculateSetTotals(setId)
-        await auditFromRequest(request, auth.user.id, AuditActions.MCQ_EXAM_SET_QUESTIONS_ADD, 'mcq_exam_set', setId, undefined, { mcqIds: newMcqIds, count: newMcqIds.length })
+        await db.$transaction(async (tx) => {
+          await recalculateSetTotals(setId)
+          await auditFromRequest(request, auth.user.id, AuditActions.MCQ_EXAM_SET_QUESTIONS_ADD, 'mcq_exam_set', setId, undefined, { mcqIds: newMcqIds, count: newMcqIds.length }, tx as never)
+        })
 
         const updatedSet = await db.mCQExamSet.findUnique({
           where: { id: setId },
@@ -586,12 +595,14 @@ export async function POST(request: Request) {
             where: { id: packageId },
             data: { totalSets: count },
           })
+
+          // Audit log inside the transaction
+          await auditFromRequest(request, auth.user.id, AuditActions.MCQ_EXAM_SET_CREATE, 'mcq_exam_set', packageId, undefined, { count: createdSets.length, prefix, startDate }, tx as never)
         }, {
           maxWait: 10000,
           timeout: 30000,
         })
 
-        await auditFromRequest(request, auth.user.id, AuditActions.MCQ_EXAM_SET_CREATE, 'mcq_exam_set', packageId, undefined, { count: createdSets.length, prefix, startDate })
         return apiResponse({ sets: createdSets, count: createdSets.length }, 201)
       }
 
@@ -658,7 +669,7 @@ export async function PUT(request: Request) {
           await createVersion(tx, 'mCQExamPackage', id, { ...existing }, auth.user.id, changedFields, {
             ipAddress, userAgent,
           })
-          return tx.mCQExamPackage.update({
+          const result = await tx.mCQExamPackage.update({
             where: { id },
             data,
             include: {
@@ -666,9 +677,10 @@ export async function PUT(request: Request) {
               _count: { select: { examSets: true, purchases: true } },
             },
           })
+          await auditFromRequest(request, auth.user.id, AuditActions.MCQ_EXAM_PACKAGE_UPDATE, 'mcq_exam_package', id, existing, data, tx as never)
+          return result
         }, { maxWait: 10000, timeout: 30000 })
 
-        await auditFromRequest(request, auth.user.id, AuditActions.MCQ_EXAM_PACKAGE_UPDATE, 'mcq_exam_package', id, existing, data)
         return apiResponse({ package: updated })
       }
 
@@ -704,9 +716,11 @@ export async function PUT(request: Request) {
           })
         }
 
-        await db.mCQExamSet.update({ where: { id }, data: data as never })
-        await recalculateSetTotals(id)
-        await auditFromRequest(request, auth.user.id, AuditActions.MCQ_EXAM_SET_UPDATE, 'mcq_exam_set', id, existing, data)
+        await db.$transaction(async (tx) => {
+          await tx.mCQExamSet.update({ where: { id }, data: data as never })
+          await recalculateSetTotals(id)
+          await auditFromRequest(request, auth.user.id, AuditActions.MCQ_EXAM_SET_UPDATE, 'mcq_exam_set', id, existing, data, tx as never)
+        })
 
         const refreshedSet = await db.mCQExamSet.findUnique({
           where: { id },
@@ -867,8 +881,13 @@ export async function DELETE(request: Request) {
         if (!id) return apiError('Package ID required', 400)
         const guard = await guardDeleteDependencies('mcq-exam-packages', id)
         if (!guard.ok) return guard.response
-        await softDelete(db, 'mcqExamPackage', id, auth.user.id)
-        await auditFromRequest(request, auth.user.id, AuditActions.MCQ_EXAM_PACKAGE_DELETE, 'mcq_exam_package', id)
+        await db.$transaction(async (tx) => {
+          await tx.mCQExamPackage.update({
+            where: { id },
+            data: { deletedAt: new Date(), deletedBy: auth.user.id },
+          })
+          await auditFromRequest(request, auth.user.id, AuditActions.MCQ_EXAM_PACKAGE_DELETE, 'mcq_exam_package', id, undefined, undefined, tx as never)
+        })
         return apiResponse({ message: 'Package deleted' })
       }
 
@@ -879,9 +898,15 @@ export async function DELETE(request: Request) {
         if (!existing) return apiError('Set not found', 404)
 
         const packageId = existing.packageId
-        await db.mCQExamSet.delete({ where: { id } })
-        await recalculatePackageTotalSets(packageId)
-        await auditFromRequest(request, auth.user.id, AuditActions.MCQ_EXAM_SET_DELETE, 'mcq_exam_set', id)
+        await db.$transaction(async (tx) => {
+          await tx.mCQExamSet.delete({ where: { id } })
+          const count = await tx.mCQExamSet.count({ where: { packageId } })
+          await tx.mCQExamPackage.update({
+            where: { id: packageId },
+            data: { totalSets: count },
+          })
+          await auditFromRequest(request, auth.user.id, AuditActions.MCQ_EXAM_SET_DELETE, 'mcq_exam_set', id, undefined, undefined, tx as never)
+        })
         return apiResponse({ message: 'Set deleted' })
       }
 
@@ -895,9 +920,11 @@ export async function DELETE(request: Request) {
         })
         if (!question) return apiError('Question not found in set', 404)
 
-        await db.mCQExamSetQuestion.delete({ where: { id: question.id } })
-        await recalculateSetTotals(setId)
-        await auditFromRequest(request, auth.user.id, AuditActions.MCQ_EXAM_SET_QUESTIONS_REMOVE, 'mcq_exam_set', setId, undefined, { mcqId })
+        await db.$transaction(async (tx) => {
+          await tx.mCQExamSetQuestion.delete({ where: { id: question.id } })
+          await recalculateSetTotals(setId)
+          await auditFromRequest(request, auth.user.id, AuditActions.MCQ_EXAM_SET_QUESTIONS_REMOVE, 'mcq_exam_set', setId, undefined, { mcqId }, tx as never)
+        })
         return apiResponse({ message: 'Question removed' })
       }
 

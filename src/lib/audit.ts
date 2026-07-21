@@ -1,6 +1,21 @@
 import { db } from '@/lib/db'
 import { parseUserAgent } from '@/lib/user-agent-parser'
 import logger from '@/lib/logger'
+import { sanitizeAuditData } from './audit-pii'
+import { computeAuditLogHash } from './audit-integrity'
+
+// ─── Transaction Client Type ───
+
+/**
+ * Minimal Prisma transaction client type for audit log operations.
+ * Enables createAuditLog to participate in $transaction calls.
+ */
+export interface AuditTxClient {
+  auditLog: {
+    create(args: { data: Record<string, unknown> }): Promise<Record<string, unknown>>
+    createMany(args: { data: Record<string, unknown>[] }): Promise<{ count: number }>
+  }
+}
 
 // ─── Input Types ───
 
@@ -18,6 +33,11 @@ export interface AuditLogInput {
   status?: 'success' | 'failed' | 'pending'
   duration?: number
   country?: string
+  sessionId?: string
+  requestId?: string
+  correlationId?: string
+  /** Prisma transaction client — when provided, the audit log is created inside the transaction */
+  tx?: AuditTxClient
 }
 
 export interface BatchAuditLogInput {
@@ -34,6 +54,10 @@ export interface BatchAuditLogInput {
   userName?: string
   userRole?: string
   status?: 'success' | 'failed' | 'pending'
+  requestId?: string
+  correlationId?: string
+  /** Prisma transaction client — when provided, audit logs are created inside the transaction */
+  tx?: AuditTxClient
 }
 
 // ─── Core Functions ───
@@ -44,18 +68,34 @@ export interface BatchAuditLogInput {
  */
 export async function createAuditLog(input: AuditLogInput): Promise<void> {
   try {
+    // Validate input — warns on unknown values, logs errors for missing fields
+    validateAuditLogInput(input)
+
     // Parse user agent for OS/browser info
     const ua = input.userAgent || null
     const parsedUA = parseUserAgent(ua)
 
-    await db.auditLog.create({
+    // Use transaction client when provided, otherwise use global db
+    const client = input.tx || db
+
+    // Compute hash for tamper detection (from entry's own data — no race condition)
+    const now = new Date()
+    const hash = computeAuditLogHash({
+      action: input.action,
+      entityType: input.entityType,
+      entityId: input.entityId,
+      adminId: input.adminId,
+      createdAt: now,
+    })
+
+    await client.auditLog.create({
       data: {
         adminId: input.adminId,
         action: input.action,
         entityType: input.entityType,
         entityId: input.entityId,
-        oldData: input.oldData ? JSON.stringify(input.oldData) : null,
-        newData: input.newData ? JSON.stringify(input.newData) : null,
+        oldData: input.oldData ? JSON.stringify(sanitizeAuditData(input.oldData)) : null,
+        newData: input.newData ? JSON.stringify(sanitizeAuditData(input.newData)) : null,
         ipAddress: input.ipAddress || null,
         userAgent: ua,
         userName: input.userName || null,
@@ -65,6 +105,10 @@ export async function createAuditLog(input: AuditLogInput): Promise<void> {
         os: parsedUA.os,
         browser: parsedUA.browser,
         country: input.country || null,
+        sessionId: input.sessionId || null,
+        requestId: input.requestId || null,
+        correlationId: input.correlationId || null,
+        hash,
       },
     })
   } catch (error) {
@@ -82,14 +126,17 @@ export async function createBatchAuditLogs(input: BatchAuditLogInput): Promise<v
     const ua = input.userAgent || null
     const parsedUA = parseUserAgent(ua)
 
-    await db.auditLog.createMany({
+    // Use transaction client when provided, otherwise use global db
+    const client = input.tx || db
+
+    await client.auditLog.createMany({
       data: input.entries.map(entry => ({
         adminId: input.adminId,
         action: input.action,
         entityType: input.entityType,
         entityId: entry.entityId,
-        oldData: entry.oldData ? JSON.stringify(entry.oldData) : null,
-        newData: entry.newData ? JSON.stringify(entry.newData) : null,
+        oldData: entry.oldData ? JSON.stringify(sanitizeAuditData(entry.oldData)) : null,
+        newData: entry.newData ? JSON.stringify(sanitizeAuditData(entry.newData)) : null,
         ipAddress: input.ipAddress || null,
         userAgent: ua,
         userName: input.userName || null,
@@ -97,6 +144,8 @@ export async function createBatchAuditLogs(input: BatchAuditLogInput): Promise<v
         status: input.status || 'success',
         os: parsedUA.os,
         browser: parsedUA.browser,
+        requestId: input.requestId || null,
+        correlationId: input.correlationId || null,
       })),
     })
   } catch (error) {
@@ -107,6 +156,9 @@ export async function createBatchAuditLogs(input: BatchAuditLogInput): Promise<v
 /**
  * Create audit log from request context.
  * Extracts IP and User-Agent from the request automatically.
+ *
+ * When called inside a Prisma $transaction, pass `tx` to ensure
+ * the audit log participates in the same atomic transaction.
  */
 export async function auditFromRequest(
   request: Request,
@@ -115,7 +167,9 @@ export async function auditFromRequest(
   entityType: string,
   entityId: string,
   oldData?: Record<string, unknown>,
-  newData?: Record<string, unknown>
+  newData?: Record<string, unknown>,
+  /** Prisma transaction client — when provided, the audit log is created inside the transaction */
+  tx?: AuditTxClient
 ): Promise<void> {
   const ipAddress = getClientIP(request)
   const userAgent = request.headers.get('user-agent') || undefined
@@ -123,6 +177,8 @@ export async function auditFromRequest(
   // Try to get user info from request headers (set by auth middleware)
   const userName = request.headers.get('x-user-name') || undefined
   const userRole = request.headers.get('x-user-role') || undefined
+
+  const requestId = request.headers.get('x-request-id') || undefined
 
   await createAuditLog({
     adminId,
@@ -135,21 +191,30 @@ export async function auditFromRequest(
     userAgent,
     userName,
     userRole,
+    requestId,
+    tx,
   })
 }
 
 /**
  * Create batch audit logs from request context.
+ *
+ * When called inside a Prisma $transaction, pass `tx` to ensure
+ * the audit logs participate in the same atomic transaction.
  */
 export async function auditBatchFromRequest(
   request: Request,
   adminId: string,
   action: string,
   entityType: string,
-  entries: BatchAuditLogInput['entries']
+  entries: BatchAuditLogInput['entries'],
+  /** Prisma transaction client — when provided, the audit log is created inside the transaction */
+  tx?: AuditTxClient
 ): Promise<void> {
   const ipAddress = getClientIP(request)
   const userAgent = request.headers.get('user-agent') || undefined
+
+  const requestId = request.headers.get('x-request-id') || undefined
 
   await createBatchAuditLogs({
     adminId,
@@ -158,6 +223,8 @@ export async function auditBatchFromRequest(
     entries,
     ipAddress,
     userAgent,
+    requestId,
+    tx,
   })
 }
 
@@ -389,6 +456,11 @@ export const AuditActions = {
   CQ_EXAM_PACKAGE_CREATE: 'cq_exam_package_create',
   CQ_EXAM_PACKAGE_UPDATE: 'cq_exam_package_update',
   CQ_EXAM_PACKAGE_DELETE: 'cq_exam_package_delete',
+  CQ_EXAM_SET_CREATE: 'cq_exam_set_create',
+  CQ_EXAM_SET_UPDATE: 'cq_exam_set_update',
+  CQ_EXAM_SET_DELETE: 'cq_exam_set_delete',
+  CQ_EXAM_SET_QUESTIONS_ADD: 'cq_exam_set_questions_add',
+  CQ_EXAM_SET_QUESTIONS_REMOVE: 'cq_exam_set_questions_remove',
 
   // CMS management
   BANNER_CREATE: 'banner_create',
@@ -500,6 +572,11 @@ export const EntityTypes = {
   EXAM_YEAR: 'exam_year',
   BOARD_YEAR: 'board_year',
 
+  // Question entity types (aliases for existing types, used for audit context clarity)
+  MCQ_QUESTION: 'mcq',
+  CQ_QUESTION: 'cq',
+  SUBMISSION: 'cq_exam_submission',
+
   // Other
   SUBSCRIPTION: 'subscription',
   NOTIFICATION: 'notification',
@@ -514,6 +591,39 @@ export const EntityTypes = {
   DATABASE: 'database',
   TRASH: 'trash',
 } as const
+
+// ─── Validation ───
+
+/** Union type of all valid AuditAction values. */
+export type ValidAuditAction = typeof AuditActions[keyof typeof AuditActions]
+
+/** Union type of all valid EntityType values. */
+export type ValidEntityType = typeof EntityTypes[keyof typeof EntityTypes]
+
+const VALID_ENTITY_TYPES = new Set(Object.values(EntityTypes))
+const VALID_ACTIONS = new Set(Object.values(AuditActions))
+
+/**
+ * Validate the audit log input. Warns on unknown entityType/action,
+ * logs errors for missing required fields.
+ */
+function validateAuditLogInput(input: AuditLogInput): void {
+  if (input.entityType && !VALID_ENTITY_TYPES.has(input.entityType)) {
+    logger.warn(`Unknown entityType "${input.entityType}". Use EntityTypes constants.`, { context: 'audit' })
+  }
+  if (input.action && !VALID_ACTIONS.has(input.action)) {
+    logger.warn(`Unknown action "${input.action}". Use AuditActions constants.`, { context: 'audit' })
+  }
+  if (!input.action) {
+    logger.error('Missing required field: action', { context: 'audit' })
+  }
+  if (!input.entityType) {
+    logger.error('Missing required field: entityType', { context: 'audit' })
+  }
+  if (!input.entityId) {
+    logger.error('Missing required field: entityId', { context: 'audit' })
+  }
+}
 
 // ─── Action Display Names (Bengali) ───
 
@@ -686,6 +796,11 @@ export const ACTION_LABELS: Record<string, string> = {
   [AuditActions.CQ_EXAM_PACKAGE_CREATE]: 'CQ এক্সাম প্যাকেজ তৈরি',
   [AuditActions.CQ_EXAM_PACKAGE_UPDATE]: 'CQ এক্সাম প্যাকেজ আপডেট',
   [AuditActions.CQ_EXAM_PACKAGE_DELETE]: 'CQ এক্সাম প্যাকেজ মুছে ফেলা',
+  [AuditActions.CQ_EXAM_SET_CREATE]: 'CQ এক্সাম সেট তৈরি',
+  [AuditActions.CQ_EXAM_SET_UPDATE]: 'CQ এক্সাম সেট আপডেট',
+  [AuditActions.CQ_EXAM_SET_DELETE]: 'CQ এক্সাম সেট মুছে ফেলা',
+  [AuditActions.CQ_EXAM_SET_QUESTIONS_ADD]: 'CQ এক্সাম সেটে প্রশ্ন যোগ',
+  [AuditActions.CQ_EXAM_SET_QUESTIONS_REMOVE]: 'CQ এক্সাম সেট থেকে প্রশ্ন সরানো',
   [AuditActions.BANNER_CREATE]: 'ব্যানার তৈরি',
   [AuditActions.BANNER_UPDATE]: 'ব্যানার আপডেট',
   [AuditActions.BANNER_DELETE]: 'ব্যানার মুছে ফেলা',
@@ -748,6 +863,7 @@ export const ENTITY_TYPE_LABELS: Record<string, string> = {
   [EntityTypes.MCQ_EXAM_SET]: 'MCQ এক্সাম সেট',
   [EntityTypes.CQ_EXAM_PACKAGE]: 'CQ এক্সাম প্যাকেজ',
   [EntityTypes.CQ_EXAM_SET]: 'CQ এক্সাম সেট',
+  [EntityTypes.SUBMISSION]: 'জমা দেওয়া',
   [EntityTypes.BANNER]: 'ব্যানার',
   [EntityTypes.FAQ]: 'FAQ',
   [EntityTypes.TESTIMONIAL]: 'টেস্টিমোনিয়াল',

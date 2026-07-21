@@ -76,14 +76,15 @@ export async function POST(request: Request) {
       return apiError('এই কী ইতিমধ্যে বিদ্যমান, আপডেট করতে PUT ব্যবহার করুন', 409)
     }
 
-    const data = await db.siteSetting.create({
-      data: { key, value, group: group || null, label: label || null },
+    const data = await db.$transaction(async (tx) => {
+      const s = await tx.siteSetting.create({
+        data: { key, value, group: group || null, label: label || null },
+      })
+      await auditFromRequest(request, auth.user.id, AuditActions.SETTINGS_CREATE, 'site_setting', s.key, body, { key, value, group, label }, tx as never)
+      return s
     })
 
     await invalidateContentCache('settings')
-
-    await auditFromRequest(request, auth.user.id, AuditActions.SETTINGS_CREATE, 'site_setting', data.key, body, { key, value, group, label })
-
     return apiResponse({ data }, 201)
   } catch (error) {
     return handleApiError(error, 'Admin Create Setting')
@@ -117,7 +118,7 @@ export async function PUT(request: Request) {
       k => JSON.stringify(updateData[k]) !== JSON.stringify(existing[k as keyof typeof existing])
     )
 
-    // Create version snapshot + update in single transaction
+    // Create version snapshot + update + audit in single transaction
     const ipAddress = getClientIP(request)
     const userAgent = request.headers.get('user-agent') || undefined
 
@@ -129,19 +130,18 @@ export async function PUT(request: Request) {
       })
 
       // Perform the actual update
-      return tx.siteSetting.update({
+      const s = await tx.siteSetting.update({
         where: { key },
         data: updateData,
       })
+      await auditFromRequest(request, auth.user.id, AuditActions.SETTINGS_UPDATE, 'site_setting', key, { value: existing.value, group: existing.group, label: existing.label }, { value, group, label }, tx as never)
+      return s
     }, {
       maxWait: 10000,
       timeout: 30000,
     })
 
     await invalidateContentCache('settings')
-
-    await auditFromRequest(request, auth.user.id, AuditActions.SETTINGS_UPDATE, 'site_setting', key, { value: existing.value, group: existing.group, label: existing.label }, { value, group, label })
-
     return apiResponse({ data })
   } catch (error) {
     return handleApiError(error, 'Admin Update Setting')
@@ -168,9 +168,9 @@ export async function PATCH(request: Request) {
       seen.add(s.key)
     }
 
-    await Promise.all(
-      settings.map((s) =>
-        db.siteSetting.upsert({
+    await db.$transaction(async (tx) => {
+      for (const s of settings) {
+        await tx.siteSetting.upsert({
           where: { key: s.key },
           create: {
             key: s.key,
@@ -184,8 +184,9 @@ export async function PATCH(request: Request) {
             ...(s.label !== undefined ? { label: s.label } : {}),
           },
         })
-      )
-    )
+      }
+      await auditFromRequest(request, auth.user.id, AuditActions.SETTINGS_BATCH_UPDATE, 'site_setting', 'batch:' + settings.map(s => s.key).join(','), undefined, { count: settings.length, keys: settings.map(s => s.key) }, tx as never)
+    })
 
     invalidateContentCache('settings')
 
@@ -194,8 +195,6 @@ export async function PATCH(request: Request) {
     if (csrfSetting) {
       invalidateCsrfCache()
     }
-
-    await auditFromRequest(request, auth.user.id, AuditActions.SETTINGS_BATCH_UPDATE, 'site_setting', 'batch:' + settings.map(s => s.key).join(','), undefined, { count: settings.length, keys: settings.map(s => s.key) })
 
     return apiResponse({ data: { updated: settings.length } })
   } catch (error) {

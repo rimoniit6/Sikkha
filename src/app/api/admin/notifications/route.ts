@@ -94,32 +94,38 @@ export async function POST(request: Request) {
         select: { id: true },
       })
 
-      const notifications = await db.notification.createMany({
-        data: users.map((user) => ({
-          userId: user.id,
+      const result = await db.$transaction(async (tx) => {
+        const notifications = await tx.notification.createMany({
+          data: users.map((user) => ({
+            userId: user.id,
+            title,
+            message,
+            type: (type || 'INFO') as 'INFO' | 'SUCCESS' | 'WARNING' | 'ERROR',
+            link: link || null,
+          })),
+        })
+        await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_CREATE, 'notification', 'broadcast', body, { sentCount: notifications.count }, tx as never)
+        return notifications
+      })
+
+      await invalidateContentCache('notification')
+      return apiResponse({ sentCount: result.count }, 201)
+    }
+
+    const data = await db.$transaction(async (tx) => {
+      const n = await tx.notification.create({
+        data: {
+          userId: userId || null,
           title,
           message,
           type: (type || 'INFO') as 'INFO' | 'SUCCESS' | 'WARNING' | 'ERROR',
           link: link || null,
-        })),
+        },
       })
-
-      await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_CREATE, 'notification', 'broadcast', body, { sentCount: notifications.count })
-      await invalidateContentCache('notification')
-      return apiResponse({ sentCount: notifications.count }, 201)
-    }
-
-    const data = await db.notification.create({
-      data: {
-        userId: userId || null,
-        title,
-        message,
-        type: (type || 'INFO') as 'INFO' | 'SUCCESS' | 'WARNING' | 'ERROR',
-        link: link || null,
-      },
+      await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_CREATE, 'notification', n.id, body, undefined, tx as never)
+      return n
     })
 
-    await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_CREATE, 'notification', data.id, body)
     await invalidateContentCache('notification')
     return apiResponse(data, 201)
   } catch (error) {
@@ -150,8 +156,12 @@ export async function PUT(request: Request) {
       }
     }
 
-    const updated = await db.notification.update({ where: { id }, data })
-    await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_UPDATE, 'notification', id, existing as unknown as Record<string, unknown>, data)
+    const updated = await db.$transaction(async (tx) => {
+      const u = await tx.notification.update({ where: { id }, data })
+      await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_UPDATE, 'notification', id, existing as unknown as Record<string, unknown>, data, tx as never)
+      return u
+    })
+
     await invalidateContentCache('notification')
     return apiResponse(updated)
   } catch (error) {
@@ -171,8 +181,11 @@ export async function DELETE(request: Request) {
     // Bulk delete
     const ids = parseIdsParam(searchParams)
     if (ids) {
-      const result = await db.notification.deleteMany({ where: { id: { in: ids } } })
-      await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_DELETE, 'notification', ids.join(','), undefined, { deletedCount: result.count })
+      const result = await db.$transaction(async (tx) => {
+        const r = await tx.notification.deleteMany({ where: { id: { in: ids } } })
+        await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_DELETE, 'notification', ids.join(','), undefined, { deletedCount: r.count }, tx as never)
+        return r
+      })
       await invalidateContentCache('notification')
       return apiResponse({ deleted: result.count }, `সফলভাবে ${result.count}টি নোটিফিকেশন মুছে ফেলা হয়েছে`, 200)
     }
@@ -189,8 +202,11 @@ export async function DELETE(request: Request) {
     const existing = await db.notification.findUnique({ where: { id } })
     if (!existing) return apiError('নোটিফিকেশন খুঁজে পাওয়া যায়নি', 404)
 
-    await db.notification.delete({ where: { id } })
-    await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_DELETE, 'notification', id, existing as unknown as Record<string, unknown>)
+    await db.$transaction(async (tx) => {
+      await tx.notification.delete({ where: { id } })
+      await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_DELETE, 'notification', id, existing as unknown as Record<string, unknown>, undefined, tx as never)
+    })
+
     await invalidateContentCache('notification')
     return apiResponse({ id }, 'নোটিফিকেশন সফলভাবে মুছে ফেলা হয়েছে', 200)
   } catch (error) {

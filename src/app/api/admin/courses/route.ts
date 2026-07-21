@@ -7,7 +7,6 @@ import { NextResponse } from 'next/server'
 import { toDecimal } from '@/lib/decimal'
 import { z } from 'zod'
 import { guardDeleteDependencies } from '@/lib/delete-guard'
-import { softDelete } from '@/lib/soft-delete'
 import { transitionWorkflow } from '@/lib/workflow'
 
 const COURSE_STATUSES = ['DRAFT', 'PUBLISHED'] as const
@@ -407,29 +406,33 @@ export async function POST(request: Request) {
           .trim()
         const slug = await ensureUniqueSlug(db, baseSlug)
 
-        const course = await db.course.create({
-          data: {
-            title: b.title,
-            slug,
-            description: b.description || null,
-            status: normalizeStatus(b.status),
-            isPremium: deriveIsPremium(b.price),
-            price: b.price ?? 0,
-            originalPrice: b.originalPrice ?? 0,
-            thumbnail: b.thumbnail || null,
-            teacherName: b.teacherName || null,
-            features: b.features || null,
-            requirements: b.requirements || null,
-            targetStudents: b.targetStudents || null,
-            hasCertificate: b.hasCertificate ?? false,
-            duration: b.duration ?? null,
-            language: b.language || null,
-            difficulty: b.difficulty || null,
-            classId: b.classId || null,
-            subjectId: b.subjectId || null,
-          },
+        const course = await db.$transaction(async (tx) => {
+          const created = await tx.course.create({
+            data: {
+              title: b.title,
+              slug,
+              description: b.description || null,
+              status: normalizeStatus(b.status),
+              isPremium: deriveIsPremium(b.price),
+              price: b.price ?? 0,
+              originalPrice: b.originalPrice ?? 0,
+              thumbnail: b.thumbnail || null,
+              teacherName: b.teacherName || null,
+              features: b.features || null,
+              requirements: b.requirements || null,
+              targetStudents: b.targetStudents || null,
+              hasCertificate: b.hasCertificate ?? false,
+              duration: b.duration ?? null,
+              language: b.language || null,
+              difficulty: b.difficulty || null,
+              classId: b.classId || null,
+              subjectId: b.subjectId || null,
+            },
+          })
+          await auditFromRequest(request, auth.user.id, AuditActions.COURSE_CREATE, 'course', created.id, body, { title: created.title }, tx as never)
+          return created
         })
-        await auditFromRequest(request, auth.user.id, AuditActions.COURSE_CREATE, 'course', course.id, body, { title: course.title })
+
         return apiResponse({ course }, 201)
       }
 
@@ -520,15 +523,23 @@ export async function POST(request: Request) {
         if (!id) return apiError('Course ID required', 400)
         const guard = await guardDeleteDependencies('courses', id)
         if (!guard.ok) return guard.response
-        await db.lessonProgress.deleteMany({ where: { courseId: id } })
-        await db.coursePurchase.deleteMany({ where: { courseId: id } })
-        const lessons = await db.courseLesson.findMany({ where: { courseId: id }, select: { id: true } })
-        for (const lesson of lessons) {
-          await softDelete(db, 'courseLesson', lesson.id, auth.user.id)
-        }
-        await db.courseExamSchedule.deleteMany({ where: { courseId: id } })
-        await softDelete(db, 'course', id, auth.user.id)
-        await auditFromRequest(request, auth.user.id, AuditActions.COURSE_DELETE, 'course', id)
+        await db.$transaction(async (tx) => {
+          await tx.lessonProgress.deleteMany({ where: { courseId: id } })
+          await tx.coursePurchase.deleteMany({ where: { courseId: id } })
+          const lessons = await tx.courseLesson.findMany({ where: { courseId: id }, select: { id: true } })
+          for (const lesson of lessons) {
+            await tx.courseLesson.update({
+              where: { id: lesson.id },
+              data: { deletedAt: new Date(), deletedBy: auth.user.id },
+            })
+          }
+          await tx.courseExamSchedule.deleteMany({ where: { courseId: id } })
+          await tx.course.update({
+            where: { id },
+            data: { deletedAt: new Date(), deletedBy: auth.user.id },
+          })
+          await auditFromRequest(request, auth.user.id, AuditActions.COURSE_DELETE, 'course', id, undefined, undefined, tx as never)
+        })
         return apiResponse({ success: true })
       }
 
@@ -538,16 +549,19 @@ export async function POST(request: Request) {
         if (!courseId || !examType || !packageId || !examDate || !startTime || !endTime) {
           return apiError('courseId, examType, packageId, examDate, startTime, endTime required', 400)
         }
-        const schedule = await db.courseExamSchedule.create({
-          data: {
-            courseId, examType, packageId,
-            examDate: new Date(examDate).toISOString(),
-            startTime, endTime,
-            autoFilledFromPackage: autoFilledFromPackage ?? false,
-            overrideAllowed: true,
-          },
+        const schedule = await db.$transaction(async (tx) => {
+          const created = await tx.courseExamSchedule.create({
+            data: {
+              courseId, examType, packageId,
+              examDate: new Date(examDate).toISOString(),
+              startTime, endTime,
+              autoFilledFromPackage: autoFilledFromPackage ?? false,
+              overrideAllowed: true,
+            },
+          })
+          await auditFromRequest(request, auth.user.id, 'course_exam_schedule_create', 'course', courseId, body, created as Record<string, unknown>, tx as never)
+          return created
         })
-        await auditFromRequest(request, auth.user.id, 'course_exam_schedule_create', 'course', courseId, body, schedule)
         return apiResponse({ schedule }, 201)
       }
 
@@ -563,19 +577,22 @@ export async function POST(request: Request) {
 
         if (examSets.length === 0) return apiError('No exam sets found in this package', 404)
 
-        const schedules = await Promise.all(examSets.map(set =>
-          db.courseExamSchedule.create({
-            data: {
-              courseId, examType, packageId,
-              examDate: set.scheduledDate,
-              startTime: set.startTime,
-              endTime: set.endTime,
-              autoFilledFromPackage: true,
-              overrideAllowed: true,
-            },
-          })
-        ))
-        await auditFromRequest(request, auth.user.id, 'course_exam_schedules_bulk_create', 'course', courseId, body, { count: schedules.length })
+        const schedules = await db.$transaction(async (tx) => {
+          const created = await Promise.all(examSets.map(set =>
+            tx.courseExamSchedule.create({
+              data: {
+                courseId, examType, packageId,
+                examDate: set.scheduledDate,
+                startTime: set.startTime,
+                endTime: set.endTime,
+                autoFilledFromPackage: true,
+                overrideAllowed: true,
+              },
+            })
+          ))
+          await auditFromRequest(request, auth.user.id, 'course_exam_schedules_bulk_create', 'course', courseId, body, { count: created.length }, tx as never)
+          return created
+        })
         return apiResponse({ schedules, count: schedules.length }, 201)
       }
 
@@ -591,16 +608,21 @@ export async function POST(request: Request) {
         if (startTime !== undefined) updateData.startTime = startTime
         if (endTime !== undefined) updateData.endTime = endTime
 
-        const schedule = await db.courseExamSchedule.update({ where: { id }, data: updateData as never })
-        await auditFromRequest(request, auth.user.id, 'course_exam_schedule_update', 'course', existing.courseId, body, schedule)
+        const schedule = await db.$transaction(async (tx) => {
+          const updated = await tx.courseExamSchedule.update({ where: { id }, data: updateData as never })
+          await auditFromRequest(request, auth.user.id, 'course_exam_schedule_update', 'course', existing.courseId, body, updated as Record<string, unknown>, tx as never)
+          return updated
+        })
         return apiResponse({ schedule })
       }
 
       case 'remove-exam-schedule': {
         const { id } = body
         if (!id) return apiError('Schedule ID required', 400)
-        await db.courseExamSchedule.delete({ where: { id } })
-        await auditFromRequest(request, auth.user.id, 'course_exam_schedule_delete', 'course', body.courseId, body)
+        await db.$transaction(async (tx) => {
+          await tx.courseExamSchedule.delete({ where: { id } })
+          await auditFromRequest(request, auth.user.id, 'course_exam_schedule_delete', 'course', body.courseId, body, undefined, tx as never)
+        })
         return apiResponse({ success: true })
       }
 

@@ -3,7 +3,6 @@ import { z } from 'zod'
 import { apiResponse, apiError, withAdmin, withCsrf } from '@/lib/api-utils'
 import { handleApiError } from '@/lib/errors'
 import { NextResponse } from 'next/server'
-import { softDelete } from '@/lib/soft-delete'
 import { transitionWorkflow } from '@/lib/workflow'
 import { auditFromRequest, AuditActions, getClientIP } from '@/lib/audit'
 
@@ -63,7 +62,8 @@ export async function POST(request: Request) {
         const maxOrder = await db.courseLesson.aggregate({ where: { courseId }, _max: { displayOrder: true } })
         const nextOrder = (maxOrder._max.displayOrder ?? -1) + 1
 
-        const lesson = await db.courseLesson.create({
+        const lesson = await db.$transaction(async (tx) => {
+          const created = await tx.courseLesson.create({
           data: {
             courseId,
             title,
@@ -104,7 +104,9 @@ export async function POST(request: Request) {
             resources: true,
           },
         })
-        await auditFromRequest(request, auth.user.id, AuditActions.COURSE_LESSON_CREATE, 'course_lesson', lesson.id, body, { title: lesson.title })
+        await auditFromRequest(request, auth.user.id, AuditActions.COURSE_LESSON_CREATE, 'course_lesson', created.id, body, { title: created.title }, tx as never)
+          return created
+        })
         return apiResponse({ lesson }, 201)
       }
 
@@ -119,12 +121,10 @@ export async function POST(request: Request) {
         const updateData: Record<string, unknown> = {}
         for (const f of allowed) { if (data[f] !== undefined) updateData[f] = data[f] }
 
-        // Determine which fields actually changed
         const changedFields = Object.keys(updateData).filter(
           key => JSON.stringify(updateData[key]) !== JSON.stringify(existing[key as keyof typeof existing])
         )
 
-        // Transition workflow + update content atomically
         const ipAddress = getClientIP(request)
         const userAgent = request.headers.get('user-agent') || undefined
 
@@ -155,15 +155,19 @@ export async function POST(request: Request) {
           return NextResponse.json({ error: result.error }, { status: result.httpStatus })
         }
 
-        await auditFromRequest(request, auth.user.id, AuditActions.COURSE_LESSON_UPDATE, 'course_lesson', id, existing, updateData)
         return apiResponse({ lesson: result.contentRecord })
       }
 
       case 'delete': {
         const { id } = body
         if (!id) return apiError('Lesson ID required', 400)
-        await softDelete(db, 'courseLesson', id, auth.user.id)
-        await auditFromRequest(request, auth.user.id, AuditActions.COURSE_LESSON_DELETE, 'course_lesson', id)
+        await db.$transaction(async (tx) => {
+          await tx.courseLesson.update({
+            where: { id },
+            data: { deletedAt: new Date(), deletedBy: auth.user.id },
+          })
+          await auditFromRequest(request, auth.user.id, AuditActions.COURSE_LESSON_DELETE, 'course_lesson', id, undefined, undefined, tx as never)
+        })
         return apiResponse({ success: true })
       }
 
@@ -187,26 +191,30 @@ export async function POST(request: Request) {
         if (!source) return apiError('Lesson not found', 404)
 
         const maxOrder = await db.courseLesson.aggregate({ where: { courseId: source.courseId }, _max: { displayOrder: true } })
-        const lesson = await db.courseLesson.create({
-          data: {
-            courseId: source.courseId,
-            title: `${source.title} (কপি)`,
-            description: source.description,
-            lessonType: source.lessonType,
-            meetingLink: source.meetingLink,
-            meetingId: source.meetingId,
-            platform: source.platform,
-            password: source.password,
-            videoUrl: source.videoUrl,
-            previewVideo: source.previewVideo,
-            duration: source.duration,
-            displayOrder: (maxOrder._max.displayOrder ?? -1) + 1,
-            assignments: { create: source.assignments.map(a => ({ title: a.title, description: a.description, deadline: a.deadline, attachment: a.attachment, displayOrder: a.displayOrder })) },
-            schedules: source.schedules.length ? { create: source.schedules.map(s => ({ date: s.date, startTime: s.startTime, endTime: s.endTime })) } : undefined,
-            notes: { create: source.notes.map(n => ({ title: n.title, type: n.type, content: n.content, fileUrl: n.fileUrl, link: n.link, displayOrder: n.displayOrder })) },
-            resources: { create: source.resources.map(r => ({ title: r.title, type: r.type, fileUrl: r.fileUrl, link: r.link, displayOrder: r.displayOrder })) },
-          },
-          include: { assignments: true, schedules: true, notes: true, resources: true },
+        const lesson = await db.$transaction(async (tx) => {
+          const created = await tx.courseLesson.create({
+            data: {
+              courseId: source.courseId,
+              title: `${source.title} (কপি)`,
+              description: source.description,
+              lessonType: source.lessonType,
+              meetingLink: source.meetingLink,
+              meetingId: source.meetingId,
+              platform: source.platform,
+              password: source.password,
+              videoUrl: source.videoUrl,
+              previewVideo: source.previewVideo,
+              duration: source.duration,
+              displayOrder: (maxOrder._max.displayOrder ?? -1) + 1,
+              assignments: { create: source.assignments.map(a => ({ title: a.title, description: a.description, deadline: a.deadline, attachment: a.attachment, displayOrder: a.displayOrder })) },
+              schedules: source.schedules.length ? { create: source.schedules.map(s => ({ date: s.date, startTime: s.startTime, endTime: s.endTime })) } : undefined,
+              notes: { create: source.notes.map(n => ({ title: n.title, type: n.type, content: n.content, fileUrl: n.fileUrl, link: n.link, displayOrder: n.displayOrder })) },
+              resources: { create: source.resources.map(r => ({ title: r.title, type: r.type, fileUrl: r.fileUrl, link: r.link, displayOrder: r.displayOrder })) },
+            },
+            include: { assignments: true, schedules: true, notes: true, resources: true },
+          })
+          await auditFromRequest(request, auth.user.id, AuditActions.COURSE_LESSON_CREATE, 'course_lesson', created.id, body, { title: created.title }, tx as never)
+          return created
         })
         return apiResponse({ lesson }, 201)
       }
@@ -215,22 +223,27 @@ export async function POST(request: Request) {
         const { lessonId, title, description, deadline, attachment } = body
         if (!lessonId || !title) return apiError('lessonId, title required', 400)
         const max = await db.lessonAssignment.aggregate({ where: { lessonId }, _max: { displayOrder: true } })
-        const assignment = await db.lessonAssignment.create({
-          data: {
-            lessonId, title, description: description || null,
-            deadline: deadline ? new Date(deadline).toISOString() : null, attachment: attachment || null,
-            displayOrder: (max._max.displayOrder ?? -1) + 1,
-          },
+        await db.$transaction(async (tx) => {
+          const assignment = await tx.lessonAssignment.create({
+            data: {
+              lessonId, title, description: description || null,
+              deadline: deadline ? new Date(deadline).toISOString() : null, attachment: attachment || null,
+              displayOrder: (max._max.displayOrder ?? -1) + 1,
+            },
+          })
+          await auditFromRequest(request, auth.user.id, 'course_assignment_create', 'course_assignment', assignment.id, body, undefined, tx as never)
+          return assignment
         })
-        await auditFromRequest(request, auth.user.id, 'course_assignment_create', 'course_assignment', assignment.id, body)
         return apiResponse({ assignment }, 201)
       }
 
       case 'remove-assignment': {
         const { id } = body
         if (!id) return apiError('Assignment ID required', 400)
-        await db.lessonAssignment.delete({ where: { id } })
-        await auditFromRequest(request, auth.user.id, 'course_assignment_delete', 'course_assignment', id)
+        await db.$transaction(async (tx) => {
+          await tx.lessonAssignment.delete({ where: { id } })
+          await auditFromRequest(request, auth.user.id, 'course_assignment_delete', 'course_assignment', id, undefined, undefined, tx as never)
+        })
         return apiResponse({ success: true })
       }
 

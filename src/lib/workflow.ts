@@ -1,6 +1,6 @@
 import { PrismaClient } from '@prisma/client'
 import { createVersion, isVersionableModel } from './version-history'
-import { parseUserAgent } from './user-agent-parser'
+import { AuditActions, createAuditLog } from '@/lib/audit'
 
 // ─── Types ───
 
@@ -160,14 +160,14 @@ export const WORKFLOW_ACTION_LABELS: Record<WorkflowAction, string> = {
 // ─── Audit Action Mapping ───
 
 const ACTION_AUDIT_KEY: Record<WorkflowAction, string> = {
-  submit_for_review: 'WORKFLOW_SUBMIT_FOR_REVIEW',
-  approve: 'WORKFLOW_APPROVE',
-  reject: 'WORKFLOW_REJECT',
-  publish: 'WORKFLOW_PUBLISH',
-  schedule: 'WORKFLOW_SCHEDULE',
-  archive: 'WORKFLOW_ARCHIVE',
-  reset_to_draft: 'WORKFLOW_RESET_TO_DRAFT',
-  update_content: 'CONTENT_UPDATE',
+  submit_for_review: AuditActions.WORKFLOW_SUBMIT_FOR_REVIEW,
+  approve: AuditActions.WORKFLOW_APPROVE,
+  reject: AuditActions.WORKFLOW_REJECT,
+  publish: AuditActions.WORKFLOW_PUBLISH,
+  schedule: AuditActions.WORKFLOW_SCHEDULE,
+  archive: AuditActions.WORKFLOW_ARCHIVE,
+  reset_to_draft: AuditActions.WORKFLOW_RESET_TO_DRAFT,
+  update_content: AuditActions.CONTENT_UPDATE,
 }
 
 // ─── Prisma Model Name Map ───
@@ -392,24 +392,20 @@ export async function transitionWorkflow(
         },
       })
 
-      // Step 9: AuditLog (Activity Timeline source)
-      const parsedUA = parseUserAgent(userAgent)
-      await tx.auditLog.create({
-        data: {
-          adminId: userId,
-          action: ACTION_AUDIT_KEY[action],
-          entityType,
-          entityId,
-          oldData: JSON.stringify({ status: previousState, version: current.version }),
-          newData: JSON.stringify({ status: newState, version: updated.version }),
-          ipAddress: ipAddress || null,
-          userAgent: userAgent || null,
-          userName: userName || null,
-          userRole: userRole || null,
-          status: 'success',
-          os: parsedUA.os || null,
-          browser: parsedUA.browser || null,
-        },
+      // Step 9: AuditLog (Activity Timeline source) — inside transaction
+      await createAuditLog({
+        adminId: userId,
+        action: ACTION_AUDIT_KEY[action],
+        entityType,
+        entityId,
+        oldData: { status: previousState, version: current.version },
+        newData: { status: newState, version: updated.version },
+        ipAddress: ipAddress || undefined,
+        userAgent: userAgent || undefined,
+        userName: userName || undefined,
+        userRole: userRole || undefined,
+        status: 'success',
+        tx: tx as never,
       })
 
       // Step 10: WorkflowComment (inside same transaction)

@@ -76,23 +76,25 @@ export async function POST(request: Request) {
 
     const topicSlug = slug || name.toLowerCase().replace(/[^a-z0-9\u0980-\u09FF]+/g, '-').replace(/^-|-$/g, '')
 
-    const data = await db.topic.create({
-      data: {
-        name,
-        slug: topicSlug,
-        chapterId,
-        order: order ?? 0,
-        description: description || null,
-        isActive: isActive ?? true,
-      },
-      include: {
-        chapter: {
-          select: { id: true, name: true, slug: true },
+    const data = await db.$transaction(async (tx) => {
+      const created = await (tx as any).topic.create({
+        data: {
+          name,
+          slug: topicSlug,
+          chapterId,
+          order: order ?? 0,
+          description: description || null,
+          isActive: isActive ?? true,
         },
-      },
+        include: {
+          chapter: {
+            select: { id: true, name: true, slug: true },
+          },
+        },
+      })
+      await auditFromRequest(request, auth.user.id, AuditActions.TOPIC_CREATE, 'topic', created.id, undefined, created as Record<string, unknown>, tx as never)
+      return created
     })
-
-    await auditFromRequest(request, auth.user.id, AuditActions.TOPIC_CREATE, 'topic', data.id, undefined, data as Record<string, unknown>)
 
     return apiResponse(data, 201)
   } catch (error) {
@@ -129,17 +131,19 @@ export async function PUT(request: Request) {
       }
     }
 
-    const updated = await db.topic.update({
-      where: { id },
-      data,
-      include: {
-        chapter: {
-          select: { id: true, name: true, slug: true },
+    const updated = await db.$transaction(async (tx) => {
+      const result = await (tx as any).topic.update({
+        where: { id },
+        data,
+        include: {
+          chapter: {
+            select: { id: true, name: true, slug: true },
+          },
         },
-      },
+      })
+      await auditFromRequest(request, auth.user.id, AuditActions.TOPIC_UPDATE, 'topic', result.id, existing as Record<string, unknown>, result as Record<string, unknown>, tx as never)
+      return result
     })
-
-    await auditFromRequest(request, auth.user.id, AuditActions.TOPIC_UPDATE, 'topic', updated.id, existing as Record<string, unknown>, updated as Record<string, unknown>)
 
     return apiResponse(updated)
   } catch (error) {
@@ -178,9 +182,10 @@ export async function DELETE(request: Request) {
       return apiError('টপিক খুঁজে পাওয়া যায়নি', 404)
     }
 
-    await softDelete(db, 'topic', id, auth.user.id)
-
-    await auditFromRequest(request, auth.user.id, AuditActions.TOPIC_DELETE, 'topic', id, existing as Record<string, unknown>, undefined)
+    await db.$transaction(async (tx) => {
+      await softDelete(tx, 'topic', id, auth.user.id)
+      await auditFromRequest(request, auth.user.id, AuditActions.TOPIC_DELETE, 'topic', id, existing as Record<string, unknown>, undefined, tx as never)
+    })
 
     return apiResponse({ id }, 'টপিক সফলভাবে মুছে ফেলা হয়েছে')
   } catch (error) {

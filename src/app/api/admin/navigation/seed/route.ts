@@ -41,37 +41,33 @@ export async function POST(request: Request) {
     const csrfCheck = await withCsrf(request)
     if ('error' in csrfCheck) return csrfCheck.error
 
-    let created = 0
-    let skipped = 0
-
-    for (const navItem of DEFAULT_NAVIGATION_ITEMS) {
-      // Check if a navigation item with the same label + route + location already exists
-      const existing = await db.navigation.findFirst({
-        where: {
-          label: navItem.label,
-          route: navItem.route,
-          location: navItem.location,
-        },
-      })
-
-      if (existing) {
-        skipped++
-        continue
+    const result = await db.$transaction(async (tx) => {
+      let c = 0
+      let s = 0
+      for (const navItem of DEFAULT_NAVIGATION_ITEMS) {
+        const existing = await tx.navigation.findFirst({
+          where: {
+            label: navItem.label,
+            route: navItem.route,
+            location: navItem.location,
+          },
+        })
+        if (existing) {
+          s++
+          continue
+        }
+        await tx.navigation.create({ data: navItem })
+        c++
       }
-
-      await db.navigation.create({
-        data: navItem,
-      })
-      created++
-    }
-
-    await auditFromRequest(request, auth.user.id, AuditActions.NAVIGATION_SEED, 'navigation', 'seed', undefined, { created, skipped })
+      await auditFromRequest(request, auth.user.id, AuditActions.NAVIGATION_SEED, 'navigation', 'seed', undefined, { created: c, skipped: s }, tx as never)
+      return { created: c, skipped: s }
+    })
 
     return NextResponse.json({
       success: true,
-      message: `${created}টি তৈরি, ${skipped}টি আগে থেকেই আছে`,
-      created,
-      skipped,
+      message: `${result.created}টি তৈরি, ${result.skipped}টি আগে থেকেই আছে`,
+      created: result.created,
+      skipped: result.skipped,
     })
   } catch (error) {
     console.error('[Admin Navigation Seed] POST error:', error)

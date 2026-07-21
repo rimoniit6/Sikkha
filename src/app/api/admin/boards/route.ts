@@ -51,16 +51,19 @@ export async function POST(req: NextRequest) {
       return apiError('এই বোর্ড ইতিমধ্যে আছে', 400)
     }
 
-    const board = await db.board.create({
-      data: {
-        name: name.trim(),
-        slug: boardSlug,
-        isActive: isActive ?? true,
-        order: order ?? 0,
-      },
+    const board = await db.$transaction(async (tx) => {
+      const created = await (tx as any).board.create({
+        data: {
+          name: name.trim(),
+          slug: boardSlug,
+          isActive: isActive ?? true,
+          order: order ?? 0,
+        },
+      })
+      await auditFromRequest(req, auth.user.id, AuditActions.CONTENT_CREATE, 'board', created.id, body, undefined, tx as never)
+      return created
     })
 
-    await auditFromRequest(req, auth.user.id, AuditActions.CONTENT_CREATE, 'board', board.id, body)
     await invalidateContentCache('board')
     return apiResponse(board, 201)
   } catch (error) {
@@ -101,12 +104,15 @@ export async function PUT(req: NextRequest) {
     if (isActive !== undefined) updateData.isActive = isActive
     if (order !== undefined) updateData.order = order
 
-    const board = await db.board.update({
-      where: { id },
-      data: updateData,
+    const board = await db.$transaction(async (tx) => {
+      const result = await (tx as any).board.update({
+        where: { id },
+        data: updateData,
+      })
+      await auditFromRequest(req, auth.user.id, AuditActions.CONTENT_UPDATE, 'board', existing.id, { ...existing }, updateData, tx as never)
+      return result
     })
 
-    await auditFromRequest(req, auth.user.id, AuditActions.CONTENT_UPDATE, 'board', existing.id, { ...existing }, updateData)
     await invalidateContentCache('board')
     return apiResponse(board)
   } catch (error) {
@@ -137,8 +143,11 @@ export async function DELETE(req: NextRequest) {
     const guard = await guardDeleteDependencies('boards', id, existing.slug)
     if (!guard.ok) return guard.response
 
-    await softDelete(db, 'board', id, auth.user.id)
-    await auditFromRequest(req, auth.user.id, AuditActions.CONTENT_DELETE, 'board', id)
+    await db.$transaction(async (tx) => {
+      await softDelete(tx, 'board', id, auth.user.id)
+      await auditFromRequest(req, auth.user.id, AuditActions.CONTENT_DELETE, 'board', id, undefined, undefined, tx as never)
+    })
+
     await invalidateContentCache('board')
     return apiResponse({ id }, 'বোর্ড সফলভাবে মুছে ফেলা হয়েছে')
   } catch (error) {

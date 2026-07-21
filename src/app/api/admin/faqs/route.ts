@@ -52,16 +52,18 @@ export async function POST(request: Request) {
     if ('error' in validation) return validation.error
     const { question, answer, category, order, isActive } = validation.data
 
-    const data = await db.fAQ.create({
-      data: {
-        question, answer,
-        category: category || null,
-        order: order ?? 0,
-        isActive: isActive ?? true,
-      },
+    const data = await db.$transaction(async (tx) => {
+      const created = await (tx as any).fAQ.create({
+        data: {
+          question, answer,
+          category: category || null,
+          order: order ?? 0,
+          isActive: isActive ?? true,
+        },
+      })
+      await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_CREATE, 'faq', created.id, body, undefined, tx as never)
+      return created
     })
-
-    await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_CREATE, 'faq', data.id, body)
 
     await invalidateContentCache('faq')
     return apiResponse(data, 201)
@@ -108,12 +110,15 @@ export async function PUT(request: Request) {
       }
     }
 
-    const updated = await db.fAQ.update({
-      where: { id },
-      data: data as never,
+    const updated = await db.$transaction(async (tx) => {
+      const result = await (tx as any).fAQ.update({
+        where: { id },
+        data: data as never,
+      })
+      await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_UPDATE, 'faq', result.id, undefined, undefined, tx as never)
+      return result
     })
 
-    await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_UPDATE, 'faq', updated.id)
     await invalidateContentCache('faq')
     return apiResponse(updated)
   } catch (error) {
@@ -160,8 +165,11 @@ export async function DELETE(request: Request) {
       return apiError('FAQ খুঁজে পাওয়া যায়নি', 404)
     }
 
-    await softDelete(db, 'faq', id, auth.user.id)
-    await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_DELETE, 'faq', id)
+    await db.$transaction(async (tx) => {
+      await softDelete(tx, 'faq', id, auth.user.id)
+      await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_DELETE, 'faq', id, undefined, undefined, tx as never)
+    })
+
     await invalidateContentCache('faq')
     return apiResponse({ id }, 'FAQ সফলভাবে মুছে ফেলা হয়েছে')
   } catch (error) {

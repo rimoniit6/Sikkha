@@ -52,19 +52,22 @@ export async function POST(request: Request) {
     if ('error' in validation) return validation.error
     const { name, role, avatar, content, rating, isActive, order } = validation.data
 
-    const data = await db.testimonial.create({
-      data: {
-        name,
-        role: role || null,
-        avatar: avatar || null,
-        content,
-        rating: rating ?? 5,
-        isActive: isActive ?? true,
-        order: order ?? 0,
-      },
+    const data = await db.$transaction(async (tx) => {
+      const created = await (tx as any).testimonial.create({
+        data: {
+          name,
+          role: role || null,
+          avatar: avatar || null,
+          content,
+          rating: rating ?? 5,
+          isActive: isActive ?? true,
+          order: order ?? 0,
+        },
+      })
+      await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_CREATE, 'testimonial', created.id, body, undefined, tx as never)
+      return created
     })
 
-    await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_CREATE, 'testimonial', data.id, body)
     await invalidateContentCache('faq')
     return apiResponse(data, 201)
   } catch (error) {
@@ -92,21 +95,24 @@ export async function PUT(request: Request) {
       return apiError('টেস্টিমোনিয়াল খুঁজে পাওয়া যায়নি', 404)
     }
 
-    const data: Record<string, unknown> = {}
-    const allowedFields = ['name', 'role', 'avatar', 'content', 'rating', 'isActive', 'order']
+    const updated = await db.$transaction(async (tx) => {
+      const data: Record<string, unknown> = {}
+      const allowedFields = ['name', 'role', 'avatar', 'content', 'rating', 'isActive', 'order']
 
-    for (const field of allowedFields) {
-      if (updateData[field] !== undefined) {
-        data[field] = updateData[field]
+      for (const field of allowedFields) {
+        if (updateData[field] !== undefined) {
+          data[field] = updateData[field]
+        }
       }
-    }
 
-    const updated = await db.testimonial.update({
-      where: { id },
-      data: data as never,
+      const result = await (tx as any).testimonial.update({
+        where: { id },
+        data: data as never,
+      })
+      await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_UPDATE, 'testimonial', result.id, undefined, undefined, tx as never)
+      return result
     })
 
-    await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_UPDATE, 'testimonial', updated.id)
     await invalidateContentCache('faq')
     return apiResponse(updated)
   } catch (error) {
@@ -129,7 +135,9 @@ export async function DELETE(request: Request) {
       for (const id of ids) {
         await softDelete(db, 'testimonial', id, auth.user.id)
       }
-      await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_DELETE, 'testimonial', 'bulk:' + ids.join(','))
+      await db.$transaction(async (tx) => {
+        await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_DELETE, 'testimonial', 'bulk:' + ids.join(','), undefined, undefined, tx as never)
+      })
       await invalidateContentCache('faq')
       return apiResponse({ deleted: ids.length }, `${ids.length}টি সফলভাবে মুছে ফেলা হয়েছে`)
     }
@@ -156,9 +164,10 @@ export async function DELETE(request: Request) {
       return apiError('টেস্টিমোনিয়াল খুঁজে পাওয়া যায়নি', 404)
     }
 
-    await softDelete(db, 'testimonial', id, auth.user.id)
-
-    await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_DELETE, 'testimonial', id)
+    await db.$transaction(async (tx) => {
+      await softDelete(tx, 'testimonial', id, auth.user.id)
+      await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_DELETE, 'testimonial', id, undefined, undefined, tx as never)
+    })
     await invalidateContentCache('faq')
     return apiResponse({ id }, 'টেস্টিমোনিয়াল সফলভাবে মুছে ফেলা হয়েছে')
   } catch (error) {

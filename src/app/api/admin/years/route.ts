@@ -49,15 +49,18 @@ export async function POST(request: Request) {
       return apiError('এই সাল ইতিমধ্যে আছে', 400)
     }
 
-    const examYear = await db.examYear.create({
-      data: {
-        year: year.trim(),
-        isActive: isActive ?? true,
-        order: order ?? 0,
-      },
+    const examYear = await db.$transaction(async (tx) => {
+      const created = await (tx as any).examYear.create({
+        data: {
+          year: year.trim(),
+          isActive: isActive ?? true,
+          order: order ?? 0,
+        },
+      })
+      await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_CREATE, 'year', created.id, body, undefined, tx as never)
+      return created
     })
 
-    await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_CREATE, 'year', examYear.id, body)
     await invalidateContentCache('settings')
     return apiResponse(examYear, 201)
   } catch (error) {
@@ -86,12 +89,15 @@ export async function PUT(request: Request) {
     if (isActive !== undefined) updateData.isActive = isActive
     if (order !== undefined) updateData.order = order
 
-    const examYear = await db.examYear.update({
-      where: { id },
-      data: updateData,
+    const examYear = await db.$transaction(async (tx) => {
+      const updated = await (tx as any).examYear.update({
+        where: { id },
+        data: updateData,
+      })
+      await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_UPDATE, 'year', updated.id, undefined, undefined, tx as never)
+      return updated
     })
 
-    await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_UPDATE, 'year', examYear.id)
     await invalidateContentCache('settings')
     return apiResponse(examYear)
   } catch (error) {
@@ -115,8 +121,11 @@ export async function DELETE(request: Request) {
       return apiError('সাল ID আবশ্যক', 400)
     }
 
-    await softDelete(db, 'examYear', id, auth.user.id)
-    await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_DELETE, 'year', id)
+    await db.$transaction(async (tx) => {
+      await softDelete(tx, 'examYear', id, auth.user.id)
+      await auditFromRequest(request, auth.user.id, AuditActions.CONTENT_DELETE, 'year', id, undefined, undefined, tx as never)
+    })
+
     await invalidateContentCache('settings')
     return apiResponse({ id }, 'সাল সফলভাবে মুছে ফেলা হয়েছে')
   } catch (error) {

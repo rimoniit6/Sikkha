@@ -594,8 +594,8 @@ model Notification {
 
 model AuditLog {
   id         String   @id @default(cuid())
-  adminId    String
-  admin      User     @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  adminId    String?  // Nullable — preserves log when user is deleted (SetNull)
+  admin      User?    @relation(fields: [adminId], references: [id], onDelete: SetNull)
   action     String // payment_approve, payment_reject, grade_update, grade_bulk, user_update, user_delete, retake_approve, retake_reject, content_create, content_update, content_delete
   entityType String // payment, submission, user, cq_question, cq_set, cq_package, mcq_question, lecture, bundle, package
   entityId   String
@@ -605,12 +605,16 @@ model AuditLog {
   userAgent  String?
   userName   String? // Cached user name for display
   userRole   String? // Cached user role for display
-  status     String? @default("success") // success, failed, pending
+  status     String @default("success") // success, failed, pending
   duration   Int?     // Duration in milliseconds
   os         String?  // Parsed from user agent: Windows, macOS, Linux, iOS, Android
   browser    String?  // Parsed from user agent: Chrome, Firefox, Safari, Edge, Opera
   country    String?  // Country from IP geolocation (if available)
+  sessionId  String?  // Client session ID for request tracing
+  requestId  String?  // Server-generated request ID (x-request-id header)
+  correlationId String? // Correlation ID for cross-service tracing
   createdAt  DateTime @default(now())
+  hash       String?  // SHA-256 hash for tamper detection — computed from (action|entityType|entityId|adminId|createdAt)
   deletedAt  DateTime?
 
   @@index([adminId])
@@ -619,6 +623,12 @@ model AuditLog {
   @@index([createdAt])
   @@index([status])
   @@index([os, browser])
+  @@index([sessionId])
+  @@index([requestId])
+  @@index([correlationId])
+  @@index([action, createdAt])
+  @@index([adminId, createdAt])
+  @@index([entityType, action])
 }
 
 // ============ CONTENT VERSION HISTORY ============

@@ -1,3 +1,4 @@
+import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { apiResponse, apiError, withAuth } from '@/lib/api-utils'
 import { handleApiError } from '@/lib/errors'

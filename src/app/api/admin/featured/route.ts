@@ -113,20 +113,22 @@ export async function POST(request: Request) {
       select: { order: true },
     })
 
-    const created = await db.featuredContent.create({
-      data: {
-        contentType,
-        contentId,
-        title: title || null,
-        subtitle: subtitle || null,
-        thumbnail: thumbnail || null,
-        section: section || 'homepage',
-        isActive: isActive ?? true,
-        order: order ?? (maxOrderItem ? maxOrderItem.order + 1 : 0),
-      },
+    const created = await db.$transaction(async (tx) => {
+      const c = await tx.featuredContent.create({
+        data: {
+          contentType,
+          contentId,
+          title: title || null,
+          subtitle: subtitle || null,
+          thumbnail: thumbnail || null,
+          section: section || 'homepage',
+          isActive: isActive ?? true,
+          order: order ?? (maxOrderItem ? maxOrderItem.order + 1 : 0),
+        },
+      })
+      await auditFromRequest(request, auth.user.id, AuditActions.FEATURED_CREATE, 'featured_content', c.id, undefined, c as Record<string, unknown>, tx as never)
+      return c
     })
-
-    await auditFromRequest(request, auth.user.id, AuditActions.FEATURED_CREATE, 'featured_content', created.id, undefined, created as Record<string, unknown>)
 
     return apiResponse(created, 201)
   } catch (error) {
@@ -159,9 +161,11 @@ export async function PUT(request: Request) {
       if (updateData[field] !== undefined) data[field] = updateData[field]
     }
 
-    const updated = await db.featuredContent.update({ where: { id }, data })
-
-    await auditFromRequest(request, auth.user.id, AuditActions.FEATURED_UPDATE, 'featured_content', updated.id, existing as Record<string, unknown>, updated as Record<string, unknown>)
+    const updated = await db.$transaction(async (tx) => {
+      const u = await tx.featuredContent.update({ where: { id }, data })
+      await auditFromRequest(request, auth.user.id, AuditActions.FEATURED_UPDATE, 'featured_content', u.id, existing as Record<string, unknown>, u as Record<string, unknown>, tx as never)
+      return u
+    })
 
     return apiResponse(updated)
   } catch (error) {
@@ -189,9 +193,13 @@ export async function DELETE(request: Request) {
     const existing = await db.featuredContent.findUnique({ where: { id } })
     if (!existing) return apiError('ফিচার্ড কন্টেন্ট খুঁজে পাওয়া যায়নি', 404)
 
-    await softDelete(db, 'featuredContent', id, auth.user.id)
-
-    await auditFromRequest(request, auth.user.id, AuditActions.FEATURED_DELETE, 'featured_content', id, existing as Record<string, unknown>, undefined)
+    await db.$transaction(async (tx) => {
+      await tx.featuredContent.update({
+        where: { id },
+        data: { deletedAt: new Date(), deletedBy: auth.user.id },
+      })
+      await auditFromRequest(request, auth.user.id, AuditActions.FEATURED_DELETE, 'featured_content', id, existing as Record<string, unknown>, undefined, tx as never)
+    })
 
     return apiResponse({ id, message: 'ফিচার্ড কন্টেন্ট সফলভাবে মুছে ফেলা হয়েছে' })
   } catch (error) {
