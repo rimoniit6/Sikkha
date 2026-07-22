@@ -80,6 +80,18 @@ export async function POST(
         data: { status: 'REPLIED', updatedAt: new Date() },
       })
       await auditFromRequest(request, auth.user.id, AuditActions.FEEDBACK_MESSAGE_SEND, 'feedback_message', m.id, undefined, m as Record<string, unknown>, tx as never)
+
+      // 🔔 Notify student: admin replied to their feedback
+      await tx.notification.create({
+        data: {
+          userId: feedback.userId,
+          title: 'ফিডব্যাকে উত্তর দেওয়া হয়েছে',
+          message: `আপনার "${feedback.subject}" ফিডব্যাকে অ্যাডমিন উত্তর দিয়েছেন।`,
+          type: 'INFO',
+          link: `/user/feedback/${id}`,
+        },
+      })
+
       return m
     })
 

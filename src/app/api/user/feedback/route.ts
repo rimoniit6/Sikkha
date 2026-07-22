@@ -80,6 +80,17 @@ export async function POST(request: Request) {
       },
     })
 
+    // 🔔 Notify admins: new feedback submitted
+    await db.notification.create({
+      data: {
+        userId: null,
+        title: 'নতুন ফিডব্যাক',
+        message: `একটি নতুন ফিডব্যাক জমা পড়েছে: "${feedback.subject}"`,
+        type: 'INFO',
+        link: '/admin/feedback',
+      },
+    })
+
     return NextResponse.json({ success: true, data: feedback }, { status: 201 })
   } catch (error) {
     console.error('Create Feedback error:', error)

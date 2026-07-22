@@ -262,6 +262,19 @@ export async function POST(request: Request) {
       },
     })
 
+    // 🔔 Notify admins: new payment submitted
+    await db.notification.create({
+      data: {
+        userId: null,
+        title: 'নতুন পেমেন্ট',
+        message: `নতুন পেমেন্ট জমা পড়েছে: ${payment.user?.name || 'ছাত্র'} — ৳${payment.amount} (${payment.method})`,
+        type: 'INFO',
+        link: '/admin/payments',
+      },
+    }).catch(() => {
+      // Non-critical — don't block the payment response
+    })
+
     return NextResponse.json(
       { success: true, data: { message: 'পেমেন্ট সফলভাবে জমা হয়েছে। অ্যাডমিন যাচাইয়ের পর আপনার কন্টেন্ট অ্যাক্সেস সক্রিয় হবে।', payment } },
       { status: 201 }

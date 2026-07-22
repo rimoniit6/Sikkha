@@ -28,6 +28,19 @@ export async function POST(request: Request) {
       },
     })
 
+    // 🔔 Notify admins: new contact message
+    await db.notification.create({
+      data: {
+        userId: null,
+        title: 'নতুন যোগাযোগ বার্তা',
+        message: `নতুন যোগাযোগ বার্তা এসেছে: ${name.trim()} — ${message.trim().slice(0, 100)}`,
+        type: 'INFO',
+        link: '/admin/contact-messages',
+      },
+    }).catch(() => {
+      // Non-critical — don't block the contact response
+    })
+
     return NextResponse.json({ success: true, data: contactMessage }, { status: 201 })
   } catch (error) {
     console.error('Contact message error:', error)

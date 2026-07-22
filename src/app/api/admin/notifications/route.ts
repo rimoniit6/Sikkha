@@ -37,10 +37,13 @@ export async function GET(request: Request) {
     const page = parseInt(searchParams.get('page') || '1')
     const limit = parseInt(searchParams.get('limit') || '20')
 
+    const adminOnly = searchParams.get('adminOnly') === 'true'
+
     const where: Record<string, unknown> = {}
 
     if (type) where.type = type
-    if (userId) where.userId = userId
+    if (adminOnly) where.userId = null
+    else if (userId) where.userId = userId
     if (isRead !== null && isRead !== undefined) where.isRead = isRead === 'true'
     if (search) {
       where.OR = [

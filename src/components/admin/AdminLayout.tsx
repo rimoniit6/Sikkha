@@ -57,6 +57,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { useSiteConfig } from '@/hooks/use-metadata'
+import { AdminActionCenter } from './AdminNotificationBellDropdown'
 import Image from 'next/image'
 
 // Lazy load admin pages by feature group - only loads the needed page
@@ -308,10 +309,10 @@ function SidebarContent({
               animate={{ opacity: 1, width: 'auto' }}
               exit={{ opacity: 0, width: 0 }}
               transition={{ duration: 0.2 }}
-              className="overflow-hidden whitespace-nowrap"
+              className="overflow-hidden whitespace-nowrap flex-1 min-w-0"
             >
-              <h1 className="font-bold text-sm">{siteName}</h1>
-              <p className="text-xs text-sidebar-foreground/60">অ্যাডমিন প্যানেল</p>
+              <h1 className="font-bold text-sm truncate">{siteName}</h1>
+              <p className="text-xs text-sidebar-foreground/60 truncate">অ্যাডমিন প্যানেল</p>
             </motion.div>
           )}
         </AnimatePresence>
@@ -548,7 +549,9 @@ function AdminLayoutContent() {
   if (!isAdminRoute(currentRoute)) return null
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
+    <>
+      <AdminActionCenter />
+      <div className="flex h-screen overflow-hidden bg-background">
       {/* Desktop sidebar */}
       <motion.aside
         initial={false}
@@ -617,21 +620,21 @@ function AdminLayoutContent() {
           >
             <Menu className="h-5 w-5" />
           </Button>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-1 min-w-0">
             {config?.logo ? (
               <Image
                 src={config.logo}
                 alt={siteName}
                 width={28}
                 height={28}
-                className="w-7 h-7 rounded-md object-contain"
+                className="w-7 h-7 rounded-md object-contain shrink-0"
               />
             ) : (
-              <div className="flex h-7 w-7 items-center justify-center rounded-md bg-emerald-600 text-white font-bold text-xs">
+              <div className="flex h-7 w-7 items-center justify-center rounded-md bg-emerald-600 text-white font-bold text-xs shrink-0">
                 {siteName.charAt(0)}
               </div>
             )}
-            <span className="font-semibold text-sm">{siteName}</span>
+            <span className="font-semibold text-sm truncate">{siteName}</span>
           </div>
         </header>
 
@@ -645,6 +648,7 @@ function AdminLayoutContent() {
         </main>
       </div>
     </div>
+    </>
   )
 }
 
