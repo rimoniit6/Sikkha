@@ -18,10 +18,10 @@ import {
   Tag,
   type LucideIcon,
 } from 'lucide-react'
-import type { SelectedContentItem } from './types'
+import { useBulkContentSelection } from '@/hooks/use-bulk-content-selection'
 
 export interface StepPricingProps {
-  selectedItems: SelectedContentItem[]
+  bulkSelection: ReturnType<typeof useBulkContentSelection>
   formPrice: string
   setFormPrice: (v: string) => void
   formOrder: string
@@ -40,10 +40,11 @@ export interface StepPricingProps {
 }
 
 export default function StepPricing({
-  selectedItems, formPrice, setFormPrice, formOrder, setFormOrder,
+  bulkSelection, formPrice, setFormPrice, formOrder, setFormOrder,
   formIsActive, setFormIsActive, formTitle, editId, saving, handleSave,
   calculateOriginalPrice, calculateDiscount, getIcon, getLabel, getTextColor,
 }: StepPricingProps) {
+  const selectedItems = bulkSelection.selectedItems
   const originalPrice = calculateOriginalPrice()
   const bundlePrice = parseFloat(formPrice) || 0
   const discount = calculateDiscount()

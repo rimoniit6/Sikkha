@@ -13,7 +13,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
-import React from 'react'
+import React, { useState, useCallback } from 'react'
 import {
   AlignLeft,
   Check,
@@ -26,6 +26,14 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import type { ChapterCount, ContentItem, HierarchyData, SelectedContentItem } from './types'
+import { useBulkContentSelection } from '@/hooks/use-bulk-content-selection'
+import { Checkbox } from '@/components/ui/checkbox'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 
 export interface StepAddContentProps {
   hierarchyClassId: string
@@ -46,15 +54,234 @@ export interface StepAddContentProps {
   setContentSearch: (v: string) => void
   contentItems: ContentItem[]
   loadingContent: boolean
-  selectedItems: SelectedContentItem[]
-  isItemSelected: (contentType: string, contentId: string) => boolean
-  toggleItem: (contentType: string, item: ContentItem) => void
-  removeItem: (contentType: string, contentId: string) => void
-  calculateOriginalPrice: () => number
+  bulkSelection: ReturnType<typeof useBulkContentSelection>
+  onSelectAllFiltered?: (contentType: string, typeLabel: string) => Promise<number>
   getIcon: (type: string) => LucideIcon
   getLabel: (type: string) => string
   classLevelLabels: Record<string, string>
 }
+
+// ─── Content Bulk Toolbar ───────────────────────────────────────────
+
+interface ContentBulkToolbarProps {
+  type: string
+  contentItems: ContentItem[]
+  bulkSelection: ReturnType<typeof useBulkContentSelection>
+  onSelectAllFiltered?: (contentType: string, typeLabel: string) => Promise<number>
+  getLabel: (type: string) => string
+}
+
+function ContentBulkToolbar({ type, contentItems, bulkSelection, onSelectAllFiltered, getLabel }: ContentBulkToolbarProps) {
+  const visibleState = bulkSelection.getVisibleState(type, contentItems)
+  const typeSelectedCount = bulkSelection.summary.byType[type] || 0
+  const [selectingAllPages, setSelectingAllPages] = useState(false)
+
+  const handleSelectAll = () => {
+    if (visibleState.allSelected) {
+      bulkSelection.deselectAllVisible(type, contentItems)
+    } else {
+      bulkSelection.selectAllVisible(type, contentItems)
+    }
+  }
+
+  const handleInvert = () => {
+    bulkSelection.invertSelection(type, contentItems)
+  }
+
+  const handleSelectAllFiltered = useCallback(async () => {
+    if (!onSelectAllFiltered) return
+    setSelectingAllPages(true)
+    try {
+      await onSelectAllFiltered(type, getLabel(type) || type)
+    } finally {
+      setSelectingAllPages(false)
+    }
+  }, [type, onSelectAllFiltered, getLabel])
+
+  return (
+    <div className="flex items-center justify-between gap-2 px-1 py-1.5 rounded-lg bg-muted/30 border border-border/30">
+      <div className="flex items-center gap-3">
+        <label className="flex items-center gap-2 cursor-pointer select-none">
+          <Checkbox
+            checked={visibleState.someSelected ? 'indeterminate' : visibleState.allSelected}
+            onCheckedChange={handleSelectAll}
+            aria-label={`${visibleState.allSelected ? 'সব ডিসিলেক্ট' : 'সব সিলেক্ট'} করুন`}
+            aria-describedby={`select-all-hint-${type}`}
+          />
+          <span className="text-xs font-medium">
+            {visibleState.someSelected
+              ? `${visibleState.selectedCount} / ${visibleState.totalCount} নির্বাচিত`
+              : visibleState.allSelected
+                ? 'সব নির্বাচিত'
+                : 'সব নির্বাচন'}
+          </span>
+        </label>
+        <span id={`select-all-hint-${type}`} className="text-[10px] text-muted-foreground">
+          (পৃষ্ঠার {contentItems.length}টি)
+        </span>
+      </div>
+
+      <div className="flex items-center gap-1">
+        {contentItems.length > 0 && (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  className="h-6 px-2 rounded text-[10px] font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                  onClick={handleInvert}
+                  aria-label="নির্বাচন উল্টান"
+                >
+                  উল্টান
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p className="text-xs">দৃশ্যমান আইটেমগুলোর নির্বাচন উল্টান</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
+        {onSelectAllFiltered && (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  className={cn(
+                    'h-6 px-2 rounded text-[10px] font-medium transition-colors',
+                    selectingAllPages
+                      ? 'text-muted-foreground cursor-wait'
+                      : 'text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-950/20'
+                  )}
+                  onClick={handleSelectAllFiltered}
+                  disabled={selectingAllPages}
+                  aria-label="সব পৃষ্ঠা থেকে নির্বাচন করুন"
+                >
+                  {selectingAllPages ? 'নির্বাচন হচ্ছে...' : 'সব পৃষ্ঠা'}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p className="text-xs">সকল ফিল্টারকৃত {getLabel(type)} নির্বাচন করুন (সব পৃষ্ঠা)</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
+        {typeSelectedCount > 0 && (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  className="h-6 px-2 rounded text-[10px] font-medium text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors"
+                  onClick={() => bulkSelection.clearType(type)}
+                  aria-label={`${getLabel(type)} নির্বাচন সরান`}
+                >
+                  সরান
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p className="text-xs">সব {getLabel(type)} নির্বাচন সরান</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ─── Selection Summary Bar ───────────────────────────────────────────
+
+interface SelectionSummaryBarProps {
+  bulkSelection: ReturnType<typeof useBulkContentSelection>
+  getIcon: (type: string) => LucideIcon
+  getLabel: (type: string) => string
+}
+
+function SelectionSummaryBar({ bulkSelection, getIcon, getLabel }: SelectionSummaryBarProps) {
+  const { summary } = bulkSelection
+
+  if (summary.totalItems === 0) return null
+
+  return (
+    <div
+      className="sticky bottom-0 z-20 -mx-4 px-4 py-3 bg-background/95 backdrop-blur-xl border-t-2 border-emerald-500/30 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] dark:shadow-[0_-4px_20px_rgba(0,0,0,0.3)]"
+      role="toolbar"
+      aria-label="নির্বাচিত আইটেম সারণি"
+    >
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-1.5">
+            <Check className="h-4 w-4 text-emerald-600" />
+            <span className="text-sm font-semibold">
+              মোট {summary.totalItems}টি আইটেম
+            </span>
+          </div>
+          <div className="hidden sm:flex items-center gap-1.5 flex-wrap">
+            {Object.entries(summary.byType).map(([contentType, count]) => {
+              const Icon = getIcon(contentType)
+              return (
+                <Badge
+                  key={contentType}
+                  variant="secondary"
+                  className="gap-1 text-[10px] h-5 px-1.5"
+                >
+                  <Icon className="h-2.5 w-2.5" />
+                  {count} {getLabel(contentType) || contentType}
+                </Badge>
+              )
+            })}
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <p className="text-xs text-muted-foreground font-medium">
+            ৳{summary.totalPrice.toLocaleString('bn-BD')}
+          </p>
+          <button
+            type="button"
+            className="h-7 px-2.5 rounded-md text-xs font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors"
+            onClick={() => bulkSelection.clearAll()}
+            aria-label="সব নির্বাচন সরান"
+          >
+            সব সরান
+          </button>
+        </div>
+      </div>
+
+      {/* Selected items scrollable preview */}
+      {summary.totalItems > 0 && (
+        <div className="mt-2 max-h-24 overflow-y-auto space-y-0.5">
+          {bulkSelection.selectedItems.slice(0, 20).map((item) => (
+            <div
+              key={`${item.contentType}-${item.contentId}`}
+              className="flex items-center justify-between gap-2 py-0.5 px-2 rounded text-xs text-muted-foreground hover:bg-muted/30 group"
+            >
+              <span className="truncate flex-1 min-w-0">
+                {item.title}
+              </span>
+              <button
+                type="button"
+                className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-red-500 transition-opacity shrink-0"
+                onClick={() => bulkSelection.removeItem(item.contentType, item.contentId)}
+                aria-label={`${item.title} সরান`}
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          ))}
+          {bulkSelection.selectedItems.length > 20 && (
+            <p className="text-[10px] text-muted-foreground text-center pt-0.5">
+              এবং আরও {bulkSelection.selectedItems.length - 20}টি আইটেম...
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Main Component ──────────────────────────────────────────────────
 
 export default function StepAddContent({
   hierarchyClassId, setHierarchyClassId,
@@ -66,8 +293,8 @@ export default function StepAddContent({
   contentTab, setContentTab,
   contentSearch, setContentSearch,
   contentItems, loadingContent,
-  selectedItems, isItemSelected, toggleItem, removeItem,
-  calculateOriginalPrice,
+  bulkSelection,
+  onSelectAllFiltered,
   getIcon, getLabel, classLevelLabels,
 }: StepAddContentProps) {
   const contentTypes = ['mcq', 'cq', 'lecture', 'suggestion', 'exam'] as const
@@ -238,13 +465,13 @@ export default function StepAddContent({
               </div>
             </div>
             <div className="flex items-center gap-2">
-              {selectedItems.length > 0 && (
+              {bulkSelection.summary.totalItems > 0 && (
                 <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300 gap-1">
-                  <Check className="h-3 w-3" /> {selectedItems.length} আইটেম
+                  <Check className="h-3 w-3" /> {bulkSelection.summary.totalItems} আইটেম
                 </Badge>
               )}
               <Badge variant="outline" className="text-xs">
-                মূল্য: ৳{calculateOriginalPrice()}
+                মূল্য: ৳{bulkSelection.summary.totalPrice}
               </Badge>
             </div>
           </div>
@@ -254,7 +481,7 @@ export default function StepAddContent({
             <TabsList className="w-full grid grid-cols-5 h-9">
                 {contentTypes.map((type) => {
                   const Icon = getIcon(type) as React.FC<{ className?: string }>
-                  const count = selectedItems.filter(i => i.contentType === type).length
+                  const count = bulkSelection.summary.byType[type] || 0
                 return (
                   <TabsTrigger key={type} value={type} className="text-xs gap-1 relative">
                     <Icon className="h-3 w-3" />
@@ -271,6 +498,15 @@ export default function StepAddContent({
 
             {contentTypes.map((type) => (
               <TabsContent key={type} value={type} className="mt-3 space-y-3">
+                {/* Bulk selection toolbar */}
+                <ContentBulkToolbar
+                  type={type}
+                  contentItems={contentItems}
+                  bulkSelection={bulkSelection}
+                  onSelectAllFiltered={onSelectAllFiltered}
+                  getLabel={getLabel}
+                />
+
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
@@ -281,51 +517,29 @@ export default function StepAddContent({
                   />
                 </div>
 
-                {selectedItems.filter(i => i.contentType === type).length > 0 && (
-                  <div className="p-3 rounded-xl bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200/30 dark:border-emerald-800/20">
-                    <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 mb-2 flex items-center gap-1">
-                      <Check className="h-3 w-3" /> নির্বাচিত {getLabel(type) || type} ({selectedItems.filter(i => i.contentType === type).length})
-                    </p>
-                    <div className="space-y-1">
-                      {selectedItems.filter(i => i.contentType === type).map((item) => (
-                        <div key={`${item.contentType}-${item.contentId}`} className="flex items-center justify-between gap-2 py-1 px-2 rounded-md bg-white/60 dark:bg-white/5 text-xs">
-                          <span className="truncate flex-1 min-w-0">{item.title}</span>
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            <Badge variant="outline" className="text-[9px] h-4 px-1">৳{item.price}</Badge>
-                            <button
-                              type="button"
-                              className="p-0.5 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-red-500"
-                              onClick={() => removeItem(item.contentType, item.contentId)}
-                            >
-                              <X className="h-3 w-3" />
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
                 {loadingContent ? (
                   <div className="space-y-2">
                     {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-14 rounded-xl" />)}
                   </div>
                 ) : contentItems.length > 0 ? (
-                  <div className="max-h-80 overflow-y-auto space-y-1.5 pr-1 scrollbar-thin">
+                  <div className="max-h-[28rem] overflow-y-auto space-y-1.5 pr-1 scrollbar-thin" role="listbox" aria-label={`${getLabel(type)} items`}>
                     {contentItems.map((item) => {
-                      const selected = isItemSelected(type, item.id)
+                      const selected = bulkSelection.isSelected(type, item.id)
                       const itemTitle = item.title || item.question?.slice(0, 80) || item.uddeepok?.slice(0, 80) || `${getLabel(type) || type} #${item.id.slice(0, 8)}`
                       return (
                         <button
                           key={item.id}
                           type="button"
+                          role="option"
+                          aria-selected={selected}
+                          aria-label={`${itemTitle}${selected ? ' (নির্বাচিত)' : ''}`}
                           className={cn(
                             'w-full text-left p-3 rounded-xl border transition-all',
                             selected
                               ? 'border-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/20 shadow-sm'
                               : 'border-border/40 hover:border-border hover:bg-muted/30',
                           )}
-                          onClick={() => toggleItem(type, item)}
+                          onClick={() => bulkSelection.toggleOne(type, item)}
                         >
                           <div className="flex items-start gap-2">
                             <div className={cn(
@@ -374,6 +588,13 @@ export default function StepAddContent({
           </Tabs>
         </CardContent>
       </Card>
+
+      {/* Sticky selection summary bar */}
+      <SelectionSummaryBar
+        bulkSelection={bulkSelection}
+        getIcon={getIcon}
+        getLabel={getLabel}
+      />
     </div>
   )
 }

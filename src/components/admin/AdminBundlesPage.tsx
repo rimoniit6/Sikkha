@@ -18,6 +18,7 @@ import { MultiSelect } from '@/components/ui/multi-select'
 import { useContentTypes } from '@/hooks/use-content-types'
 import { useHierarchyMetadata } from '@/hooks/use-hierarchy-metadata'
 import { useTableSelection } from '@/hooks/use-table-selection'
+import { useBulkContentSelection } from '@/hooks/use-bulk-content-selection'
 import { useToast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
 import { toDecimal } from '@/lib/decimal'
@@ -56,7 +57,7 @@ export default function AdminBundlesPage() {
   const [formBoard, setFormBoard] = useState<string[]>([])
   const [formYear, setFormYear] = useState<string[]>([])
 
-  const [selectedItems, setSelectedItems] = useState<SelectedContentItem[]>([])
+  const bulkSelection = useBulkContentSelection()
   const [contentTab, setContentTab] = useState('mcq')
   const [contentSearch, setContentSearch] = useState('')
   const [contentItems, setContentItems] = useState<ContentItem[]>([])
@@ -260,7 +261,7 @@ export default function AdminBundlesPage() {
     setFormClassLevel([])
     setFormBoard([])
     setFormYear([])
-    setSelectedItems([])
+    bulkSelection.clearAll()
     setContentItems([])
     setContentSearch('')
     setContentTab('mcq')
@@ -355,31 +356,8 @@ export default function AdminBundlesPage() {
       })
     }
 
-    setSelectedItems(enrichedItems)
+    bulkSelection.replaceSelection(enrichedItems)
     setViewMode('editor')
-  }
-
-  const isItemSelected = (contentType: string, contentId: string) => {
-    return selectedItems.some(i => i.contentType === contentType && i.contentId === contentId)
-  }
-
-  const toggleItem = (contentType: string, item: ContentItem) => {
-    if (isItemSelected(contentType, item.id)) {
-      setSelectedItems(selectedItems.filter(i => !(i.contentType === contentType && i.contentId === item.id)))
-    } else {
-      const title = item.title || item.question?.slice(0, 60) || item.uddeepok?.slice(0, 60) || `${getLabel(contentType) || contentType} #${item.id.slice(0, 8)}`
-      setSelectedItems([...selectedItems, {
-        contentType,
-        contentId: item.id,
-        title,
-        price: item.price || 0,
-        order: selectedItems.length,
-      }])
-    }
-  }
-
-  const removeItem = (contentType: string, contentId: string) => {
-    setSelectedItems(selectedItems.filter(i => !(i.contentType === contentType && i.contentId === contentId)))
   }
 
   const selectAllFromChapter = async (type: 'mcq' | 'cq', chapId: string) => {
@@ -393,16 +371,16 @@ export default function AdminBundlesPage() {
         const json = await res.json()
         const items = (Array.isArray(json.data) ? json.data : []).filter((item: { isPremium: boolean; price: number }) => item.isPremium && item.price > 0)
         const newItems: SelectedContentItem[] = items
-          .filter((item: { id: string }) => !isItemSelected(type, item.id))
-          .map((item: { id: string; title: string; price: number }, idx: number) => ({
+          .filter((item: { id: string }) => !bulkSelection.isSelected(type, item.id))
+          .map((item: { id: string; title: string; price: number }) => ({
             contentType: type,
             contentId: item.id,
             title: item.title?.slice(0, 60) || `${getLabel(type) || type} #${item.id.slice(0, 8)}`,
             price: item.price || 0,
-            order: selectedItems.length + idx,
+            order: 0,
           }))
         if (newItems.length > 0) {
-          setSelectedItems(prev => [...prev, ...newItems])
+          bulkSelection.selectAllVisible(type, newItems)
           toast({ title: `${newItems.length}টি ${type === 'mcq' ? 'MCQ' : 'CQ'} যোগ হয়েছে` })
         } else {
           toast({ title: 'নতুন কোনো আইটেম নেই', description: 'সব আইটেম আগেই নির্বাচিত আছে' })
@@ -435,7 +413,7 @@ export default function AdminBundlesPage() {
           const json = await res.json()
           const items = (Array.isArray(json.data) ? json.data : []).filter((item: { isPremium: boolean; price: number }) => item.isPremium && item.price > 0)
           const newItems: SelectedContentItem[] = items
-            .filter((item: { id: string }) => !isItemSelected(type, item.id))
+            .filter((item: { id: string }) => !bulkSelection.isSelected(type, item.id))
             .map((item: { id: string; title: string; price: number }) => ({
               contentType: type,
               contentId: item.id,
@@ -445,7 +423,7 @@ export default function AdminBundlesPage() {
             }))
           totalAdded += newItems.length
           if (newItems.length > 0) {
-            setSelectedItems(prev => [...prev, ...newItems])
+            bulkSelection.selectAllVisible(type, newItems)
           }
         }
       } catch { /* continue */ }
@@ -458,8 +436,72 @@ export default function AdminBundlesPage() {
     }
   }
 
+  const handleSelectAllFiltered = async (contentType: string, typeLabel: string): Promise<number> => {
+    const params = new URLSearchParams()
+    params.set('isPremium', 'true')
+    params.set('limit', '1000')
+    const q = debouncedContentSearch.trim()
+    if (q) {
+      if (contentType === 'suggestion') {
+        params.set('search', q)
+      } else {
+        params.set('q', q)
+      }
+    }
+
+    const endpointMap: Record<string, string> = {
+      mcq: '/api/admin/mcq',
+      cq: '/api/admin/cq',
+      lecture: '/api/admin/lectures',
+      suggestion: '/api/admin/suggestions',
+      exam: '/api/admin/exams',
+    }
+    const endpoint = endpointMap[contentType]
+    if (!endpoint) return 0
+
+    try {
+      const res = await fetch(`${endpoint}?${params}`)
+      if (!res.ok) {
+        toast({ title: 'ত্রুটি', description: `${typeLabel} আনতে সমস্যা`, variant: 'destructive' })
+        return 0
+      }
+      const json = await res.json()
+      const allItems = (Array.isArray(json.data) ? json.data : []).filter(
+        (item: { isPremium: boolean; price: number }) => item.isPremium && item.price > 0
+      )
+
+      const newItems = allItems
+        .filter((item: { id: string }) => !bulkSelection.isSelected(contentType, item.id))
+        .map((item: { id: string; title?: string; question?: string; price: number }) => ({
+          contentType,
+          contentId: item.id,
+          title: item.title?.slice(0, 60) || item.question?.slice(0, 60) || `${typeLabel} #${item.id.slice(0, 8)}`,
+          price: item.price || 0,
+          order: 0,
+        }))
+
+      if (newItems.length > 0) {
+        bulkSelection.selectAllVisible(contentType, newItems)
+      }
+
+      const totalAll = allItems.length
+      const added = newItems.length
+      const alreadySelected = totalAll - added
+
+      toast({
+        title: `${added}টি ${typeLabel} যোগ হয়েছে`,
+        description: alreadySelected > 0 ? `${alreadySelected}টি আগেই নির্বাচিত` : undefined,
+      })
+
+      return added
+    } catch {
+      toast({ title: 'ত্রুটি', description: `${typeLabel} আনতে সমস্যা`, variant: 'destructive' })
+      return 0
+    }
+  }
+
   const calculateOriginalPrice = () => {
-    return selectedItems.reduce((sum, item) => sum + toDecimal(item.price || 0), 0)
+    return bulkSelection.summary.totalPrice
   }
 
   const calculateDiscount = () => {
@@ -476,7 +518,7 @@ export default function AdminBundlesPage() {
       return
     }
 
-    if (selectedItems.length === 0) {
+    if (bulkSelection.selectedItems.length === 0) {
       toast({ title: 'ত্রুটি', description: 'কমপক্ষে ১টি কন্টেন্ট আইটেম যোগ করুন', variant: 'destructive' })
       setCurrentStep(2)
       return
@@ -496,7 +538,7 @@ export default function AdminBundlesPage() {
         originalPrice: calculateOriginalPrice(),
         isActive: formIsActive,
         order: parseInt(formOrder) || 0,
-        items: selectedItems.map((item, idx) => ({
+        items: bulkSelection.selectedItems.map((item, idx) => ({
           contentType: item.contentType,
           contentId: item.contentId,
           order: idx,
@@ -667,12 +709,12 @@ export default function AdminBundlesPage() {
             contentTab, setContentTab,
             contentSearch, setContentSearch,
             contentItems, loadingContent,
-            selectedItems, isItemSelected, toggleItem, removeItem,
-            calculateOriginalPrice,
+            bulkSelection,
+            onSelectAllFiltered: handleSelectAllFiltered,
             getIcon, getLabel, classLevelLabels,
           }}
           stepPricingProps={{
-            selectedItems, formPrice, setFormPrice,
+            bulkSelection, formPrice, setFormPrice,
             formOrder, setFormOrder,
             formIsActive, setFormIsActive,
             formTitle, editId, saving, handleSave,
