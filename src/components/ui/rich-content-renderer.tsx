@@ -19,6 +19,21 @@ import { cn } from '@/lib/utils'
 import { sanitizeHtml } from '@/lib/sanitize'
 import 'katex/dist/katex.min.css'
 
+/**
+ * Transforms <img title="..."> into <figure><img><figcaption>...</figcaption></figure>
+ * to render image captions as visible text below the image.
+ */
+function processImageCaptions(htmlStr: string): string {
+  if (!htmlStr) return htmlStr
+  return htmlStr.replace(
+    /<img\s+[^>]*?title="([^"]*)"[^>]*?>/gi,
+    (match, caption) => {
+      if (!caption.trim()) return match
+      return `<figure class="image-figure relative mx-auto my-3 leading-none">${match}<figcaption class="image-caption block text-center text-xs text-muted-foreground/80 mt-1.5 px-2">${caption}</figcaption></figure>`
+    },
+  )
+}
+
 interface RichContentRendererProps {
   content: string
   className?: string
@@ -38,7 +53,11 @@ export default function RichContentRenderer({
   const [mathReady, setMathReady] = useState(true)
 
   const { html, hasSurvivingMathML } = useMemo(() => {
-    return processContent(content)
+    const raw = processContent(content)
+    return {
+      html: processImageCaptions(raw.html),
+      hasSurvivingMathML: raw.hasSurvivingMathML,
+    }
   }, [content])
 
   const needsMathJax = html && hasSurvivingMathML

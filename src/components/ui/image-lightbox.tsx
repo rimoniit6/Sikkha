@@ -1,243 +1,99 @@
 'use client'
 
-import { Button } from '@/components/ui/button'
+/**
+ * ImageLightbox — Full-screen image overlay for blog and content images.
+ *
+ * Features:
+ * - Fixed overlay with dark semi-transparent backdrop
+ * - Image displayed at max viewport size (respects aspect ratio)
+ * - Alt text and caption displayed below the image
+ * - Close button (top-right X) + Escape key + click-outside-to-close
+ * - Fade-in CSS animation
+ * - Prevents body scroll when open
+ * - Touch/mobile friendly
+ */
+
+import { useEffect, useCallback } from 'react'
+import { X } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { ChevronLeft,ChevronRight,Edit3,Maximize,X } from 'lucide-react'
 import Image from 'next/image'
-import { useCallback,useEffect,useRef,useState } from 'react'
 
 interface LightboxImage {
-  id: string
-  url: string
+  src: string
   alt?: string
-  annotations?: string | null
+  title?: string | null
 }
 
 interface ImageLightboxProps {
-  images: LightboxImage[]
-  initialIndex?: number
-  open: boolean
+  image: LightboxImage
   onClose: () => void
-  onAnnotate?: (imageId: string) => void
 }
 
-function ImageViewer({ image, onAnnotate }: { image: LightboxImage; onAnnotate?: (id: string) => void }) {
-  const [zoom, setZoom] = useState(1)
-  const [rotation, _setRotation] = useState(0)
-  const [isDragging, setIsDragging] = useState(false)
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
-  const [offset, setOffset] = useState({ x: 0, y: 0 })
-  const [imageLoaded, setImageLoaded] = useState(false)
-
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if (zoom <= 1) return
-    setIsDragging(true)
-    setDragStart({ x: e.clientX - offset.x, y: e.clientY - offset.y })
-  }, [zoom, offset])
-
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (!isDragging) return
-    setOffset({
-      x: e.clientX - dragStart.x,
-      y: e.clientY - dragStart.y,
-    })
-  }, [isDragging, dragStart])
-
-  const handleMouseUp = useCallback(() => {
-    setIsDragging(false)
-  }, [])
-
-  const handleWheel = useCallback((e: React.WheelEvent) => {
-    e.preventDefault()
-    const delta = e.deltaY > 0 ? -0.1 : 0.1
-    setZoom((prev) => Math.max(0.25, Math.min(5, prev + delta)))
-  }, [])
-
-  return (
-    <div
-      className="flex-1 flex items-center justify-center relative overflow-hidden"
-      onMouseDown={handleMouseDown}
-      onMouseMove={handleMouseMove}
-      onMouseUp={handleMouseUp}
-      onMouseLeave={handleMouseUp}
-      onWheel={handleWheel}
-    >
-      <Image
-        src={image.url}
-        alt={image.alt || 'লাইটবক্স ছবি'}
-        className={cn(
-          'max-w-[90vw] max-h-[80vh] object-contain select-none transition-transform duration-100',
-          zoom > 1 ? 'cursor-grab' : 'cursor-default',
-          isDragging && 'cursor-grabbing',
-          !imageLoaded && 'opacity-0',
-        )}
-        style={{
-          transform: `translate(${offset.x}px, ${offset.y}px) rotate(${rotation}deg) scale(${zoom})`,
-        }}
-        width={1200}
-        height={900}
-        unoptimized
-        onLoad={() => setImageLoaded(true)}
-        draggable={false}
-      />
-      {!imageLoaded && (
-        <div className="absolute inset-0 flex items-center justify-center" aria-hidden="true">
-          <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-        </div>
-      )}
-      {onAnnotate && (
-        <Button
-          variant="ghost"
-          size="icon"
-          className="absolute top-2 right-2 h-8 w-8 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-900/30"
-          onClick={(e) => { e.stopPropagation(); onAnnotate(image.id); }}
-          title="ছবিতে মার্ক করুন"
-        >
-          <Edit3 className="h-4 w-4" />
-        </Button>
-      )}
-      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-center text-white/30 text-xs pointer-events-none">
-        স্ক্রল = জুম • ক্লিক+ড্র্যাগ = প্যান • ← → = নেভিগেট • Esc = বন্ধ
-      </div>
-    </div>
+export default function ImageLightbox({ image, onClose }: ImageLightboxProps) {
+  const handleEscape = useCallback(
+    (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    },
+    [onClose],
   )
-}
 
-export default function ImageLightbox({
-  images,
-  initialIndex = 0,
-  open,
-  onClose,
-  onAnnotate,
-}: ImageLightboxProps) {
-  const [currentIndex, setCurrentIndex] = useState(initialIndex)
-  const containerRef = useRef<HTMLDivElement>(null)
-
-  const currentImage = images[currentIndex]
-
-  // Keyboard handlers
   useEffect(() => {
-    if (!open) return
+    document.addEventListener('keydown', handleEscape)
+    document.body.style.overflow = 'hidden'
 
-    const handleKeyDown = (e: KeyboardEvent) => {
-      switch (e.key) {
-        case 'Escape':
-          onClose()
-          break
-        case 'ArrowLeft':
-          setCurrentIndex((prev) => (prev > 0 ? prev - 1 : prev))
-          break
-        case 'ArrowRight':
-          setCurrentIndex((prev) => (prev < images.length - 1 ? prev + 1 : prev))
-          break
-        case '+':
-        case '=':
-          // Zoom in handled by the image viewer
-          break
-        case '-':
-          // Zoom out handled by the image viewer
-          break
-      }
-    }
-
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [open, images.length, onClose])
-
-  // Prevent body scroll when open
-  useEffect(() => {
-    if (open) {
-      document.body.style.overflow = 'hidden'
-    } else {
+    return () => {
+      document.removeEventListener('keydown', handleEscape)
       document.body.style.overflow = ''
     }
-    return () => { document.body.style.overflow = '' }
-  }, [open])
-
-  const handlePrev = useCallback(() => {
-    setCurrentIndex((prev) => (prev > 0 ? prev - 1 : prev))
-  }, [])
-
-  const handleNext = useCallback(() => {
-    setCurrentIndex((prev) => (prev < images.length - 1 ? prev + 1 : prev))
-  }, [images.length])
-
-  const toggleFullscreen = useCallback(async () => {
-    if (!containerRef.current) return
-    if (document.fullscreenElement) {
-      await document.exitFullscreen()
-    } else {
-      await containerRef.current.requestFullscreen()
-    }
-  }, [])
-
-  if (!open || !currentImage) return null
+  }, [handleEscape])
 
   return (
     <div
-      className="fixed inset-0 z-[100] bg-black/95 flex flex-col"
-      ref={containerRef}
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-fade-in"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose()
+      }}
     >
-      {/* Top toolbar */}
-      <div className="flex items-center justify-between px-4 py-3 bg-black/60 z-10 shrink-0">
-        <div className="flex items-center gap-3">
-          <span className="text-white/80 text-sm font-medium">
-            {currentIndex + 1} / {images.length}
-          </span>
-          {currentImage.alt && (
-            <span className="text-white/50 text-xs truncate max-w-[200px] hidden sm:inline">
-              {currentImage.alt}
-            </span>
-          )}
+      {/* Close button */}
+      <button
+        type="button"
+        onClick={onClose}
+        className="absolute top-4 right-4 z-10 size-10 rounded-full bg-black/40 text-white flex items-center justify-center hover:bg-black/60 transition-colors"
+        aria-label="বন্ধ করুন"
+      >
+        <X className="h-5 w-5" />
+      </button>
+
+      {/* Image container */}
+      <div
+        className={cn(
+          'relative max-w-[90vw] max-h-[85vh] animate-scale-in',
+        )}
+      >
+        <div className="relative flex items-center justify-center">
+          <Image
+            src={image.src}
+            alt={image.alt || ''}
+            width={1200}
+            height={800}
+            className="max-w-full max-h-[75vh] w-auto h-auto rounded-lg object-contain shadow-2xl"
+            style={{ width: 'auto', height: 'auto' }}
+            unoptimized
+            priority
+          />
         </div>
 
-        <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 text-white/70 hover:text-white hover:bg-white/10"
-            onClick={(e) => { e.stopPropagation(); toggleFullscreen() }}
-            title="ফুলস্ক্রিন"
-          >
-            <Maximize className="h-4 w-4" />
-          </Button>
-          <div className="w-px h-6 bg-white/20 mx-1" />
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 text-white/70 hover:text-white hover:bg-white/10"
-            onClick={(e) => { e.stopPropagation(); onClose() }}
-            title="বন্ধ করুন (Esc)"
-            aria-label="লাইটবক্স বন্ধ করুন"
-          >
-            <X className="h-5 w-5" />
-          </Button>
-        </div>
-      </div>
-
-      {/* Image area with key to reset state on navigation */}
-      <div className="flex-1 flex relative">
-        {currentIndex > 0 && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="absolute left-2 top-1/2 -translate-y-1/2 h-12 w-12 rounded-full bg-black/40 text-white/80 hover:text-white hover:bg-black/60 z-10"
-            onClick={(e) => { e.stopPropagation(); handlePrev() }}
-          >
-            <ChevronLeft className="h-8 w-8" />
-          </Button>
+        {/* Caption / Alt text */}
+        {(image.title || image.alt) && (
+          <div className="mt-3 text-center">
+            {image.title && (
+              <p className="text-sm text-white/90 font-medium">{image.title}</p>
+            )}
+            {image.alt && !image.title && (
+              <p className="text-sm text-white/70">{image.alt}</p>
+            )}
+          </div>
         )}
-        {currentIndex < images.length - 1 && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="absolute right-2 top-1/2 -translate-y-1/2 h-12 w-12 rounded-full bg-black/40 text-white/80 hover:text-white hover:bg-black/60 z-10"
-            onClick={(e) => { e.stopPropagation(); handleNext() }}
-          >
-            <ChevronRight className="h-8 w-8" />
-          </Button>
-        )}
-        <ImageViewer key={currentImage.id} image={currentImage} onAnnotate={onAnnotate} />
       </div>
     </div>
   )

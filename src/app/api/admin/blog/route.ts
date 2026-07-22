@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { auditFromRequest, AuditActions } from '@/lib/audit'
 import { softDelete } from '@/lib/soft-delete'
 import { sanitizeForStorage } from '@/lib/sanitize'
+import { generateUniqueSlug } from '@/lib/slug-unique'
 
 const createBlogSchema = z.object({
   title: z.string().min(1, 'শিরোনাম আবশ্যক'),
@@ -43,17 +44,6 @@ function generateSlug(title: string): string {
     .replace(/-+/g, '-')
     .trim()
     .replace(/^-|-$/g, '') || 'untitled'
-}
-
-async function ensureUniqueSlug(tx: any, slug: string, excludeId?: string): Promise<string> {
-  let candidate = slug
-  let counter = 1
-  while (true) {
-    const existing = await tx.blogPost.findUnique({ where: { slug: candidate } })
-    if (!existing || (excludeId && existing.id === excludeId)) return candidate
-    candidate = `${slug}-${counter}`
-    counter++
-  }
 }
 
 export async function GET(request: Request) {
@@ -127,7 +117,7 @@ export async function POST(request: Request) {
     const readingTime = calculateReadingTime(content || '')
 
     const data = await db.$transaction(async (tx) => {
-      const uniqueSlug = await ensureUniqueSlug(tx, slug)
+      const uniqueSlug = await generateUniqueSlug('blogPost', slug, undefined, tx)
 
       const created = await (tx as any).blogPost.create({
         data: {

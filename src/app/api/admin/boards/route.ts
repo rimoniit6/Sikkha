@@ -7,6 +7,7 @@ import { auditFromRequest, AuditActions } from '@/lib/audit'
 import { guardDeleteDependencies } from '@/lib/delete-guard'
 import { invalidateContentCache } from '@/lib/cache-invalidate'
 import { softDelete } from '@/lib/soft-delete'
+import { findSlugConflict } from '@/lib/slug-unique'
 
 const createBoardSchema = z.object({
   name: z.string().min(1, 'বোর্ডের নাম আবশ্যক'),
@@ -44,10 +45,18 @@ export async function POST(req: NextRequest) {
 
     const boardSlug = slug || name.toLowerCase().replace(/[^a-z0-9\u0980-\u09FF]+/g, '-').replace(/^-|-$/g, '')
 
-    const existing = await db.board.findFirst({
-      where: { OR: [{ slug: boardSlug }, { name: name.trim() }] },
+    // Check for duplicate slug (including soft-deleted) to prevent P2002 errors
+    const slugConflict = await findSlugConflict('board', { slug: boardSlug })
+    if (slugConflict) {
+      return apiError('এই বোর্ড ইতিমধ্যে আছে', 400)
+    }
+    // Business-rule duplicate name check (no @unique constraint, but worth catching early)
+    const nameConflict = await (db as any).board.findFirst({
+      where: { name: name.trim() },
+      includeDeleted: true,
+      select: { id: true },
     })
-    if (existing) {
+    if (nameConflict) {
       return apiError('এই বোর্ড ইতিমধ্যে আছে', 400)
     }
 
@@ -92,8 +101,8 @@ export async function PUT(req: NextRequest) {
     }
 
     if (slug !== undefined && slug !== existing.slug) {
-      const slugExists = await db.board.findFirst({ where: { slug, NOT: { id } } })
-      if (slugExists) {
+      const conflict = await findSlugConflict('board', { slug }, id)
+      if (conflict) {
         return apiError('এই স্লাগ ইতিমধ্যে ব্যবহৃত হয়েছে।', 409)
       }
     }

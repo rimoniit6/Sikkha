@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { auditFromRequest, AuditActions } from '@/lib/audit'
 import { guardDeleteDependencies } from '@/lib/delete-guard'
 import { softDelete } from '@/lib/soft-delete'
+import { findSlugConflict } from '@/lib/slug-unique'
 
 const createSubjectSchema = z.object({
   name: z.string().min(1, 'বিষয়ের নাম আবশ্যক'),
@@ -78,10 +79,8 @@ export async function POST(request: Request) {
 
     const subjectSlug = slug || name.toLowerCase().replace(/[^a-z0-9\u0980-\u09FF]+/g, '-').replace(/^-|-$/g, '')
 
-    const existingSlug = await db.subject.findFirst({
-      where: { slug: subjectSlug, classId },
-    })
-    if (existingSlug) return apiError('এই শ্রেণিতে এই স্লাগ ইতিমধ্যে ব্যবহৃত হয়েছে।', 409)
+    const conflict = await findSlugConflict('subject', { slug: subjectSlug, classId })
+    if (conflict) return apiError('এই শ্রেণিতে এই স্লাগ ইতিমধ্যে ব্যবহৃত হয়েছে।', 409)
 
     const data = await db.$transaction(async (tx) => {
       const created = await (tx as any).subject.create({
@@ -131,10 +130,8 @@ export async function PUT(request: Request) {
     const newClassId = updateData.classId !== undefined ? updateData.classId : existing.classId
     if ((updateData.slug !== undefined && updateData.slug !== existing.slug) ||
         (updateData.classId !== undefined && updateData.classId !== existing.classId)) {
-      const slugExists = await db.subject.findFirst({
-        where: { slug: newSlug, classId: newClassId, NOT: { id } },
-      })
-      if (slugExists) return apiError('এই শ্রেণিতে এই স্লাগ ইতিমধ্যে ব্যবহৃত হয়েছে।', 409)
+      const conflict = await findSlugConflict('subject', { slug: newSlug, classId: newClassId }, id)
+      if (conflict) return apiError('এই শ্রেণিতে এই স্লাগ ইতিমধ্যে ব্যবহৃত হয়েছে।', 409)
     }
 
     const data: Record<string, unknown> = {}

@@ -6,6 +6,7 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createVersion } from '@/lib/version-history'
 import { auditFromRequest, AuditActions, getClientIP } from '@/lib/audit'
+import { findSlugConflict } from '@/lib/slug-unique'
 
 const createPlanSchema = z.object({
   title: z.string().min(1, 'নাম আবশ্যক'),
@@ -53,9 +54,9 @@ export async function POST(request: Request) {
 
     const slug = title.toLowerCase().replace(/[^a-z0-9\u0980-\u09FF]+/g, '-').replace(/^-|-$/g, '')
 
-    // Ensure slug is unique
-    const existingSlug = await db.contentPackage.findFirst({ where: { slug } })
-    const finalSlug = existingSlug ? `${slug}-${Date.now()}` : slug
+    // Ensure slug is unique (checks active + soft-deleted records)
+    const conflict = await findSlugConflict('contentPackage', { slug })
+    const finalSlug = conflict ? `${slug}-${Date.now()}` : slug
 
     const data = await db.$transaction(async (tx) => {
       const pkg = await tx.contentPackage.create({

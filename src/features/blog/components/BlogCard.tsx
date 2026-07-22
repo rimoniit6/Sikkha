@@ -22,7 +22,8 @@ export default function BlogCard({ post }: Props) {
               alt={post.title}
               fill
               className="object-cover group-hover:scale-105 transition-transform duration-300"
-              unoptimized
+              loading="lazy"
+              sizes="(max-width: 768px) 100vw, 400px"
             />
           </div>
         )}

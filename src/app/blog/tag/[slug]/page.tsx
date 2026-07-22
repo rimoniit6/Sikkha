@@ -2,6 +2,7 @@ import { db } from '@/lib/db'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import BlogCard from '@/features/blog/components/BlogCard'
+import { serialize } from '@/lib/serialize'
 import type { Metadata } from 'next'
 
 interface Props {
@@ -47,7 +48,7 @@ export default async function BlogTagPage({ params }: Props) {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {posts.map((post) => (
-              <BlogCard key={post.id} post={JSON.parse(JSON.stringify(post))} />
+              <BlogCard key={post.id} post={serialize(post)} />
             ))}
           </div>
         )}

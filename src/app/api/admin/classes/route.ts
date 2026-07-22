@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { auditFromRequest, AuditActions } from '@/lib/audit'
 import { guardDeleteDependencies } from '@/lib/delete-guard'
 import { softDelete } from '@/lib/soft-delete'
+import { findSlugConflict } from '@/lib/slug-unique'
 
 const createClassSchema = z.object({
   name: z.string().min(1, 'শ্রেণির নাম আবশ্যক'),
@@ -57,8 +58,8 @@ export async function POST(request: Request) {
 
     const classSlug = slug || name.toLowerCase().replace(/[^a-z0-9\u0980-\u09FF]+/g, '-').replace(/^-|-$/g, '')
 
-    const existingSlug = await db.classCategory.findFirst({ where: { slug: classSlug } })
-    if (existingSlug) return apiError('এই স্লাগ ইতিমধ্যে ব্যবহৃত হয়েছে।', 409)
+    const conflict = await findSlugConflict('classCategory', { slug: classSlug })
+    if (conflict) return apiError('এই স্লাগ ইতিমধ্যে ব্যবহৃত হয়েছে।', 409)
 
     const data = await db.$transaction(async (tx) => {
       const created = await (tx as any).classCategory.create({
@@ -102,8 +103,8 @@ export async function PUT(request: Request) {
     if (!existing) return apiError('শ্রেণি খুঁজে পাওয়া যায়নি', 404)
 
     if (updateData.slug && updateData.slug !== existing.slug) {
-      const slugExists = await db.classCategory.findFirst({ where: { slug: updateData.slug, NOT: { id } } })
-      if (slugExists) return apiError('এই স্লাগ ইতিমধ্যে ব্যবহৃত হয়েছে।', 409)
+      const conflict = await findSlugConflict('classCategory', { slug: updateData.slug }, id)
+      if (conflict) return apiError('এই স্লাগ ইতিমধ্যে ব্যবহৃত হয়েছে।', 409)
     }
 
     const data: Record<string, unknown> = {}

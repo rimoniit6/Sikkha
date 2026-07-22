@@ -8,6 +8,8 @@ import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { courseAdminService } from '@/services/api/course-admin.service'
+import { useAutoSlug } from '@/hooks/use-auto-slug'
+import SlugField from '@/components/ui/slug-field'
 
 interface Props {
   onClose: () => void
@@ -16,21 +18,10 @@ interface Props {
 
 export default function CreateCourseDialog({ onClose, onCreated }: Props) {
   const [title, setTitle] = useState('')
-  const [slug, setSlug] = useState('')
   const [description, setDescription] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-
-  function generateSlug(val: string) {
-    return val.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
-  }
-
-  function handleTitleChange(val: string) {
-    setTitle(val)
-    if (!slug || slug === generateSlug(slug)) {
-      setSlug(generateSlug(val))
-    }
-  }
+  const { slug, setSlug } = useAutoSlug(title)
 
   async function handleCreate() {
     if (!title || !slug) return
@@ -53,12 +44,14 @@ export default function CreateCourseDialog({ onClose, onCreated }: Props) {
         <div className="space-y-4 py-4">
           <div className="space-y-2">
             <Label>শিরোনাম *</Label>
-            <Input value={title} onChange={e => handleTitleChange(e.target.value)} placeholder="কোর্সের নাম" />
+            <Input value={title} onChange={e => setTitle(e.target.value)} placeholder="কোর্সের নাম" />
           </div>
-          <div className="space-y-2">
-            <Label>Slug *</Label>
-            <Input value={slug} onChange={e => setSlug(e.target.value)} placeholder="course-slug" />
-          </div>
+          <SlugField
+            value={slug}
+            onChange={setSlug}
+            sourceText={title}
+            previewPrefix="courses"
+          />
           <div className="space-y-2">
             <Label>বিবরণ</Label>
             <Textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="কোর্স সম্পর্কে সংক্ষিপ্ত বিবরণ" />

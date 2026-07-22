@@ -32,7 +32,7 @@ const ALLOWED_TAGS: string[] = [
 
   // ── Links & media ──
   'a', 'img', 'figure', 'figcaption',
-  'video', 'audio', 'source',
+  'video', 'audio', 'source', 'iframe',
 
   // ── MathML (fallback rendering) ──
   // MathML tags are allowed so that if MathML→LaTeX conversion fails,
@@ -75,7 +75,9 @@ const ALLOWED_ATTR: string[] = [
 
   // ── Media ──
   'controls', 'autoplay', 'loop', 'muted', 'preload',
-  'allow', 'allowfullscreen', 'framebuffer',
+  'allow', 'allowfullscreen', 'framebuffer', 'referrerpolicy',
+
+
 
   // ── Table ──
   'colspan', 'rowspan', 'scope', 'headers',

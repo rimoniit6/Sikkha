@@ -8,7 +8,7 @@ const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
 
 async function getContentUrls() {
   try {
-    const [classes, subjects, chapters, notices, suggestions] = await Promise.all([
+    const [classes, subjects, chapters, notices, suggestions, blogPosts, blogCategories, blogTags] = await Promise.all([
       db.classCategory.findMany({ where: { isActive: true }, select: { slug: true, updatedAt: true } }),
       db.subject.findMany({
         where: { isActive: true },
@@ -20,10 +20,17 @@ async function getContentUrls() {
       }),
       db.notice.findMany({ where: { isActive: true }, select: { id: true, updatedAt: true } }),
       db.suggestion.findMany({ where: { isActive: true }, select: { slug: true, updatedAt: true } }),
+      db.blogPost.findMany({
+        where: { status: 'PUBLISHED', isActive: true, deletedAt: null, publishedAt: { lte: new Date() } },
+        select: { slug: true, updatedAt: true },
+        orderBy: { publishedAt: 'desc' },
+      }),
+      db.blogCategory.findMany({ where: { isActive: true, deletedAt: null }, select: { slug: true, updatedAt: true } }),
+      db.blogTag.findMany({ select: { slug: true } }),
     ])
-    return { classes, subjects, chapters, notices, suggestions }
+    return { classes, subjects, chapters, notices, suggestions, blogPosts, blogCategories, blogTags }
   } catch {
-    return { classes: [], subjects: [], chapters: [], notices: [], suggestions: [] }
+    return { classes: [], subjects: [], chapters: [], notices: [], suggestions: [], blogPosts: [], blogCategories: [], blogTags: [] }
   }
 }
 
@@ -37,7 +44,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     content = { classes: [], subjects: [], chapters: [], notices: [], suggestions: [] }
   }
 
-  const { classes, subjects, chapters, notices, suggestions } = content
+  const { classes, subjects, chapters, notices, suggestions, blogPosts, blogCategories, blogTags } = content
 
   const staticPages = [
     { url: siteUrl, lastModified: new Date(), changeFrequency: 'daily' as const, priority: 1 },
@@ -48,6 +55,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${siteUrl}/notices`, lastModified: new Date(), changeFrequency: 'daily' as const, priority: 0.7 },
     { url: `${siteUrl}/suggestions`, lastModified: new Date(), changeFrequency: 'weekly' as const, priority: 0.6 },
     { url: `${siteUrl}/board-questions`, lastModified: new Date(), changeFrequency: 'weekly' as const, priority: 0.7 },
+    { url: `${siteUrl}/blog`, lastModified: new Date(), changeFrequency: 'daily' as const, priority: 0.8 },
     { url: `${siteUrl}/search`, lastModified: new Date(), changeFrequency: 'weekly' as const, priority: 0.5 },
     { url: `${siteUrl}/lectures`, lastModified: new Date(), changeFrequency: 'weekly' as const, priority: 0.6 },
     { url: `${siteUrl}/cq`, lastModified: new Date(), changeFrequency: 'weekly' as const, priority: 0.6 },
@@ -94,5 +102,26 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.6,
   }))
 
-  return [...staticPages, ...classPages, ...subjectPages, ...chapterPages, ...noticePages, ...suggestionPages]
+  const blogPages = blogPosts.map((p) => ({
+    url: `${siteUrl}/blog/${p.slug}`,
+    lastModified: p.updatedAt,
+    changeFrequency: 'weekly' as const,
+    priority: 0.7,
+  }))
+
+  const blogCategoryPages = blogCategories.map((c) => ({
+    url: `${siteUrl}/blog/category/${c.slug}`,
+    lastModified: c.updatedAt,
+    changeFrequency: 'weekly' as const,
+    priority: 0.5,
+  }))
+
+  const blogTagPages = blogTags.map((t) => ({
+    url: `${siteUrl}/blog/tag/${t.slug}`,
+    lastModified: new Date(),
+    changeFrequency: 'weekly' as const,
+    priority: 0.3,
+  }))
+
+  return [...staticPages, ...classPages, ...subjectPages, ...chapterPages, ...noticePages, ...suggestionPages, ...blogPages, ...blogCategoryPages, ...blogTagPages]
 }

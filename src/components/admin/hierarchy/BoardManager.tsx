@@ -15,7 +15,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { useToast } from '@/hooks/use-toast'
-import { generateSlug } from '@/lib/utils'
+import { slugify } from '@/lib/slug'
+import SlugField from '@/components/ui/slug-field'
 import { motion } from 'framer-motion'
 import {
   Building2,
@@ -280,17 +281,18 @@ export function BoardManager({
                     setBoardForm((f) => ({
                       ...f,
                       name,
-                      slug: f.slug === generateSlug(f.name) ? generateSlug(name) : f.slug,
+                      slug: f.slug === slugify(f.name) ? slugify(name) : f.slug,
                     }))
                   }}
                 />
               </div>
               <div className="space-y-2 sm:col-span-2">
-                <Label className="text-sm font-medium">স্লাগ</Label>
-                <Input
-                  placeholder="auto-generated-slug"
+                <SlugField
                   value={boardForm.slug}
-                  onChange={(e) => setBoardForm((f) => ({ ...f, slug: e.target.value }))}
+                  onChange={(v) => setBoardForm((f) => ({ ...f, slug: v }))}
+                  sourceText={boardForm.name}
+                  previewPrefix="boards"
+                  showLabel={false}
                 />
                 <p className="text-xs text-muted-foreground">খালি রাখলে স্বয়ংক্রিয়ভাবে তৈরি হবে</p>
               </div>

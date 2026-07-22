@@ -5,6 +5,7 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { auditFromRequest, AuditActions } from '@/lib/audit'
 import { softDelete } from '@/lib/soft-delete'
+import { findSlugConflict } from '@/lib/slug-unique'
 
 const categorySchema = z.object({
   name: z.string().min(1, 'নাম আবশ্যক'),
@@ -49,6 +50,12 @@ export async function POST(request: Request) {
 
     const slug = validated.data.slug || generateSlug(validated.data.name)
 
+    // Prevent P2002: check slug uniqueness including soft-deleted categories
+    const slugConflict = await findSlugConflict('blogCategory', { slug })
+    if (slugConflict) {
+      return apiError('এই স্লাগ ইতিমধ্যে ব্যবহৃত হয়েছে।', 409)
+    }
+
     const data = await db.$transaction(async (tx) => {
       const created = await (tx as any).blogCategory.create({
         data: { ...validated.data, slug },
@@ -83,6 +90,14 @@ export async function PUT(request: Request) {
     const allowedFields = ['name', 'slug', 'description', 'color', 'isActive', 'order']
     for (const field of allowedFields) {
       if (updateData[field] !== undefined) data[field] = updateData[field]
+    }
+
+    // Prevent P2002: check slug uniqueness excluding current record
+    if (data.slug && data.slug !== existing.slug) {
+      const slugConflict = await findSlugConflict('blogCategory', { slug: data.slug as string }, id)
+      if (slugConflict) {
+        return apiError('এই স্লাগ ইতিমধ্যে ব্যবহৃত হয়েছে।', 409)
+      }
     }
 
     const updated = await db.$transaction(async (tx) => {

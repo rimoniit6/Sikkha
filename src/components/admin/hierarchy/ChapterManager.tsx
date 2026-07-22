@@ -16,7 +16,8 @@ import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { useToast } from '@/hooks/use-toast'
-import { generateSlug } from '@/lib/utils'
+import { slugify } from '@/lib/slug'
+import SlugField from '@/components/ui/slug-field'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   BookMarked,
@@ -325,17 +326,18 @@ export function ChapterManager({
                     setChapterForm((f) => ({
                       ...f,
                       name,
-                      slug: f.slug === generateSlug(f.name) ? generateSlug(name) : f.slug,
+                      slug: f.slug === slugify(f.name) ? slugify(name) : f.slug,
                     }))
                   }}
                 />
               </div>
               <div className="space-y-2 sm:col-span-2">
-                <Label className="text-sm font-medium">স্লাগ</Label>
-                <Input
-                  placeholder="auto-generated-slug"
+                <SlugField
                   value={chapterForm.slug}
-                  onChange={(e) => setChapterForm((f) => ({ ...f, slug: e.target.value }))}
+                  onChange={(v) => setChapterForm((f) => ({ ...f, slug: v }))}
+                  sourceText={chapterForm.name}
+                  previewPrefix="chapters"
+                  showLabel={false}
                 />
                 <p className="text-xs text-muted-foreground">খালি রাখলে স্বয়ংক্রিয়ভাবে তৈরি হবে</p>
               </div>

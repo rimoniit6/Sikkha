@@ -815,6 +815,35 @@ mroot, msqrt { font-style: normal; }
   animation: notify-ring 1.2s ease-out forwards;
 }
 
+/* ── Image alignment in TipTap editor / rich content ── */
+
+.ProseMirror img[data-align="left"],
+.rich-content img[data-align="left"],
+img[data-align="left"] {
+  float: left;
+  margin-right: 1em;
+  margin-bottom: 0.5em;
+  margin-top: 0.25em;
+}
+
+.ProseMirror img[data-align="right"],
+.rich-content img[data-align="right"],
+img[data-align="right"] {
+  float: right;
+  margin-left: 1em;
+  margin-bottom: 0.5em;
+  margin-top: 0.25em;
+}
+
+.ProseMirror img[data-align="center"],
+.rich-content img[data-align="center"],
+img[data-align="center"] {
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+  float: none;
+}
+
 /* ── Consolidated framer-motion replacement animations ── */
 @keyframes fade-in-up {
   from { opacity: 0; transform: translateY(20px); }
@@ -981,6 +1010,51 @@ mroot, msqrt { font-style: normal; }
   0% { transform: rotate(0deg); stroke-dashoffset: calc(2 * 3.14159 * 38 * 0.75); }
   50% { stroke-dashoffset: calc(2 * 3.14159 * 38 * 0.25); }
   100% { transform: rotate(360deg); stroke-dashoffset: calc(2 * 3.14159 * 38 * 0.75); }
+}
+
+/* ───────────────────────────────────────────────────────────────
+   IMAGE RESIZE HANDLES (TipTap NodeView)
+   ─────────────────────────────────────────────────────────────── */
+
+.image-resize-node-view {
+  line-height: 0;
+  transition: opacity 0.15s ease;
+}
+
+.image-resize-node-view.image-selected .image-resize-inner {
+  outline: 2px solid oklch(0.55 0.2 160 / 60%);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+.image-resize-node-view.image-resizing {
+  opacity: 0.85;
+}
+
+.image-resize-handle {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  background: oklch(1 0 0);
+  border: 2px solid oklch(0.55 0.2 160);
+  border-radius: 2px;
+  box-shadow: 0 1px 3px oklch(0 0 0 / 0.2);
+  z-index: 10;
+  touch-action: none;
+}
+
+.handle-nw { top: -5px; left: -5px; cursor: nwse-resize; }
+.handle-ne { top: -5px; right: -5px; cursor: nesw-resize; }
+.handle-sw { bottom: -5px; left: -5px; cursor: nesw-resize; }
+.handle-se { bottom: -5px; right: -5px; cursor: nwse-resize; }
+
+.dark .image-resize-handle {
+  background: oklch(0.18 0.015 260);
+  border-color: oklch(0.6 0.2 160);
+}
+
+.dark .image-resize-node-view.image-selected .image-resize-inner {
+  outline-color: oklch(0.6 0.2 160 / 70%);
 }
 
 /* ───────────────────────────────────────────────────────────────

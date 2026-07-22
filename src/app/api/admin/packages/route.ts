@@ -6,6 +6,7 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createVersion } from '@/lib/version-history'
 import { auditFromRequest, AuditActions, getClientIP } from '@/lib/audit'
+import { generateUniqueSlug } from '@/lib/slug-unique'
 
 const createPackageSchema = z.object({
   title: z.string().min(1, 'শিরোনাম প্রদান করুন'),
@@ -123,13 +124,8 @@ export async function POST(request: Request) {
       .replace(/[^a-z0-9\u0980-\u09FF]+/g, '-')
       .replace(/^-+|-+$/g, '')
 
-    // Auto-increment slug if it exists
-    let slug = baseSlug
-    let counter = 1
-    while (await db.contentPackage.findUnique({ where: { slug } })) {
-      slug = `${baseSlug}-${counter}`
-      counter++
-    }
+    // Auto-increment slug if it exists (handles soft-deleted records too)
+    const slug = await generateUniqueSlug('contentPackage', baseSlug)
 
     const newPackage = await db.$transaction(async (tx) => {
       const pkg = await tx.contentPackage.create({

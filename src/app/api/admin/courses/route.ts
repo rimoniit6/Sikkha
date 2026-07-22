@@ -8,6 +8,7 @@ import { toDecimal } from '@/lib/decimal'
 import { z } from 'zod'
 import { guardDeleteDependencies } from '@/lib/delete-guard'
 import { transitionWorkflow } from '@/lib/workflow'
+import { findSlugConflict, generateUniqueSlug } from '@/lib/slug-unique'
 
 const COURSE_STATUSES = ['DRAFT', 'PUBLISHED'] as const
 
@@ -404,7 +405,7 @@ export async function POST(request: Request) {
           .replace(/\s+/g, '-')
           .replace(/-+/g, '-')
           .trim()
-        const slug = await ensureUniqueSlug(db, baseSlug)
+        const slug = await generateUniqueSlug('course', baseSlug)
 
         const course = await db.$transaction(async (tx) => {
           const created = await tx.course.create({
@@ -471,8 +472,8 @@ export async function POST(request: Request) {
         }
 
         if (data.slug && data.slug !== existing.slug) {
-          const slugExists = await db.course.findUnique({ where: { slug: data.slug } })
-          if (slugExists) return apiError('Slug already exists', 409)
+          const slugConflict = await findSlugConflict('course', { slug: data.slug })
+          if (slugConflict) return apiError('Slug already exists', 409)
         }
 
         // Validate foreign keys. Empty strings were already coerced to null above,
@@ -634,14 +635,4 @@ export async function POST(request: Request) {
   }
 }
 
-async function ensureUniqueSlug(db: typeof import('@/lib/db').db, base: string): Promise<string> {
-  let slug = base || 'course'
-  let n = 2
-  // eslint-disable-next-line no-constant-condition
-  while (true) {
-    const existing = await db.course.findUnique({ where: { slug } })
-    if (!existing) return slug
-    slug = `${base}-${n}`
-    n++
-  }
-}
+

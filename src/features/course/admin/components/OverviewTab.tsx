@@ -11,6 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Loader2 } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import { useHierarchyMetadata } from '@/hooks/use-hierarchy-metadata'
+import { useAutoSlug } from '@/hooks/use-auto-slug'
+import SlugField from '@/components/ui/slug-field'
 import type { CourseDetailRecord, CourseOverviewData } from '@/features/course/types'
 
 interface Props {
@@ -25,7 +27,7 @@ export default function OverviewTab({ course, onSave, saving }: Props) {
   const classList = (metadata?.classes || []) as { id: string; name: string }[]
 
   const [title, setTitle] = useState('')
-  const [slug, setSlug] = useState('')
+  const { slug, isManuallyEdited, setSlug, reset: resetSlug } = useAutoSlug(title, '')
   const [description, setDescription] = useState('')
   const [thumbnail, setThumbnail] = useState('')
   const [teacherName, setTeacherName] = useState('')
@@ -45,7 +47,7 @@ export default function OverviewTab({ course, onSave, saving }: Props) {
 
   useEffect(() => {
     setTitle(course.title)
-    setSlug(course.slug)
+    setSlug(course.slug) // useAutoSlug marks as manually edited, showing reset button
     setDescription(course.description || '')
     setThumbnail(course.thumbnail || '')
     setTeacherName(course.teacherName || '')
@@ -111,7 +113,15 @@ export default function OverviewTab({ course, onSave, saving }: Props) {
           <CardHeader><CardTitle>মৌলিক তথ্য</CardTitle></CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2"><Label>শিরোনাম *</Label><Input value={title} onChange={e => setTitle(e.target.value)} /></div>
-            <div className="space-y-2"><Label>Slug *</Label><Input value={slug} onChange={e => setSlug(e.target.value)} /></div>
+            <SlugField
+              value={slug}
+              onChange={setSlug}
+              sourceText={title}
+              isManuallyEdited={isManuallyEdited}
+              onReset={resetSlug}
+              previewPrefix="courses"
+              showLabel
+            />
             <div className="space-y-2"><Label>বিবরণ</Label><Textarea value={description} onChange={e => setDescription(e.target.value)} /></div>
             <div className="space-y-2"><Label>থাম্বনেইল URL</Label><Input value={thumbnail} onChange={e => setThumbnail(e.target.value)} /></div>
             <div className="space-y-2"><Label>শিক্ষক</Label><Input value={teacherName} onChange={e => setTeacherName(e.target.value)} /></div>
