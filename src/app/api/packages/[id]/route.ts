@@ -1,6 +1,6 @@
 import { db } from '@/lib/db'
-import { NextResponse } from 'next/server'
 import { toDecimal } from '@/lib/decimal'
+import { apiResponse, apiError } from '@/lib/api-utils'
 
 export async function GET(
   request: Request,
@@ -14,10 +14,7 @@ export async function GET(
     })
 
     if (!pkg || !pkg.isActive) {
-      return NextResponse.json(
-        { error: 'প্যাকেজ খুঁজে পাওয়া যায়নি' },
-        { status: 404 }
-      )
+      return apiError('প্যাকেজ খুঁজে পাওয়া যায়নি', 404)
     }
 
     // Count premium content for the target class
@@ -58,33 +55,28 @@ export async function GET(
         ? Math.round(((toDecimal(pkg.originalPrice) - toDecimal(pkg.price)) / toDecimal(pkg.originalPrice)) * 100)
         : 0
 
-    return NextResponse.json({
-      data: {
-        id: pkg.id,
-        title: pkg.title,
-        slug: pkg.slug,
-        description: pkg.description,
-        thumbnail: pkg.thumbnail,
-        price: pkg.price,
-        originalPrice: pkg.originalPrice,
-        discount,
-        duration: pkg.duration,
-        durationLabel: pkg.durationLabel,
-        classLevel: pkg.classLevel,
-        mcqCount,
-        cqCount,
-        lectureCount,
-        totalContent,
-        isActive: pkg.isActive,
-        order: pkg.order,
-        createdAt: pkg.createdAt,
-      },
+    return apiResponse({
+      id: pkg.id,
+      title: pkg.title,
+      slug: pkg.slug,
+      description: pkg.description,
+      thumbnail: pkg.thumbnail,
+      price: pkg.price,
+      originalPrice: pkg.originalPrice,
+      discount,
+      duration: pkg.duration,
+      durationLabel: pkg.durationLabel,
+      classLevel: pkg.classLevel,
+      mcqCount,
+      cqCount,
+      lectureCount,
+      totalContent,
+      isActive: pkg.isActive,
+      order: pkg.order,
+      createdAt: pkg.createdAt,
     })
   } catch (error) {
     console.error('Get Package Detail error:', error)
-    return NextResponse.json(
-      { error: 'প্যাকেজের তথ্য আনতে সমস্যা হয়েছে' },
-      { status: 500 }
-    )
+    return apiError('প্যাকেজের তথ্য আনতে সমস্যা হয়েছে', 500)
   }
 }

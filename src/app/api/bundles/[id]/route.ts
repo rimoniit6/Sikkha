@@ -1,6 +1,6 @@
 import { db } from '@/lib/db'
-import { NextResponse } from 'next/server'
 import { toDecimal } from '@/lib/decimal'
+import { apiResponse, apiError } from '@/lib/api-utils'
 
 export async function GET(
   request: Request,
@@ -19,10 +19,7 @@ export async function GET(
     })
 
     if (!bundle || !bundle.isActive) {
-      return NextResponse.json(
-        { error: 'বান্ডেল খুঁজে পাওয়া যায়নি' },
-        { status: 404 }
-      )
+      return apiError('বান্ডেল খুঁজে পাওয়া যায়নি', 404)
     }
 
     // Enrich items with content details
@@ -83,32 +80,27 @@ export async function GET(
         ? Math.round(((toDecimal(bundle.originalPrice) - toDecimal(bundle.price)) / toDecimal(bundle.originalPrice)) * 100)
         : 0
 
-    return NextResponse.json({
-      data: {
-        id: bundle.id,
-        title: bundle.title,
-        slug: bundle.slug,
-        description: bundle.description,
-        thumbnail: bundle.thumbnail,
-        price: bundle.price,
-        originalPrice: bundle.originalPrice,
-        isPremium: toDecimal(bundle.price) > 0 || toDecimal(bundle.originalPrice) > 0,
-        discount,
-        classLevel: bundle.classLevel,
-        board: bundle.board,
-        year: bundle.year,
-        type: bundle.type,
-        itemCount: bundle.items.length,
-        items: enrichedItems,
-        order: bundle.order,
-        createdAt: bundle.createdAt,
-      },
+    return apiResponse({
+      id: bundle.id,
+      title: bundle.title,
+      slug: bundle.slug,
+      description: bundle.description,
+      thumbnail: bundle.thumbnail,
+      price: bundle.price,
+      originalPrice: bundle.originalPrice,
+      isPremium: toDecimal(bundle.price) > 0 || toDecimal(bundle.originalPrice) > 0,
+      discount,
+      classLevel: bundle.classLevel,
+      board: bundle.board,
+      year: bundle.year,
+      type: bundle.type,
+      itemCount: bundle.items.length,
+      items: enrichedItems,
+      order: bundle.order,
+      createdAt: bundle.createdAt,
     })
   } catch (error) {
     console.error('Get Bundle Detail error:', error)
-    return NextResponse.json(
-      { error: 'বান্ডেল এর তথ্য আনতে সমস্যা হয়েছে' },
-      { status: 500 }
-    )
+    return apiError('বান্ডেল এর তথ্য আনতে সমস্যা হয়েছে', 500)
   }
 }
