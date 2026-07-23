@@ -13,6 +13,7 @@ import { useRouterStore } from '@/store/router'
 
 interface ExamEntry {
   type: 'MCQ' | 'CQ'
+  id: string // stable DB identifier (set ID, schedule ID, or LessonExam ID)
   packageId: string
   packageName: string | null
   setId: string
@@ -24,6 +25,7 @@ interface ExamEntry {
 
 interface CalendarEntry {
   type: 'MCQ' | 'CQ'
+  id: string
   packageId: string
   packageName: string | null
   setId: string
@@ -63,11 +65,12 @@ export default function StudentExamsTab({ rows, examCalendar = [], hasAccess }: 
     const result: ExamEntry[] = []
 
     for (const e of examCalendar) {
-      const key = `${e.type}-${e.setId || e.packageId}-${e.setDate || ''}`
+      const key = `${e.type}-${e.id}-${e.setDate || ''}`
       if (!seen.has(key)) {
         seen.add(key)
         result.push({
           type: e.type,
+          id: e.id,  // stable DB identifier
           packageId: e.packageId,
           packageName: e.packageName,
           setId: e.setId || '',
@@ -81,6 +84,7 @@ export default function StudentExamsTab({ rows, examCalendar = [], hasAccess }: 
 
     for (const row of rows) {
       for (const e of row.mcqExams) {
+        // Dedup by packageId so same exam linked to multiple lessons appears once
         const key = `MCQ-${e.packageId}-${e.setDate || ''}`
         if (!seen.has(key)) {
           seen.add(key)
@@ -165,7 +169,7 @@ export default function StudentExamsTab({ rows, examCalendar = [], hasAccess }: 
           </h3>
           <div className="space-y-2">
             {entries.filter(e => e.type === 'MCQ').map((entry, idx) => (
-              <ExamCard key={`mcq-${entry.setId}`} entry={entry} idx={idx} hasAccess={hasAccess} onStart={handleStart} isLiveNow={liveNow.has(`MCQ-${entry.setId}`)} isUpcoming={upcomingSet.has(`MCQ-${entry.setId}`)} />
+              <ExamCard key={`mcq-${entry.id}`} entry={entry} idx={idx} hasAccess={hasAccess} onStart={handleStart} isLiveNow={liveNow.has(`MCQ-${entry.setId}`)} isUpcoming={upcomingSet.has(`MCQ-${entry.setId}`)} />
             ))}
           </div>
         </div>
@@ -179,7 +183,7 @@ export default function StudentExamsTab({ rows, examCalendar = [], hasAccess }: 
           </h3>
           <div className="space-y-2">
             {entries.filter(e => e.type === 'CQ').map((entry, idx) => (
-              <ExamCard key={`cq-${entry.setId}`} entry={entry} idx={idx} hasAccess={hasAccess} onStart={handleStart} isLiveNow={liveNow.has(`CQ-${entry.setId}`)} isUpcoming={upcomingSet.has(`CQ-${entry.setId}`)} />
+              <ExamCard key={`cq-${entry.id}`} entry={entry} idx={idx} hasAccess={hasAccess} onStart={handleStart} isLiveNow={liveNow.has(`CQ-${entry.setId}`)} isUpcoming={upcomingSet.has(`CQ-${entry.setId}`)} />
             ))}
           </div>
         </div>

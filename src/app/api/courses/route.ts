@@ -273,6 +273,7 @@ export async function GET(request: Request) {
             const matched = matchSet(e, mcqSets)
             return {
               type: 'MCQ' as const,
+              id: matched?.setId || e.id, // stable DB identifier: real set ID, or schedule ID
               packageId: e.packageId,
               packageName: mcqPackageMap.get(e.packageId) || null,
               setId: matched?.setId || '',
@@ -289,6 +290,7 @@ export async function GET(request: Request) {
             const matched = matchSet(e, cqSets)
             return {
               type: 'CQ' as const,
+              id: matched?.setId || e.id, // stable DB identifier: real set ID, or schedule ID
               packageId: e.packageId,
               packageName: cqPackageMap.get(e.packageId) || null,
               setId: matched?.setId || '',
@@ -317,6 +319,7 @@ export async function GET(request: Request) {
           const dayOfWeek = schedule?.date ? new Date(schedule.date).getDay() : null
           // LessonExam-based entries (legacy — still included for backward compat)
           const mcqExams = l.exams.filter(e => e.examType === 'MCQ').map(e => ({
+            id: e.id, // LessonExam's own stable DB identifier
             packageId: e.packageId,
             packageName: mcqPackageMap.get(e.packageId) || null,
             setId: '',
@@ -326,6 +329,7 @@ export async function GET(request: Request) {
             setEndTime: null,
           }))
           const cqExams = l.exams.filter(e => e.examType === 'CQ').map(e => ({
+            id: e.id, // LessonExam's own stable DB identifier
             packageId: e.packageId,
             packageName: cqPackageMap.get(e.packageId) || null,
             setId: '',

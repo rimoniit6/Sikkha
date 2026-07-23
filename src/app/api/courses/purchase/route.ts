@@ -14,7 +14,7 @@ export async function POST(request: Request) {
   if (auth instanceof NextResponse) return auth
 
   const csrf = await withCsrf(request)
-  if (csrf instanceof NextResponse) return csrf
+  if ('error' in csrf) return csrf.error
 
   try {
     const body = await request.json()
@@ -49,8 +49,8 @@ export async function POST(request: Request) {
 
     const purchase = await db.coursePurchase.upsert({
       where: { userId_courseId: { userId: auth.user.id, courseId } },
-      create: { userId: auth.user.id, courseId, paymentId: paymentId || null },
-      update: { paymentId: paymentId || undefined },
+      create: { userId: auth.user.id, courseId, paymentId: paymentId || null, isActive: true },
+      update: { paymentId: paymentId || undefined, isActive: true },
     })
 
     return apiResponse({ purchase }, 201)

@@ -130,8 +130,8 @@ export interface SyllabusRow {
   date: string | null
   startTime: string | null
   endTime: string | null
-  mcqExams: Array<{ packageId: string; packageName: string | null; setId: string; setTitle: string; setDate: string | null; setStartTime: string | null; setEndTime: string | null }>
-  cqExams: Array<{ packageId: string; packageName: string | null; setId: string; setTitle: string; setDate: string | null; setStartTime: string | null; setEndTime: string | null }>
+  mcqExams: Array<{ id: string; packageId: string; packageName: string | null; setId: string; setTitle: string; setDate: string | null; setStartTime: string | null; setEndTime: string | null }>
+  cqExams: Array<{ id: string; packageId: string; packageName: string | null; setId: string; setTitle: string; setDate: string | null; setStartTime: string | null; setEndTime: string | null }>
   hasAssignments: boolean
   displayOrder: number
 }
