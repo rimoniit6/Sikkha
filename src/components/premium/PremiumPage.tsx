@@ -20,11 +20,13 @@ import { Tabs,TabsList,TabsTrigger } from '@/components/ui/tabs'
 import { useContentTypes } from '@/hooks/use-content-types'
 import { useHierarchyMetadata } from '@/hooks/use-hierarchy-metadata'
 import { useLearningPreference } from '@/providers/LearningPreferenceProvider'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { cn } from '@/lib/utils'
 import { useAuthUser } from '@/store/auth'
 import { useRouterStore } from '@/store/router'
 import { AnimatePresence,motion } from 'framer-motion'
 import {
+  AlertCircle,
   BookOpen,
   CheckCircle2,
   ChevronRight,
@@ -33,6 +35,7 @@ import {
   Crown,
   FileQuestion,
   FileText,
+  Globe,
   GraduationCap,
   Layers,
   Package,
@@ -384,6 +387,59 @@ export default function PremiumPage() {
 
       {/* Content Area */}
       <div className="max-w-6xl mx-auto px-4 py-6">
+        {/* ── Global Mode Info Banner ── */}
+        {lMode === 'GLOBAL' && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+            className="mb-6"
+            role="region"
+            aria-label="শ্রেণি নির্বাচন প্রয়োজন"
+          >
+            <Alert className="bg-sky-50 dark:bg-sky-950/20 border-sky-200 dark:border-sky-800">
+              <Globe className="h-5 w-5 text-sky-600 dark:text-sky-400" aria-hidden="true" />
+              <AlertTitle className="text-sky-800 dark:text-sky-200 text-sm font-semibold">
+                সার্বজনীন মোডে প্যাকেজ কেনার জন্য শ্রেণি প্রয়োজন
+              </AlertTitle>
+              <AlertDescription className="text-sky-700 dark:text-sky-300">
+                <p className="text-xs leading-relaxed">
+                  আপনি বর্তমানে <strong>সার্বজনীন</strong> মোডে আছেন, যেখানে সব শ্রেণির কন্টেন্ট দেখানো হয়।
+                  প্যাকেজ কিনতে একটি নির্দিষ্ট শ্রেণি নির্বাচন করুন।
+                </p>
+                <div className="mt-3 flex items-center gap-3 flex-wrap">
+                  <div className="flex-1 min-w-[180px]">
+                    <Select
+                      value=""
+                      onValueChange={(value) => {
+                        if (value) {
+                          setPreference('CLASS_BASED', value)
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="h-9 bg-white dark:bg-card border-sky-200 dark:border-sky-700 text-xs">
+                        <GraduationCap className="h-3.5 w-3.5 text-sky-500 mr-1" />
+                        <SelectValue placeholder="শ্রেণি নির্বাচন করুন" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {metadata.classOptions.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value} className="text-xs">
+                            {opt.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <span className="text-[10px] text-sky-600 dark:text-sky-400 font-medium whitespace-nowrap">
+                    <AlertCircle className="inline h-3 w-3 mr-0.5" />
+                    একবার নির্বাচন করলেই প্যাকেজ কেনা যাবে
+                  </span>
+                </div>
+              </AlertDescription>
+            </Alert>
+          </motion.div>
+        )}
+
         {activeTab === 'bundles' ? (
           /* ============ BUNDLES TAB ============ */
           <AnimatePresence mode="wait">

@@ -9,6 +9,7 @@ import {
   Clock,
   FileQuestion,
   GraduationCap,
+  Info,
   Layers,
   Percent,
   ShoppingBag,
@@ -17,6 +18,8 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import RichContentRenderer from '@/components/ui/rich-content-renderer'
 import { useHierarchyMetadata } from '@/hooks/use-hierarchy-metadata'
 import { cn } from '@/lib/utils'
@@ -156,11 +159,72 @@ function PackageCard({ pkg, classLevel, isPurchased, isPending, onBuy }: Package
                 <Clock className="w-3.5 h-3.5" />
                 অপেক্ষমাণ
               </Button>
+            ) : !classLevel ? (
+              <div className="flex flex-col gap-0.5 items-end">
+                <div className="flex items-center gap-1.5">
+                  {/* Desktop: Tooltip on hover */}
+                  <span className="hidden sm:inline-block">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span
+                          tabIndex={0}
+                          className="inline-block cursor-not-allowed"
+                          aria-describedby="pkg-class-disabled-reason"
+                          aria-disabled="true"
+                        >
+                          <Button
+                            size="sm"
+                            className="gap-1.5 bg-muted text-muted-foreground border border-border/60 cursor-not-allowed h-8 pointer-events-none"
+                            disabled
+                          >
+                            <ShoppingBag className="w-3.5 h-3.5" />
+                            কিনুন
+                          </Button>
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="max-w-[220px] text-center">
+                        <p>এই প্যাকেজ কিনতে আগে একটি শ্রেণি নির্বাচন করুন</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </span>
+                  {/* Mobile: Popover on tap */}
+                  <span className="sm:hidden">
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <span
+                          tabIndex={0}
+                          className="inline-block cursor-not-allowed"
+                          aria-describedby="pkg-class-disabled-reason"
+                          aria-disabled="true"
+                        >
+                          <Button
+                            size="sm"
+                            className="gap-1.5 bg-muted text-muted-foreground border border-border/60 cursor-not-allowed h-8 pointer-events-none"
+                            disabled
+                          >
+                            <ShoppingBag className="w-3.5 h-3.5" />
+                            কিনুন
+                          </Button>
+                        </span>
+                      </PopoverTrigger>
+                      <PopoverContent side="top" className="max-w-[220px] text-center">
+                        <p className="text-xs">এই প্যাকেজ কিনতে আগে একটি শ্রেণি নির্বাচন করুন</p>
+                      </PopoverContent>
+                    </Popover>
+                  </span>
+                </div>
+                <p
+                  id="pkg-class-disabled-reason"
+                  className="text-[10px] text-muted-foreground text-right leading-tight"
+                >
+                  <Info className="inline w-3 h-3 mr-0.5 align-middle" />
+                  প্যাকেজ কিনতে একটি শ্রেণি নির্বাচন প্রয়োজন
+                </p>
+              </div>
             ) : (
               <Button
                 size="sm"
                 className="gap-1.5 bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-600 hover:to-cyan-600 text-white text-xs h-8"
-                disabled={!classLevel}
                 onClick={() => onBuy(pkg, classLevel)}
               >
                 <ShoppingBag className="w-3.5 h-3.5" />

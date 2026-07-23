@@ -68,9 +68,12 @@ export async function GET(request: Request) {
   }
 }
 
-async function _handleSubscriptionCreation(payment: { id: string; userId: string; contentId: string | null; classLevel: string | null }) {
+async function handleSubscriptionCreation(
+  payment: { id: string; userId: string; contentId: string | null; classLevel: string | null },
+  tx: Parameters<Parameters<typeof safeTransaction>[0]>[0]
+) {
   if (!payment.contentId || !payment.classLevel) return
-  const pkg = await db.contentPackage.findUnique({
+  const pkg = await tx.contentPackage.findUnique({
     where: { id: payment.contentId },
     select: { duration: true },
   })
@@ -80,19 +83,19 @@ async function _handleSubscriptionCreation(payment: { id: string; userId: string
   const endDate = new Date(startDate)
   endDate.setDate(endDate.getDate() + pkg.duration)
 
-  const existingSub = await db.userSubscription.findFirst({
+  const existingSub = await tx.userSubscription.findFirst({
     where: { userId: payment.userId, packageId: payment.contentId, classLevel: payment.classLevel },
   })
 
   if (!existingSub) {
-    await db.userSubscription.create({
+    await tx.userSubscription.create({
       data: { userId: payment.userId, packageId: payment.contentId, classLevel: payment.classLevel, startDate, endDate, isActive: true, paymentId: payment.id },
     })
   } else {
     const currentEnd = new Date(existingSub.endDate)
     const newEnd = currentEnd > startDate ? currentEnd : startDate
     newEnd.setDate(newEnd.getDate() + pkg.duration)
-    await db.userSubscription.update({ where: { id: existingSub.id }, data: { endDate: newEnd, isActive: true, paymentId: payment.id } })
+    await tx.userSubscription.update({ where: { id: existingSub.id }, data: { endDate: newEnd, isActive: true, paymentId: payment.id } })
   }
 }
 
@@ -221,6 +224,13 @@ export async function PATCH(request: Request) {
           await handleMCQExamPurchase({ id: existing.id, userId: existing.userId, contentId: existing.contentId }, tx)
         } else if (existing.contentType === 'cq-exam-package') {
           await handleCQExamPurchase({ id: existing.id, userId: existing.userId, contentId: existing.contentId }, tx)
+        } else if (existing.contentType === 'package') {
+          await handleSubscriptionCreation({
+            id: existing.id,
+            userId: existing.userId,
+            contentId: existing.contentId,
+            classLevel: existing.classLevel,
+          }, tx)
         }
       }
 
