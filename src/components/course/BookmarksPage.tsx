@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { Bookmark, Loader2, ArrowLeft, Crown, Layers, BookOpen, X } from 'lucide-react'
-import SafeImage from '@/components/ui/safe-image'
+import Thumbnail from '@/components/ui/thumbnail'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -85,8 +85,8 @@ export default function BookmarksPage() {
                     <X className="h-4 w-4" />
                   </button>
                   {course.thumbnail && (
-                    <div className="h-40 overflow-hidden">
-                      <SafeImage src={course.thumbnail} alt={course.title} width={640} height={360} className="h-full w-full object-cover" />
+                    <div className="overflow-hidden">
+                      <Thumbnail src={course.thumbnail} alt={course.title} size="full" className="rounded-none" />
                     </div>
                   )}
                   <CardContent className="p-5">

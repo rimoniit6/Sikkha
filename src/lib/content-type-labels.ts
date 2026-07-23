@@ -42,9 +42,13 @@ export async function getValidContentTypes(): Promise<string[]> {
   })
 
   cachedValidTypes = contentTypes.map(ct => ct.key)
-  // Include 'course' as it's not in the content_types table but needed for course purchases
-  if (!cachedValidTypes.includes('course')) {
-    cachedValidTypes.push('course')
+  // Include DB-independent types that may not exist in the content_types table
+  // (e.g., if seeds haven't been re-run after adding new content types)
+  const fallbackTypes = ['course', 'cq-exam-package', 'mcq-exam-package']
+  for (const ft of fallbackTypes) {
+    if (!cachedValidTypes.includes(ft)) {
+      cachedValidTypes.push(ft)
+    }
   }
   cacheTimestamp = Date.now()
   return cachedValidTypes

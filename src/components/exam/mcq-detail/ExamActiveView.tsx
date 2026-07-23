@@ -7,7 +7,9 @@ import { cn, toBengaliNumerals } from '@/lib/utils'
 import {
   ArrowLeft,
   ArrowRight,
+  CheckCircle2,
   Clock,
+  CloudOff,
   Flag,
   Loader2,
   Send,
@@ -32,6 +34,7 @@ interface ExamActiveViewProps {
   examQuestions: ExamQuestion[]
   currentIndex: number
   answers: Record<string, string>
+  skipped: Record<string, boolean>
   markedForReview: Record<string, boolean>
   timeRemaining: number
   submitting: boolean
@@ -41,9 +44,11 @@ interface ExamActiveViewProps {
   reviewedCount: number
   currentQuestion: ExamQuestion | undefined
   selectedAnswer: string | undefined
+  saveStatus: 'idle' | 'saving' | 'saved' | 'error'
   onSelectOption: (questionId: string, optionKey: string) => void
   onNext: () => void
   onPrev: () => void
+  onSkip: () => void
   onToggleMarkForReview: (mcqId: string) => void
   onSetCurrentIndex: (index: number) => void
   onSubmitDialogOpen: () => void
@@ -57,6 +62,7 @@ function ExamActiveView({
   examQuestions,
   currentIndex,
   answers,
+  skipped,
   markedForReview,
   timeRemaining,
   submitting,
@@ -66,9 +72,11 @@ function ExamActiveView({
   reviewedCount,
   currentQuestion,
   selectedAnswer,
+  saveStatus,
   onSelectOption,
   onNext,
   onPrev,
+  onSkip,
   onToggleMarkForReview: _onToggleMarkForReview,
   onSetCurrentIndex,
   onSubmitDialogOpen,
@@ -94,16 +102,40 @@ function ExamActiveView({
             </div>
           </div>
 
-          <Badge
-            variant={timeRemaining < 300 ? 'destructive' : 'secondary'}
-            className={cn(
-              'gap-1.5 tabular-nums shrink-0',
-              timeRemaining <= 60 && 'animate-pulse'
-            )}
-          >
-            <Clock className="size-3.5" />
-            {formatTime(timeRemaining)}
-          </Badge>
+          <div className="flex items-center gap-2">
+            {/* Auto-save status */}
+            <div className="hidden sm:flex items-center gap-1.5">
+              {saveStatus === 'saving' && (
+                <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <Loader2 className="size-3 animate-spin" />
+                  সংরক্ষণ করা হচ্ছে...
+                </span>
+              )}
+              {saveStatus === 'saved' && (
+                <span className="flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400">
+                  <CheckCircle2 className="size-3" />
+                  সংরক্ষিত
+                </span>
+              )}
+              {saveStatus === 'error' && (
+                <span className="flex items-center gap-1 text-xs text-destructive">
+                  <CloudOff className="size-3" />
+                  সংরক্ষণ ব্যর্থ
+                </span>
+              )}
+            </div>
+
+            <Badge
+              variant={timeRemaining < 300 ? 'destructive' : 'secondary'}
+              className={cn(
+                'gap-1.5 tabular-nums shrink-0',
+                timeRemaining <= 60 && 'animate-pulse'
+              )}
+            >
+              <Clock className="size-3.5" />
+              {formatTime(timeRemaining)}
+            </Badge>
+          </div>
         </div>
         <Progress value={progressPercent} className="h-1 rounded-none" />
       </div>
@@ -217,6 +249,15 @@ function ExamActiveView({
                 আগের
               </UIButton>
 
+              <UIButton
+                variant="ghost"
+                onClick={onSkip}
+                className="gap-2 text-muted-foreground hover:text-amber-600 hover:border-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/20 border border-transparent"
+              >
+                <ArrowRight className="size-4" />
+                স্কিপ
+              </UIButton>
+
               <div className="flex items-center gap-2">
                 {currentIndex < examQuestions.length - 1 ? (
                   <UIButton onClick={onNext} className="gap-2">
@@ -245,18 +286,23 @@ function ExamActiveView({
                   {examQuestions.map((q, i) => {
                     const isAnswered = !!answers[q.mcqId]
                     const isCurrent = i === currentIndex
+                    const isSkipped = !!skipped[q.mcqId]
                     const isMarked = !!markedForReview[q.mcqId]
+                    const isUnvisited = !isAnswered && !isSkipped && !isCurrent
                     return (
                       <button
                         key={q.id}
                         className={cn(
                           'flex items-center justify-center size-9 rounded-lg text-sm font-medium transition-colors relative',
                           isCurrent
-                            ? 'bg-emerald-500 text-white'
+                            ? 'bg-emerald-500 text-white shadow-md'
                             : isAnswered
                             ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
+                            : isSkipped
+                            ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
                             : 'bg-muted text-muted-foreground hover:bg-muted/80',
-                          isMarked && !isCurrent && 'ring-2 ring-amber-400 ring-offset-1'
+                          isMarked && !isCurrent && 'ring-2 ring-amber-400 ring-offset-1',
+                          isUnvisited && 'border border-dashed border-muted-foreground/30'
                         )}
                         onClick={() => onSetCurrentIndex(i)}
                       >
@@ -276,8 +322,12 @@ function ExamActiveView({
                     <span>উত্তর দেওয়া হয়েছে ({answeredCount})</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="size-3 rounded bg-muted" />
-                    <span>উত্তর দেওয়া হয়নি</span>
+                    <div className="size-3 rounded bg-amber-400" />
+                    <span>স্কিপ করা হয়েছে ({Object.values(skipped).filter(Boolean).length})</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="size-3 rounded bg-muted border border-dashed border-muted-foreground/30" />
+                    <span>দেখা হয়নি</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="size-3 rounded ring-2 ring-amber-400" />

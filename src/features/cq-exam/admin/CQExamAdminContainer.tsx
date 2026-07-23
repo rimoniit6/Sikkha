@@ -70,6 +70,11 @@ export default function AdminCQExamPackagesPage() {
     setPassMarks, setSetPassMarks,
     setShowCorrectAnswers, setSetShowCorrectAnswers,
     setEnablePartialGrading, setSetEnablePartialGrading,
+    setPracticeMode, setSetPracticeMode,
+    setAllowUnlimitedAttempts, setSetAllowUnlimitedAttempts,
+    setMaxAttempts, setSetMaxAttempts,
+    setReviewAnswers, setSetReviewAnswers,
+    setShowExplanations, setSetShowExplanations,
 
     searchDialogOpen, setSearchDialogOpen,
     searchCqs, setSearchCqs, searchCqLoading,
@@ -143,6 +148,7 @@ export default function AdminCQExamPackagesPage() {
               pkgIsPremium={pkgIsPremium} setPkgIsPremium={setPkgIsPremium}
               pkgIsActive={pkgIsActive} setPkgIsActive={setPkgIsActive} pkgOrder={pkgOrder} setPkgOrder={setPkgOrder}
               pkgStatus={pkgStatus} setPkgStatus={setPkgStatus} saving={saving} onSave={handleSavePackage} onCancel={() => setViewMode('list')}
+              onWorkflowTransition={() => { _fetchPackages(); if (editId) fetchPackageDetail(editId) }}
             />
           </motion.div>
         )}
@@ -211,6 +217,11 @@ export default function AdminCQExamPackagesPage() {
               setPassMarks={setPassMarks} setSetPassMarks={setSetPassMarks}
               setShowCorrectAnswers={setShowCorrectAnswers} setSetShowCorrectAnswers={setSetShowCorrectAnswers}
               setEnablePartialGrading={setEnablePartialGrading} setSetEnablePartialGrading={setSetEnablePartialGrading}
+              setPracticeMode={setPracticeMode} setSetPracticeMode={setSetPracticeMode}
+              setAllowUnlimitedAttempts={setAllowUnlimitedAttempts} setSetAllowUnlimitedAttempts={setSetAllowUnlimitedAttempts}
+              setMaxAttempts={setMaxAttempts} setSetMaxAttempts={setSetMaxAttempts}
+              setReviewAnswers={setReviewAnswers} setSetReviewAnswers={setSetReviewAnswers}
+              setShowExplanations={setShowExplanations} setSetShowExplanations={setSetShowExplanations}
               saving={saving} onSave={handleSaveSet} onCancel={() => setViewMode('package-detail')}
             />
           </motion.div>

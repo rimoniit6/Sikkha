@@ -57,6 +57,7 @@ interface CQPackageFormProps {
   saving: boolean
   onSave: () => void
   onCancel: () => void
+  onWorkflowTransition?: () => void
 }
 
 export function CQPackageForm({
@@ -65,7 +66,7 @@ export function CQPackageForm({
   pkgSubjectIds, setPkgSubjectIds, subjects, pkgPrice, setPkgPrice,
   pkgOriginalPrice, setPkgOriginalPrice, pkgIsPremium, setPkgIsPremium,
   pkgIsActive, setPkgIsActive, pkgOrder, setPkgOrder, pkgStatus, setPkgStatus,
-  saving, onSave, onCancel
+  saving, onSave, onCancel, onWorkflowTransition
 }: CQPackageFormProps) {
   return (
     <div className="space-y-4">
@@ -84,6 +85,7 @@ export function CQPackageForm({
           entityType="cQExamPackage"
           entityId={editId}
           compact
+          onTransition={onWorkflowTransition}
         />
       )}
 

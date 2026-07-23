@@ -3,7 +3,7 @@
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import SafeImage from '@/components/ui/safe-image'
+import Thumbnail from '@/components/ui/thumbnail'
 import { useContentTypes } from '@/hooks/use-content-types'
 import { useFeaturedCourses, type FeaturedItem } from '@/hooks/use-home-data'
 import { useSiteConfig } from '@/hooks/use-metadata'
@@ -78,7 +78,16 @@ export default function FeaturedCourses() {
                   <Card className="h-full border-border/50 hover:border-primary/30 hover:shadow-md transition-all duration-200 overflow-hidden rounded-xl sm:rounded-2xl">
                     <CardContent className="p-0">
                       <div className="aspect-video relative bg-muted flex items-center justify-center overflow-hidden">
-                        {item.thumbnail ? <SafeImage src={item.thumbnail} alt={item.title} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" /> : <Icon className="w-10 h-10 text-muted-foreground/50" />}
+                        {item.thumbnail ? (
+                              <Thumbnail
+                                src={item.thumbnail}
+                                alt={item.title}
+                                size="full"
+                                className="rounded-none transition-transform duration-300 group-hover:scale-105"
+                              />
+                            ) : (
+                              <Icon className="w-10 h-10 text-muted-foreground/50" />
+                            )}
                         {item.isPremium && <div className="absolute top-2 right-2"><Badge className="bg-amber-500 text-white text-[10px] sm:text-xs shadow-sm"><Lock className="w-3 h-3 mr-0.5" />প্রিমিয়াম</Badge></div>}
                       </div>
                       <div className="p-3 sm:p-4">

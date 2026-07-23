@@ -300,6 +300,19 @@ export async function POST(request: Request) {
         const { title, description, classId, subjectIds, price, originalPrice, thumbnail, isPremium, isActive, order, status } = body
         if (!title || !classId) return apiError('Title and class are required', 400)
 
+        // Check for duplicate title within the same class
+        const duplicateTitle = await db.cQExamPackage.findFirst({
+          where: {
+            title,
+            classId,
+            deletedAt: null,
+          },
+          select: { id: true },
+        })
+        if (duplicateTitle) {
+          return apiError('এই শ্রেণিতে একই নামের একটি প্যাকেজ ইতিমধ্যে বিদ্যমান।', 409, 'PACKAGE_NAME_EXISTS')
+        }
+
         const pkg = await db.$transaction(async (tx) => {
           const created = await tx.cQExamPackage.create({
             data: {
@@ -320,7 +333,7 @@ export async function POST(request: Request) {
 
       // Create set
       case 'create-set': {
-        const { packageId, title, description, scheduledDate, startTime, endTime, duration, marksPerQ, instructions, allowRetake, order, status, answerMode, showAnnotatedImages, autoPublishResults, maxImagesPerAnswer, gradingDeadline, passMarks, showCorrectAnswers, enablePartialGrading } = body
+        const { packageId, title, description, scheduledDate, startTime, endTime, duration, marksPerQ, instructions, allowRetake, order, status, answerMode, showAnnotatedImages, autoPublishResults, maxImagesPerAnswer, gradingDeadline, passMarks, showCorrectAnswers, enablePartialGrading, practiceMode, allowUnlimitedAttempts, maxAttempts, reviewAnswers, showExplanations } = body
         if (!packageId || !title || !scheduledDate) return apiError('Package, title, and date are required', 400)
 
         const set = await db.cQExamSet.create({
@@ -339,6 +352,11 @@ export async function POST(request: Request) {
             passMarks: passMarks ?? 0,
             showCorrectAnswers: showCorrectAnswers ?? false,
             enablePartialGrading: enablePartialGrading ?? true,
+            practiceMode: practiceMode ?? false,
+            allowUnlimitedAttempts: allowUnlimitedAttempts ?? true,
+            maxAttempts: maxAttempts ?? null,
+            reviewAnswers: reviewAnswers ?? true,
+            showExplanations: showExplanations ?? true,
             order: order ?? 0, status: status || 'DRAFT',
           },
         })
@@ -354,6 +372,12 @@ export async function POST(request: Request) {
         const { setId, cqIds } = body
         if (!setId || !cqIds?.length) return apiError('Set ID and CQ IDs are required', 400)
 
+        const rawSubMarks = body.subMarks
+        const marksArr: number[] = Array.isArray(rawSubMarks) && rawSubMarks.length > 0 && rawSubMarks.every((m: number) => typeof m === 'number' && m > 0)
+          ? rawSubMarks
+          : [1, 2, 3, 4]
+        const totalMarks = marksArr.reduce((a, b) => a + b, 0)
+
         // Get existing question count for ordering
         const existingCount = await db.cQExamSetQuestion.count({ where: { setId } })
 
@@ -366,8 +390,6 @@ export async function POST(request: Request) {
 
         // Filter to only new CQ IDs
         const newCqIds = (cqIds as string[]).filter((id: string) => !existingCqIds.has(id))
-        const defaultSubMarks = [1, 2, 3, 4]
-        const totalMarks = defaultSubMarks.reduce((a, b) => a + b, 0)
 
         if (newCqIds.length > 0) {
           // Batch create new questions
@@ -375,7 +397,7 @@ export async function POST(request: Request) {
             setId,
             cqId,
             marks: totalMarks,
-            subMarks: JSON.stringify(defaultSubMarks),
+            subMarks: JSON.stringify(marksArr),
             order: existingCount + cqIds.indexOf(cqId),
           }))
           await db.cQExamSetQuestion.createMany({ data })
@@ -438,6 +460,9 @@ export async function POST(request: Request) {
         if (!['mcq-single', 'mcq-multiple', 'fill-blanks', 'written'].includes(questionType)) {
           return apiError('Invalid question type', 400)
         }
+        if (config !== undefined && (typeof config !== 'object' || config === null || Array.isArray(config))) {
+          return apiError('Config must be a valid JSON object', 400)
+        }
 
         const existingCount = await db.cQExamSetQuestion.count({ where: { setId } })
 
@@ -487,6 +512,9 @@ export async function PUT(request: Request) {
         const existing = await db.cQExamPackage.findUnique({ where: { id } })
         if (!existing) return apiError('Package not found', 404)
 
+        // Check if package is soft-deleted
+        if (existing.deletedAt) return apiError('এই প্যাকেজটি মুছে ফেলা হয়েছে। এটি সম্পাদনা করা যাবে না।', 400, 'PACKAGE_DELETED')
+
         const allowed = ['title', 'description', 'classId', 'subjectIds', 'price', 'originalPrice', 'thumbnail', 'isPremium', 'isActive', 'order', 'status']
         const updateData: Record<string, unknown> = {}
         for (const key of allowed) {
@@ -496,6 +524,41 @@ export async function PUT(request: Request) {
         if (updateData.status && typeof updateData.status === 'string') {
           updateData.status = (updateData.status as string).toUpperCase()
         }
+
+        // Validate status transitions
+        if (updateData.status !== undefined && updateData.status !== existing.status) {
+          const validTransitions: Record<string, string[]> = {
+            DRAFT: ['PUBLISHED', 'ARCHIVED'],
+            PUBLISHED: ['ARCHIVED'],
+            ARCHIVED: ['DRAFT', 'PUBLISHED'],
+          }
+          const allowed = validTransitions[existing.status] || []
+          if (!allowed.includes(updateData.status as string)) {
+            return apiError(
+              `বর্তমান স্ট্যাটাস "${existing.status}" থেকে "${updateData.status}"-এ পরিবর্তন অনুমোদিত নয়।`,
+              400,
+              'INVALID_STATUS_TRANSITION'
+            )
+          }
+        }
+
+        // Check for duplicate title within the same class
+        if (updateData.title && typeof updateData.title === 'string' && updateData.title !== existing.title) {
+          const classIdCheck = updateData.classId || existing.classId
+          const duplicate = await db.cQExamPackage.findFirst({
+            where: {
+              title: updateData.title as string,
+              classId: classIdCheck as string,
+              id: { not: id },
+              deletedAt: null,
+            },
+            select: { id: true },
+          })
+          if (duplicate) {
+            return apiError('এই শ্রেণিতে একই নামের একটি প্যাকেজ ইতিমধ্যে বিদ্যমান।', 409, 'PACKAGE_NAME_EXISTS')
+          }
+        }
+
         if (updateData.subjectIds !== undefined) {
           updateData.subjectIds = JSON.stringify(updateData.subjectIds)
         }
@@ -503,6 +566,12 @@ export async function PUT(request: Request) {
         // Derive isPremium from price if price is being changed
         if (updateData.price !== undefined) {
           updateData.isPremium = deriveIsPremium(updateData.price)
+        }
+
+        // Validate classId exists if changed
+        if (updateData.classId && updateData.classId !== existing.classId) {
+          const classExists = await db.classCategory.findUnique({ where: { id: updateData.classId as string } })
+          if (!classExists) return apiError('নির্বাচিত শ্রেণিটি খুঁজে পাওয়া যায়নি।', 400, 'CLASS_NOT_FOUND')
         }
 
         const ipAddress = getClientIP(request)
@@ -529,7 +598,7 @@ export async function PUT(request: Request) {
         const setId = body.id
         if (!setId) return apiError('Set ID is required', 400)
 
-        const allowed = ['title', 'description', 'scheduledDate', 'startTime', 'endTime', 'duration', 'marksPerQ', 'instructions', 'allowRetake', 'order', 'status', 'answerMode', 'showAnnotatedImages', 'autoPublishResults', 'maxImagesPerAnswer', 'gradingDeadline', 'passMarks', 'showCorrectAnswers', 'enablePartialGrading']
+        const allowed = ['title', 'description', 'scheduledDate', 'startTime', 'endTime', 'duration', 'marksPerQ', 'instructions', 'allowRetake', 'order', 'status', 'answerMode', 'showAnnotatedImages', 'autoPublishResults', 'maxImagesPerAnswer', 'gradingDeadline', 'passMarks', 'showCorrectAnswers', 'enablePartialGrading', 'practiceMode', 'allowUnlimitedAttempts', 'maxAttempts', 'reviewAnswers', 'showExplanations']
         const updateData: Record<string, unknown> = {}
         for (const key of allowed) {
           if (body[key] !== undefined) updateData[key] = body[key]
@@ -555,12 +624,18 @@ export async function PUT(request: Request) {
       case 'remove-question': {
         const { setId, cqId, questionId } = body
         if (!setId || (!cqId && !questionId)) return apiError('Set ID and question/CQ ID are required', 400)
+
+        let questionData: Record<string, unknown> = { setId }
         if (questionId) {
+          const q = await db.cQExamSetQuestion.findUnique({ where: { id: questionId } })
+          if (q) questionData = { setId, questionId, cqId: q.cqId, type: q.type }
           await db.cQExamSetQuestion.delete({ where: { id: questionId } })
         } else {
+          questionData = { setId, cqId }
           await db.cQExamSetQuestion.delete({ where: { setId_cqId: { setId, cqId } } })
         }
         await recalculateSetTotals(setId)
+        await auditFromRequest(request, auth.user.id, AuditActions.CQ_EXAM_SET_QUESTIONS_REMOVE, 'cq_exam_set', setId, questionData, undefined, undefined)
         return apiResponse({ success: true })
       }
 
@@ -568,12 +643,19 @@ export async function PUT(request: Request) {
       case 'reorder-questions': {
         const { setId, questionOrders } = body
         if (!setId || !questionOrders) return apiError('Set ID and orders are required', 400)
-        for (const qo of questionOrders) {
-          await db.cQExamSetQuestion.update({
-            where: { id: qo.id },
-            data: { order: qo.order },
-          })
-        }
+        const beforeOrders = await db.cQExamSetQuestion.findMany({
+          where: { setId },
+          select: { id: true, order: true },
+        })
+        await Promise.all(
+          questionOrders.map((qo: { id: string; order: number }) =>
+            db.cQExamSetQuestion.update({
+              where: { id: qo.id },
+              data: { order: qo.order },
+            })
+          )
+        )
+        await auditFromRequest(request, auth.user.id, AuditActions.CQ_EXAM_REORDER_QUESTIONS, 'cq_exam_set', setId, { orders: beforeOrders }, { orders: questionOrders }, undefined)
         return apiResponse({ success: true })
       }
 
@@ -582,77 +664,60 @@ export async function PUT(request: Request) {
         const { submissionId, answers } = body
         if (!submissionId || !answers?.length) return apiError('Submission ID and answers required', 400)
 
-        // Fetch submission to get setId
+        // Fetch submission to get setId (outside transaction for early validation)
         const submission = await db.cQExamSubmission.findUnique({
           where: { id: submissionId },
-          select: { setId: true, userId: true },
+          select: { setId: true, userId: true, obtainedMarks: true, status: true },
         })
         if (!submission) return apiError('Submission not found', 404)
 
         // Enforce grading deadline
         try { await checkGradingDeadline(submission.setId) } catch (e) { return apiError((e as Error).message, 403) }
 
-        let totalObtained = 0
-        for (const ans of answers) {
-          if (ans.id) {
-            const updateData: Record<string, unknown> = {
-              obtainedMarks: ans.obtainedMarks ?? 0,
-              feedback: ans.feedback || null,
-              gradedAt: new Date(),
+        const updatedSubmission = await db.$transaction(async (tx) => {
+          let totalObtained = 0
+          for (const ans of answers) {
+            if (ans.id) {
+              const obtainedMarks = toDecimal(ans.obtainedMarks ?? 0)
+              await tx.cQExamAnswer.update({
+                where: { id: ans.id },
+                data: { obtainedMarks, feedback: ans.feedback || null, gradedAt: new Date() },
+              })
+              totalObtained += obtainedMarks
             }
-            await db.cQExamAnswer.update({ where: { id: ans.id }, data: updateData })
-            totalObtained += toDecimal(ans.obtainedMarks ?? 0)
           }
-        }
 
-        // Check if autoPublishResults is enabled for the set
-        const examSet = await db.cQExamSet.findUnique({
-          where: { id: submission.setId },
-          select: { autoPublishResults: true, id: true },
-        })
-
-        let newStatus: 'GRADED' | 'PUBLISHED' = 'GRADED'
-        if (examSet?.autoPublishResults) {
-          // Check if ALL submissions for this set are now graded
-          const pendingCount = await db.cQExamSubmission.count({
-            where: { setId: submission.setId, status: 'SUBMITTED' },
+          const examSet = await tx.cQExamSet.findUnique({
+            where: { id: submission.setId },
+            select: { autoPublishResults: true },
           })
-          if (pendingCount === 0) {
-            // All submissions are graded — auto-publish all graded submissions for this set
-            await db.cQExamSubmission.updateMany({
-              where: { setId: submission.setId, status: 'GRADED' },
-              data: { status: 'PUBLISHED' },
+
+          let newStatus: 'GRADED' | 'PUBLISHED' = 'GRADED'
+          if (examSet?.autoPublishResults) {
+            const pendingCount = await tx.cQExamSubmission.count({
+              where: { setId: submission.setId, status: 'SUBMITTED' },
             })
-            newStatus = 'PUBLISHED'
+            if (pendingCount === 0) {
+              await tx.cQExamSubmission.updateMany({
+                where: { setId: submission.setId, status: 'GRADED' },
+                data: { status: 'PUBLISHED' },
+              })
+              newStatus = 'PUBLISHED'
+            }
           }
-        }
 
-        const updatedSubmission = await db.cQExamSubmission.update({
-          where: { id: submissionId },
-          data: {
-            obtainedMarks: totalObtained,
-            status: newStatus,
-            gradedAt: new Date(),
-            gradedBy: auth?.user?.id || null,
-          },
+          return tx.cQExamSubmission.update({
+            where: { id: submissionId },
+            data: { obtainedMarks: totalObtained, status: newStatus, gradedAt: new Date(), gradedBy: auth?.user?.id || null },
+          })
         })
 
-        // Audit log — inside the same transaction as grading
-        await createAuditLog({
-          adminId: auth.user.id,
-          action: AuditActions.GRADE_UPDATE,
-          entityType: EntityTypes.SUBMISSION,
-          entityId: submissionId,
-          oldData: { obtainedMarks: 0, status: 'SUBMITTED' },
-          newData: { obtainedMarks: totalObtained, status: newStatus },
-          ipAddress: getClientIP(request),
-          userAgent: request.headers.get('user-agent') || undefined,
-        })
+        await auditFromRequest(request, auth.user.id, AuditActions.CQ_EXAM_SUBMISSION_GRADE, 'cq_exam_submission', submissionId, { obtainedMarks: submission.obtainedMarks, status: submission.status }, { obtainedMarks: updatedSubmission.obtainedMarks, status: updatedSubmission.status }, undefined)
 
         return apiResponse({ submission: updatedSubmission })
       }
 
-      // Bulk grade all pending submissions for a set (batched)
+      // Bulk grade all pending submissions for a set (batched, transactional)
       case 'bulk-grade': {
         const { setId, defaultMarks } = body
         if (!setId) return apiError('Set ID is required', 400)
@@ -664,75 +729,66 @@ export async function PUT(request: Request) {
           ? Math.max(0, defaultMarks)
           : 0
 
-        // Find all pending (submitted) submissions for this set with their answers
-        const pendingSubmissions = await db.cQExamSubmission.findMany({
-          where: { setId, status: 'SUBMITTED' },
-          include: { answers: true },
-        })
-
-        if (pendingSubmissions.length === 0) {
-          return apiResponse({ gradedCount: 0, defaultMarks: marks })
-        }
-
-        // Collect all answer IDs and compute obtained marks per submission
-        const answerUpdates: Array<{ id: string; obtainedMarks: number }> = []
-        const submissionUpdates: Array<{ id: string; obtainedMarks: number }> = []
-
-        for (const sub of pendingSubmissions) {
-          let totalObtained = 0
-          for (const ans of sub.answers) {
-            const answerMarks = Math.min(marks, toDecimal(ans.maxMarks || 0))
-            answerUpdates.push({ id: ans.id, obtainedMarks: answerMarks })
-            totalObtained += answerMarks
-          }
-          submissionUpdates.push({ id: sub.id, obtainedMarks: totalObtained })
-        }
-
-        // Batch update all answers
-        await Promise.all(
-          answerUpdates.map(({ id, obtainedMarks }) =>
-            db.cQExamAnswer.update({
-              where: { id },
-              data: { obtainedMarks, gradedAt: new Date() },
-            })
-          )
-        )
-
-        // Batch update all submissions
-        await Promise.all(
-          submissionUpdates.map(({ id, obtainedMarks }) =>
-            db.cQExamSubmission.update({
-              where: { id },
-              data: {
-                obtainedMarks,
-                status: 'GRADED',
-                gradedAt: new Date(),
-                gradedBy: auth?.user?.id || null,
-              },
-            })
-          )
-        )
-
-        // Check if autoPublishResults is enabled for the set
-        const bulkExamSet = await db.cQExamSet.findUnique({
-          where: { id: setId },
-          select: { autoPublishResults: true },
-        })
-        if (bulkExamSet?.autoPublishResults) {
-          // Check if ALL submissions for this set are now graded (no more 'submitted' left)
-          const remainingPending = await db.cQExamSubmission.count({
+        const result = await db.$transaction(async (tx) => {
+          const pendingSubmissions = await tx.cQExamSubmission.findMany({
             where: { setId, status: 'SUBMITTED' },
+            include: { answers: true },
           })
-          if (remainingPending === 0) {
-            // All submissions are graded — auto-publish all graded submissions for this set
-            await db.cQExamSubmission.updateMany({
-              where: { setId, status: 'GRADED' },
-              data: { status: 'PUBLISHED' },
-            })
-          }
-        }
 
-        return apiResponse({ gradedCount: pendingSubmissions.length, defaultMarks: marks })
+          if (pendingSubmissions.length === 0) {
+            return { gradedCount: 0, defaultMarks: marks }
+          }
+
+          const answerUpdates: Array<{ id: string; obtainedMarks: number }> = []
+          const submissionUpdates: Array<{ id: string; obtainedMarks: number }> = []
+
+          for (const sub of pendingSubmissions) {
+            let totalObtained = 0
+            for (const ans of sub.answers) {
+              const answerMarks = Math.min(marks, toDecimal(ans.maxMarks || 0))
+              answerUpdates.push({ id: ans.id, obtainedMarks: answerMarks })
+              totalObtained += answerMarks
+            }
+            submissionUpdates.push({ id: sub.id, obtainedMarks: totalObtained })
+          }
+
+          await Promise.all(
+            answerUpdates.map(({ id, obtainedMarks }) =>
+              tx.cQExamAnswer.update({ where: { id }, data: { obtainedMarks, gradedAt: new Date() } })
+            )
+          )
+
+          await Promise.all(
+            submissionUpdates.map(({ id, obtainedMarks }) =>
+              tx.cQExamSubmission.update({
+                where: { id },
+                data: { obtainedMarks, status: 'GRADED', gradedAt: new Date(), gradedBy: auth?.user?.id || null },
+              })
+            )
+          )
+
+          const bulkExamSet = await tx.cQExamSet.findUnique({
+            where: { id: setId },
+            select: { autoPublishResults: true },
+          })
+          if (bulkExamSet?.autoPublishResults) {
+            const remainingPending = await tx.cQExamSubmission.count({
+              where: { setId, status: 'SUBMITTED' },
+            })
+            if (remainingPending === 0) {
+              await tx.cQExamSubmission.updateMany({
+                where: { setId, status: 'GRADED' },
+                data: { status: 'PUBLISHED' },
+              })
+            }
+          }
+
+          await auditFromRequest(request, auth.user.id, AuditActions.CQ_EXAM_BULK_GRADE, 'cq_exam_set', setId, { count: pendingSubmissions.length, defaultMarks: 0 }, { gradedCount: pendingSubmissions.length, defaultMarks: marks }, tx as never)
+
+          return { gradedCount: pendingSubmissions.length, defaultMarks: marks }
+        })
+
+        return apiResponse(result)
       }
 
       // Save bulk grades by question — saves marks for all submissions' answers for one question (batched, transactional)
@@ -740,13 +796,15 @@ export async function PUT(request: Request) {
         const { submissions: gradeUpdates } = body
         if (!gradeUpdates?.length) return apiError('Submissions data required', 400)
 
-        // Enforce grading deadline — get setId from first submission
+        // Get setId from first submission before transaction
+        let firstSubSetId: string | null = null
         if (gradeUpdates[0]?.submissionId) {
           const firstSub = await db.cQExamSubmission.findUnique({
             where: { id: gradeUpdates[0].submissionId },
             select: { setId: true },
           })
           if (firstSub) {
+            firstSubSetId = firstSub.setId
             try { await checkGradingDeadline(firstSub.setId) } catch (e) { return apiError((e as Error).message, 403) }
           }
         }
@@ -767,14 +825,11 @@ export async function PUT(request: Request) {
               totalForSubmission += obtainedMarks
             }
           }
-          // Add to existing total from other questions (will be merged with current answers)
           const existingTotal = submissionTotals.get(submissionId) || 0
           submissionTotals.set(submissionId, existingTotal + totalForSubmission)
         }
 
-        // Execute all updates in a single transaction for atomicity
         await db.$transaction(async (tx) => {
-          // Batch update all answers
           if (answerUpdates.length > 0) {
             await Promise.all(
               answerUpdates.map(({ id, obtainedMarks }) =>
@@ -786,7 +841,6 @@ export async function PUT(request: Request) {
             )
           }
 
-          // Batch update all submissions
           await Promise.all(
             Array.from(submissionTotals.entries()).map(([submissionId, obtainedMarks]) =>
               tx.cQExamSubmission.update({
@@ -800,135 +854,107 @@ export async function PUT(request: Request) {
               })
             )
           )
+
+          await auditFromRequest(request, auth.user.id, AuditActions.CQ_EXAM_BULK_GRADE, 'cq_exam_set', firstSubSetId || 'bulk', { submissionsUpdated: 0 }, { submissionsUpdated: submissionTotals.size }, tx as never)
         })
 
-        const updatedCount = submissionTotals.size
-
-        // Check auto-publish for the set of the first submission (all items are for the same set)
-        let firstSubSetId: string | null = null
-        if (gradeUpdates.length > 0 && gradeUpdates[0].submissionId) {
-          const firstSub = await db.cQExamSubmission.findUnique({
-            where: { id: gradeUpdates[0].submissionId },
-            select: { setId: true },
+        // Check auto-publish
+        if (firstSubSetId) {
+          const bulkQExamSet = await db.cQExamSet.findUnique({
+            where: { id: firstSubSetId },
+            select: { autoPublishResults: true },
           })
-          if (firstSub) {
-            firstSubSetId = firstSub.setId
-            const bulkQExamSet = await db.cQExamSet.findUnique({
-              where: { id: firstSub.setId },
-              select: { autoPublishResults: true },
+          if (bulkQExamSet?.autoPublishResults) {
+            const remainingPending = await db.cQExamSubmission.count({
+              where: { setId: firstSubSetId, status: 'SUBMITTED' },
             })
-            if (bulkQExamSet?.autoPublishResults) {
-              const remainingPending = await db.cQExamSubmission.count({
-                where: { setId: firstSub.setId, status: 'SUBMITTED' },
+            if (remainingPending === 0) {
+              await db.cQExamSubmission.updateMany({
+                where: { setId: firstSubSetId, status: 'GRADED' },
+                data: { status: 'PUBLISHED' },
               })
-              if (remainingPending === 0) {
-                await db.cQExamSubmission.updateMany({
-                  where: { setId: firstSub.setId, status: 'GRADED' },
-                  data: { status: 'PUBLISHED' },
-                })
-              }
             }
           }
         }
 
-        // Audit log for bulk grading — inside the same transaction
-        await createAuditLog({
-          adminId: auth.user.id,
-          action: AuditActions.GRADE_BULK,
-          entityType: EntityTypes.SUBMISSION,
-          entityId: firstSubSetId || 'bulk',
-          oldData: { count: gradeUpdates.length },
-          newData: { updatedCount },
-          ipAddress: getClientIP(request),
-          userAgent: request.headers.get('user-agent') || undefined,
-        })
-
-        return apiResponse({ updatedCount })
+        return apiResponse({ updatedCount: submissionTotals.size })
       }
 
-      // Publish results
+      // Publish results (transactional)
       case 'publish-results': {
         const { setId } = body
         if (!setId) return apiError('Set ID is required', 400)
 
-        // Get set title for notification message
-        const cqSet = await db.cQExamSet.findUnique({
-          where: { id: setId },
-          select: { title: true },
-        })
-
-        // Update all graded submissions to published
-        await db.cQExamSubmission.updateMany({
-          where: { setId, status: 'GRADED' },
-          data: { status: 'PUBLISHED' },
-        })
-
-        // Find all affected users to notify them
-        const publishedSubmissions = await db.cQExamSubmission.findMany({
-          where: { setId, status: 'PUBLISHED' },
-          select: { userId: true },
-        })
-
-        // Create notifications for each student
-        const userIds = [...new Set(publishedSubmissions.map(s => s.userId))]
-        if (userIds.length > 0) {
-          await db.notification.createMany({
-            data: userIds.map(uid => ({
-              userId: uid,
-              title: 'ফলাফল প্রকাশিত',
-              message: `"${cqSet?.title || ''}" পরীক্ষার ফলাফল প্রকাশিত হয়েছে। এখন আপনার প্রাপ্ত নম্বর ও উত্তর দেখতে পারেন।`,
-              type: 'SUCCESS',
-              link: null,
-            })),
+        const result = await db.$transaction(async (tx) => {
+          const cqSet = await tx.cQExamSet.findUnique({
+            where: { id: setId },
+            select: { title: true },
           })
-        }
 
-        // Audit log
-        await createAuditLog({
-          adminId: auth.user.id,
-          action: 'publish_results',
-          entityType: EntityTypes.SUBMISSION,
-          entityId: setId,
-          oldData: { status: 'GRADED' },
-          newData: { status: 'PUBLISHED', notifiedCount: userIds.length },
-          ipAddress: getClientIP(request),
-          userAgent: request.headers.get('user-agent') || undefined,
+          // Update all graded submissions to published
+          await tx.cQExamSubmission.updateMany({
+            where: { setId, status: 'GRADED' },
+            data: { status: 'PUBLISHED' },
+          })
+
+          // Find all affected users to notify them
+          const publishedSubmissions = await tx.cQExamSubmission.findMany({
+            where: { setId, status: 'PUBLISHED' },
+            select: { userId: true },
+          })
+
+          const userIds = [...new Set(publishedSubmissions.map(s => s.userId))]
+
+          // Create notifications for each student
+          if (userIds.length > 0) {
+            await tx.notification.createMany({
+              data: userIds.map(uid => ({
+                userId: uid,
+                title: 'ফলাফল প্রকাশিত',
+                message: `"${cqSet?.title || ''}" পরীক্ষার ফলাফল প্রকাশিত হয়েছে। এখন আপনার প্রাপ্ত নম্বর ও উত্তর দেখতে পারেন।`,
+                type: 'SUCCESS',
+                link: null,
+              })),
+            })
+          }
+
+          // Audit log
+          await auditFromRequest(request, auth.user.id, AuditActions.CQ_EXAM_RESULTS_PUBLISH, 'cq_exam_set', setId, { status: 'GRADED' }, { status: 'PUBLISHED', notifiedCount: userIds.length }, tx as never)
+
+          return { notifiedCount: userIds.length }
         })
 
-        return apiResponse({ success: true, notifiedCount: userIds.length })
+        return apiResponse({ success: true, ...result })
       }
 
-      // Grant individual retake permission
+      // Grant individual retake permission (always sets canRetake=true)
       case 'allow-retake': {
-        const { submissionId } = body
+        const { submissionId, retake } = body
         if (!submissionId) return apiError('Submission ID is required', 400)
+
+        const newCanRetake = retake !== undefined ? !!retake : true
 
         const submission = await db.cQExamSubmission.findUnique({
           where: { id: submissionId },
           select: { canRetake: true },
         })
         if (!submission) return apiError('Submission not found', 404)
+        if (submission.canRetake === newCanRetake) {
+          return apiResponse({ canRetake: newCanRetake })
+        }
 
-        const oldCanRetake = submission.canRetake
-        const newCanRetake = !submission.canRetake
-        await db.cQExamSubmission.update({
-          where: { id: submissionId },
-          data: { canRetake: newCanRetake },
+        const updated = await db.$transaction(async (tx) => {
+          const res = await tx.cQExamSubmission.update({
+            where: { id: submissionId },
+            data: { canRetake: newCanRetake },
+          })
+
+          await auditFromRequest(request, auth.user.id, newCanRetake ? AuditActions.RETAKE_APPROVE : AuditActions.RETAKE_REJECT, 'cq_exam_submission', submissionId, { canRetake: submission.canRetake }, { canRetake: newCanRetake }, tx as never)
+
+          return res
         })
 
-        // Audit log
-        await createAuditLog({
-          adminId: auth.user.id,
-          action: newCanRetake ? AuditActions.RETAKE_APPROVE : AuditActions.RETAKE_REJECT,
-          entityType: EntityTypes.SUBMISSION,
-          entityId: submissionId,
-          oldData: { canRetake: oldCanRetake },
-          newData: { canRetake: newCanRetake },
-          ipAddress: getClientIP(request),
-          userAgent: request.headers.get('user-agent') || undefined,
-        })
-
-        return apiResponse({ canRetake: newCanRetake })
+        return apiResponse({ canRetake: updated.canRetake })
       }
 
       // List retake requests for a set
@@ -948,10 +974,9 @@ export async function PUT(request: Request) {
         return apiResponse({ requests })
       }
 
-      // Approve or reject a retake request
+      // Approve or reject a retake request (transactional)
       case 'approve-retake-request': {
         const { requestId, approve } = body
-        // approve = true → approved, approve = false → rejected
         if (!requestId) return apiError('Request ID is required', 400)
 
         const existing = await db.cQExamRetakeRequest.findUnique({
@@ -961,69 +986,55 @@ export async function PUT(request: Request) {
 
         const newStatus = approve ? 'APPROVED' : 'REJECTED'
 
-        await db.cQExamRetakeRequest.update({
-          where: { id: requestId },
-          data: {
-            status: newStatus,
-            reviewedBy: auth?.user?.id || null,
-            reviewedAt: new Date(),
-          },
-        })
-
-        // If approved, set canRetake on the user's submission and notify
-        if (approve) {
-          const submission = await db.cQExamSubmission.findUnique({
-            where: { userId_setId: { userId: existing.userId, setId: existing.setId } },
+        await db.$transaction(async (tx) => {
+          await tx.cQExamRetakeRequest.update({
+            where: { id: requestId },
+            data: { status: newStatus, reviewedBy: auth?.user?.id || null, reviewedAt: new Date() },
           })
-          if (submission) {
-            await db.cQExamSubmission.update({
-              where: { id: submission.id },
-              data: { canRetake: true },
+
+          if (approve) {
+            const submission = await tx.cQExamSubmission.findFirst({
+              where: { userId: existing.userId, setId: existing.setId },
+              orderBy: { attemptNumber: 'desc' },
+            })
+            if (submission) {
+              await tx.cQExamSubmission.update({
+                where: { id: submission.id },
+                data: { canRetake: true },
+              })
+            }
+
+            const setInfo = await tx.cQExamSet.findUnique({
+              where: { id: existing.setId },
+              select: { title: true },
+            })
+            await tx.notification.create({
+              data: {
+                userId: existing.userId,
+                title: 'পুনরায় পরীক্ষার অনুমতি',
+                message: `"${setInfo?.title || ''}" পরীক্ষাটি পুনরায় দেওয়ার অনুমতি দেওয়া হয়েছে। আপনি এখন আবার পরীক্ষা দিতে পারবেন।`,
+                type: 'SUCCESS',
+                link: null,
+              },
+            })
+          } else {
+            const setInfo = await tx.cQExamSet.findUnique({
+              where: { id: existing.setId },
+              select: { title: true },
+            })
+            await tx.notification.create({
+              data: {
+                userId: existing.userId,
+                title: 'পুনরায় পরীক্ষার অনুরোধ প্রত্যাখ্যান',
+                message: `"${setInfo?.title || ''}" পরীক্ষাটি পুনরায় দেওয়ার অনুরোধ প্রত্যাখ্যান করা হয়েছে।`,
+                type: 'ERROR',
+                link: null,
+              },
             })
           }
-
-          // Notify the student
-          const setInfo = await db.cQExamSet.findUnique({
-            where: { id: existing.setId },
-            select: { title: true },
-          })
-          await db.notification.create({
-            data: {
-              userId: existing.userId,
-              title: 'পুনরায় পরীক্ষার অনুমতি',
-              message: `"${setInfo?.title || ''}" পরীক্ষাটি পুনরায় দেওয়ার অনুমতি দেওয়া হয়েছে। আপনি এখন আবার পরীক্ষা দিতে পারবেন।`,
-              type: 'SUCCESS',
-              link: null,
-            },
-          })
-        } else {
-          // Notify the student about rejection
-          const setInfo = await db.cQExamSet.findUnique({
-            where: { id: existing.setId },
-            select: { title: true },
-          })
-          await db.notification.create({
-            data: {
-              userId: existing.userId,
-              title: 'পুনরায় পরীক্ষার অনুরোধ প্রত্যাখ্যান',
-              message: `"${setInfo?.title || ''}" পরীক্ষাটি পুনরায় দেওয়ার অনুরোধ প্রত্যাখ্যান করা হয়েছে।`,
-              type: 'ERROR',
-              link: null,
-            },
-          })
-        }
-
-        // Audit log
-        await createAuditLog({
-          adminId: auth.user.id,
-          action: approve ? AuditActions.RETAKE_APPROVE : AuditActions.RETAKE_REJECT,
-          entityType: 'retake_request',
-          entityId: requestId,
-          oldData: { status: existing.status },
-          newData: { status: newStatus },
-          ipAddress: getClientIP(request),
-          userAgent: request.headers.get('user-agent') || undefined,
         })
+
+        await auditFromRequest(request, auth.user.id, approve ? AuditActions.CQ_EXAM_RETAKE_APPROVE : AuditActions.RETAKE_REJECT, 'retake_request', requestId, { status: existing.status }, { status: newStatus }, undefined)
 
         return apiResponse({ success: true, status: newStatus })
       }
@@ -1032,6 +1043,12 @@ export async function PUT(request: Request) {
       case 'update-non-cq-question': {
         const { questionId, stem, stemImage, config, marks } = body
         if (!questionId) return apiError('Question ID required', 400)
+
+        if (config !== undefined && (typeof config !== 'object' || config === null || Array.isArray(config))) {
+          return apiError('Config must be a valid JSON object', 400)
+        }
+
+        const existing = await db.cQExamSetQuestion.findUnique({ where: { id: questionId } })
 
         const updateData: Record<string, unknown> = {}
         if (stem !== undefined) updateData.stem = stem || null
@@ -1045,7 +1062,10 @@ export async function PUT(request: Request) {
         })
 
         const setQ = await db.cQExamSetQuestion.findFirst({ where: { id: questionId } })
-        if (setQ) await recalculateSetTotals(setQ.setId)
+        if (setQ) {
+          await recalculateSetTotals(setQ.setId)
+          await auditFromRequest(request, auth.user.id, AuditActions.CQ_EXAM_QUESTION_UPDATE, 'cq_exam_set', setQ.setId, existing || undefined, question, undefined)
+        }
 
         return apiResponse({ question })
       }
@@ -1059,6 +1079,8 @@ export async function PUT(request: Request) {
           ? subMarks
           : [1, 2, 3, 4]
         const totalMarks = marksArr.reduce((a, b) => a + b, 0)
+
+        const existing = await db.cQExamSetQuestion.findUnique({ where: { id: questionId } })
 
         const question = await db.cQExamSetQuestion.update({
           where: { id: questionId },
@@ -1078,9 +1100,11 @@ export async function PUT(request: Request) {
           },
         })
 
-        // Recalculate set totals
         const setQ = await db.cQExamSetQuestion.findFirst({ where: { id: questionId } })
-        if (setQ) await recalculateSetTotals(setQ.setId)
+        if (setQ) {
+          await recalculateSetTotals(setQ.setId)
+          await auditFromRequest(request, auth.user.id, AuditActions.CQ_EXAM_QUESTION_UPDATE, 'cq_exam_set', setQ.setId, existing || undefined, question, undefined)
+        }
 
         return apiResponse({ question })
       }
@@ -1090,53 +1114,71 @@ export async function PUT(request: Request) {
         const { questionId, marks } = body
         if (!questionId || marks === undefined) return apiError('Question ID and marks are required', 400)
 
+        const existing = await db.cQExamSetQuestion.findUnique({ where: { id: questionId } })
         const question = await db.cQExamSetQuestion.update({
           where: { id: questionId },
           data: { marks: parseFloat(marks) || 0 },
         })
 
         const setQ = await db.cQExamSetQuestion.findFirst({ where: { id: questionId } })
-        if (setQ) await recalculateSetTotals(setQ.setId)
+        if (setQ) {
+          await recalculateSetTotals(setQ.setId)
+          await auditFromRequest(request, auth.user.id, AuditActions.CQ_EXAM_QUESTION_UPDATE, 'cq_exam_set', setQ.setId, existing ? { marks: existing.marks } : undefined, { marks: question.marks }, undefined)
+        }
 
         return apiResponse({ question })
       }
 
-      // Reopen grading — revert a graded submission back to submitted for re-editing
+      // Reopen grading — revert a graded submission back to submitted for re-editing (transactional)
       case 'reopen-grading': {
         const { submissionId } = body
         if (!submissionId) return apiError('Submission ID is required', 400)
 
-        await db.cQExamSubmission.update({
-          where: { id: submissionId },
-          data: { status: 'SUBMITTED', gradedAt: null, gradedBy: null },
-        })
+        await db.$transaction(async (tx) => {
+          const submission = await tx.cQExamSubmission.findUnique({
+            where: { id: submissionId },
+            select: { setId: true, status: true, obtainedMarks: true },
+          })
 
-        // Also clear obtainedMarks and feedback on answers so they can be re-graded
-        const answers = await db.cQExamAnswer.findMany({
-          where: { submissionId },
-          select: { id: true },
-        })
-        if (answers.length > 0) {
-          await Promise.all(
-            answers.map(ans =>
-              db.cQExamAnswer.update({
-                where: { id: ans.id },
-                data: { obtainedMarks: 0, feedback: null, gradedAt: null },
-              })
+          await tx.cQExamSubmission.update({
+            where: { id: submissionId },
+            data: { status: 'SUBMITTED', obtainedMarks: 0, gradedAt: null, gradedBy: null },
+          })
+
+          const answers = await tx.cQExamAnswer.findMany({
+            where: { submissionId },
+            select: { id: true },
+          })
+          if (answers.length > 0) {
+            await Promise.all(
+              answers.map(ans =>
+                tx.cQExamAnswer.update({
+                  where: { id: ans.id },
+                  data: { obtainedMarks: 0, feedback: null, gradedAt: null },
+                })
+              )
             )
-          )
-        }
+          }
+
+          if (submission) {
+            await auditFromRequest(request, auth.user.id, AuditActions.CQ_EXAM_GRADING_REOPEN, 'cq_exam_set', submission.setId, { status: submission.status, obtainedMarks: submission.obtainedMarks }, { status: 'SUBMITTED', obtainedMarks: 0 }, tx as never)
+          }
+        })
 
         return apiResponse({ success: true })
       }
 
-      // Save annotation on image
+      // Save annotation on image — validate JSON format
       case 'save-annotation': {
         const { imageId, annotations } = body
         if (!imageId) return apiError('Image ID is required', 400)
+        if (annotations !== undefined && annotations !== null) {
+          try { JSON.parse(typeof annotations === 'string' ? annotations : JSON.stringify(annotations)) }
+          catch { return apiError('Invalid JSON format for annotations', 400) }
+        }
         await db.cQExamAnswerImage.update({
           where: { id: imageId },
-          data: { annotations: annotations || null },
+          data: { annotations: annotations !== undefined ? (typeof annotations === 'string' ? annotations : JSON.stringify(annotations)) : null },
         })
         return apiResponse({ success: true })
       }
@@ -1181,7 +1223,10 @@ export async function DELETE(request: Request) {
         const packageId = searchParams.get('packageId')
         if (!id) return apiError('Set ID is required', 400)
         await db.$transaction(async (tx) => {
-          await tx.cQExamSet.delete({ where: { id } })
+          await tx.cQExamSet.update({
+            where: { id },
+            data: { status: 'ARCHIVED' },
+          })
           if (packageId) {
             const count = await tx.cQExamSet.count({ where: { packageId } })
             await tx.cQExamPackage.update({

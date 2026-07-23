@@ -76,6 +76,7 @@ export type PackageFormState = {
   pkgOriginalPrice: string
   pkgThumbnail: string
   pkgIsActive: boolean
+  pkgIsPremium: boolean
   pkgOrder: string
   pkgStatus: string
 }
@@ -93,6 +94,7 @@ export const initialPackageFormState: PackageFormState = {
   pkgOriginalPrice: '',
   pkgThumbnail: '',
   pkgIsActive: true,
+  pkgIsPremium: true,
   pkgOrder: '',
   pkgStatus: 'DRAFT',
 }
@@ -123,6 +125,14 @@ export type SetFormState = {
   setNegativeMarks: string
   setInstructions: string
   setAllowRetake: boolean
+  setPracticeMode: boolean
+  setAllowUnlimitedAttempts: boolean
+  setMaxAttempts: string
+  setReviewAnswers: boolean
+  setShowExplanations: boolean
+  setShowCorrectAnswers: boolean
+  setAutoPublishResults: boolean
+  setPassMarks: string
   setOrder: string
   setStatus: string
 }
@@ -142,6 +152,14 @@ export const initialSetFormState: SetFormState = {
   setNegativeMarks: '0',
   setInstructions: '',
   setAllowRetake: false,
+  setPracticeMode: true,
+  setAllowUnlimitedAttempts: true,
+  setMaxAttempts: '',
+  setReviewAnswers: true,
+  setShowExplanations: true,
+  setShowCorrectAnswers: true,
+  setAutoPublishResults: false,
+  setPassMarks: '',
   setOrder: '0',
   setStatus: 'DRAFT',
 }

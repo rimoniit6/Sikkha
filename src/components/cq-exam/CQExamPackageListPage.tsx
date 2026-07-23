@@ -1,7 +1,7 @@
 'use client'
 
-import Image from 'next/image'
 import { useState, useEffect, useCallback, useRef } from 'react'
+import Thumbnail from '@/components/ui/thumbnail'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   ArrowLeft,
@@ -131,22 +131,20 @@ function PackageCard({ pkg, purchased, pending, onBuy, onView, buyingId }: Packa
       <Card className="overflow-hidden border-border/50 hover:border-emerald-300 dark:hover:border-emerald-700 transition-colors h-full flex flex-col">
         <CardContent className="p-0 flex flex-col flex-1">
           <div className="relative h-24 bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/30 flex items-center justify-center overflow-hidden">
-            {pkg.thumbnail ? (
-              <Image
-                src={pkg.thumbnail}
-                alt={pkg.title}
-                fill
-                className="object-cover"
-                unoptimized
-              />
-            ) : (
-              <div className="flex flex-col items-center gap-1.5 text-emerald-500">
-                <AlignLeft className="size-8" />
-                <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">
-                  {toBengaliNumerals(pkg._count?.examSets || 0)}টি সেট
-                </span>
-              </div>
-            )}
+            <Thumbnail
+              src={pkg.thumbnail}
+              alt={pkg.title}
+              size="full"
+              fallbackIcon={
+                <div className="flex flex-col items-center gap-1.5 text-emerald-500">
+                  <AlignLeft className="size-8" />
+                  <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                    {toBengaliNumerals(pkg._count?.examSets || 0)}টি সেট
+                  </span>
+                </div>
+              }
+              clickable={false}
+            />
             <div className="absolute top-2 right-2">
               {pkg.isPremium && pkg.price > 0 ? (
                 <Badge className="gap-1 bg-amber-500 text-white border-0 shadow-sm">

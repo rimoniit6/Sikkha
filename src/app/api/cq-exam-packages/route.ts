@@ -1,10 +1,16 @@
 import { db } from '@/lib/db'
 import { apiError, withCsrf } from '@/lib/api-utils'
 import { verifyAuth } from '@/lib/auth'
-import { getExamTimeMs, getDhakaNow } from '@/lib/date-utils'
 import { NextResponse } from 'next/server'
-import { resolveCourseLayerAccess } from '@/lib/course-access-resolver'
 import { toDecimal } from '@/lib/decimal'
+import { validateExamAccess, getExamTimeWindow } from '@/features/shared/exam-engine'
+import logger from '@/lib/logger'
+
+function getMaxPracticeAttempts(set: { allowUnlimitedAttempts: boolean; maxAttempts: number | null }): number | null {
+  if (set.allowUnlimitedAttempts) return null // unlimited
+  if (set.maxAttempts != null && set.maxAttempts > 0) return set.maxAttempts
+  return 0 // effectively blocked
+}
 
 export async function GET(request: Request) {
   try {
@@ -77,19 +83,10 @@ export async function GET(request: Request) {
       let hasPendingPayment = false
       let accessSource: 'direct_purchase' | 'course' | 'none' = 'none'
       if (userId) {
-        const purchase = await db.cQExamPackagePurchase.findUnique({
-          where: { userId_packageId: { userId, packageId: id } },
-        })
-        hasPurchased = !!purchase?.isActive
-        if (hasPurchased) accessSource = 'direct_purchase'
-
-        // Course-granted access check
-        if (!hasPurchased) {
-          const courseAccess = await resolveCourseLayerAccess(userId, 'cq-exam-package', id)
-          if (courseAccess.hasAccess) {
-            hasPurchased = true
-            accessSource = 'course'
-          }
+        const access = await validateExamAccess(userId, id, 'cq')
+        if (access.hasAccess) {
+          hasPurchased = true
+          accessSource = access.accessSource
         }
 
         // Check for pending payment if not purchased
@@ -123,13 +120,35 @@ export async function GET(request: Request) {
             timeTaken: true,
             status: true,
             canRetake: true,
+            attemptNumber: true,
+            practiceMode: true,
             set: { select: { id: true, title: true, totalQuestions: true, totalMarks: true } },
           },
           orderBy: { createdAt: 'desc' },
         })
       }
 
-      return NextResponse.json({ success: true, data: { package: pkg, hasPurchased, accessSource, hasPendingPayment, submissions } })
+      // ── Enrich each exam set with practice availability ──
+      const enrichedSets = pkg.examSets.map((set) => {
+        const setSubmissions = submissions.filter((s: any) => s.setId === set.id)
+        const totalAttempts = setSubmissions.length
+        const maxAttempts = set.allowUnlimitedAttempts ? null : (set.maxAttempts && set.maxAttempts > 0 ? set.maxAttempts : null)
+        const attemptLimitReached = maxAttempts !== null && totalAttempts >= maxAttempts
+
+        return {
+          ...set,
+          practiceAvailability: hasPurchased && set.practiceMode
+            ? attemptLimitReached
+              ? 'limit-reached'
+              : 'available'
+            : 'unavailable',
+          totalPracticeAttempts: totalAttempts,
+          maxAttempts: maxAttempts,
+          practiceMode: set.practiceMode,
+        }
+      })
+
+      return NextResponse.json({ success: true, data: { package: { ...pkg, examSets: enrichedSets }, hasPurchased, accessSource, hasPendingPayment, submissions } })
     }
 
     // Check purchase status for a user - requires auth
@@ -143,28 +162,15 @@ export async function GET(request: Request) {
         return apiError('ক্রয় অবস্থা দেখতে লগইন করুন', 401, 'UNAUTHORIZED')
       }
 
-      const purchaseRecord = await db.cQExamPackagePurchase.findUnique({
-        where: {
-          userId_packageId: {
-            userId,
-            packageId,
-          },
-        },
-      })
+      const access = await validateExamAccess(userId, packageId, 'cq')
 
-      let purchased = !!(purchaseRecord && purchaseRecord.isActive)
-      let accessSource: 'direct_purchase' | 'course' | 'none' = 'none'
-
-      if (purchased) {
-        accessSource = 'direct_purchase'
-      } else {
-        // Course-granted access check
-        const courseAccess = await resolveCourseLayerAccess(userId, 'cq-exam-package', packageId)
-        if (courseAccess.hasAccess) {
-          purchased = true
-          accessSource = 'course'
-        }
-      }
+      const purchased = access.hasAccess
+      const accessSource = access.accessSource
+      const purchaseRecord = purchased && access.accessSource === 'direct_purchase'
+        ? await db.cQExamPackagePurchase.findUnique({
+            where: { userId_packageId: { userId, packageId } },
+          })
+        : null
 
       // Check for pending payment
       let pendingPayment = false
@@ -196,6 +202,11 @@ export async function GET(request: Request) {
     if (action === 'my-retake-requests') {
       const packageId = searchParams.get('packageId')
       if (!userId || !packageId) return apiError('Package ID required', 400)
+
+      const access = await validateExamAccess(userId, packageId, 'cq')
+      if (!access.hasAccess) {
+        return apiError('কোন রিটেক অনুরোধ পাওয়া যায়নি', 404, 'NO_RETAKE_REQUESTS')
+      }
 
       const requests = await db.cQExamRetakeRequest.findMany({
         where: {
@@ -288,16 +299,8 @@ export async function GET(request: Request) {
       if (set.status !== 'PUBLISHED') return apiError('পরীক্ষা সেটটি প্রকাশিত হয়নি', 404)
 
       if (set.package.isPremium) {
-        const purchase = await db.cQExamPackagePurchase.findUnique({
-          where: { userId_packageId: { userId, packageId: set.package.id } },
-        })
-        const hasDirectPurchase = purchase?.isActive ?? false
-        let hasCourseAccess = false
-        if (!hasDirectPurchase) {
-          const courseAccess = await resolveCourseLayerAccess(userId, 'cq-exam-package', set.package.id)
-          hasCourseAccess = courseAccess.hasAccess
-        }
-        if (!hasDirectPurchase && !hasCourseAccess) {
+        const access = await validateExamAccess(userId, set.package.id, 'cq')
+        if (!access.hasAccess) {
           return apiError('আপনি এই প্যাকেজটি কিনেননি। প্রথমে প্যাকেজটি কিনুন।', 403, 'NOT_PURCHASED')
         }
       }
@@ -307,7 +310,7 @@ export async function GET(request: Request) {
 
     return apiError('Unknown action', 400)
   } catch (error) {
-    console.error('CQ Exam API error:', error)
+    logger.error('CQ Exam API error', error, { route: 'cq-exam-packages', method: 'GET' })
     return apiError('Internal server error', 500)
   }
 }
@@ -343,26 +346,27 @@ export async function POST(request: Request) {
       if (set.status !== 'PUBLISHED') return apiError('পরীক্ষা সেটটি প্রকাশিত হয়নি', 404)
 
       // Check purchase for premium packages
+      let hasPurchase = false
       if (set.package.isPremium) {
-        const purchase = await db.cQExamPackagePurchase.findUnique({
-          where: { userId_packageId: { userId, packageId: set.package.id } },
-        })
-        const hasDirectPurchase = purchase?.isActive ?? false
-        let hasCourseAccess = false
-        if (!hasDirectPurchase) {
-          const courseAccess = await resolveCourseLayerAccess(userId, 'cq-exam-package', set.package.id)
-          hasCourseAccess = courseAccess.hasAccess
-        }
-        if (!hasDirectPurchase && !hasCourseAccess) {
+        const access = await validateExamAccess(userId, set.package.id, 'cq')
+        hasPurchase = access.hasAccess
+        if (!hasPurchase) {
+          logger.warn('exam_access_denied', { userId, packageId: set.packageId, reason: 'not_purchased' })
           return apiError('আপনি এই প্যাকেজটি কিনেননি। প্রথমে প্যাকেজটি কিনুন।', 403)
         }
       }
 
-      // Check scheduled date + startTime
-      const now = getDhakaNow()
-      const examStartMs = getExamTimeMs(set.scheduledDate, set.startTime || '00:00')
-      if (now.epochMs < examStartMs) {
-        return apiError('পরীক্ষা এখনো শুরু হয়নি। নির্ধারিত সময়ে পরীক্ষা শুরু হবে।', 400)
+      // ── Practice Mode ──
+      // Purchased students can access in practice mode regardless of schedule.
+      const isPracticeMode = hasPurchase && set.practiceMode
+      if (isPracticeMode) {
+        // Skip all time-window checks
+      } else {
+        // LIVE EXAM mode: enforce the scheduled time window.
+        const { windowOpen } = getExamTimeWindow({ scheduledDate: set.scheduledDate, startTime: set.startTime, endTime: set.endTime })
+        if (!windowOpen) {
+          return apiError('পরীক্ষা এখনো শুরু হয়নি। নির্ধারিত সময়ে পরীক্ষা শুরু হবে।', 400)
+        }
       }
 
       // Helper to create answer slots per question based on type
@@ -406,21 +410,14 @@ export async function POST(request: Request) {
         ]
       })
 
-      // Check if already started
-      const existing = await db.cQExamSubmission.findUnique({
-        where: { userId_setId: { userId, setId } },
-      })
-
-      // If submitted and retake is allowed (set-level or admin-granted individual), delete old submission and start fresh
-      const hadCanRetake = existing?.canRetake ?? false
-      if (existing && (set.allowRetake || existing.canRetake)) {
-        await db.cQExamSubmission.delete({ where: { id: existing.id } })
+      const createSubmissionWithAnswers = async (pm: boolean) => {
         const submission = await db.cQExamSubmission.create({
           data: {
             userId,
             setId,
+            attemptNumber: nextAttempt,
+            practiceMode: pm,
             totalMarks: set.totalMarks,
-            canRetake: hadCanRetake,
             status: 'IN_PROGRESS',
             startedAt: new Date(),
             answers: { create: createAnswersForQuestions(set.questions) },
@@ -432,13 +429,49 @@ export async function POST(request: Request) {
             },
           },
         })
-        return NextResponse.json({ success: true, data: { submission, status: 'new' } }, { status: 201 })
+
+        logger.info('exam_start', { userId, setId, attemptNumber: nextAttempt, practiceMode: pm })
+
+        return NextResponse.json({ success: true, data: { submission, status: 'new', practiceMode: pm } }, { status: 201 })
       }
 
-      // Return existing in-progress submission (with answers and images for image upload to work)
-      if (existing && (existing.status === 'IN_PROGRESS')) {
+      // ── Attempt / Retake Logic ──
+      const latestSubmission = await db.cQExamSubmission.findFirst({
+        where: { userId, setId },
+        orderBy: { attemptNumber: 'desc' },
+      })
+      const totalAttempts = await db.cQExamSubmission.count({
+        where: { userId, setId },
+      })
+      const nextAttempt = totalAttempts + 1
+
+      // ── Practice mode attempt limit ──
+      const maxPracticeAttempts = getMaxPracticeAttempts(set)
+      const canPracticeRetake = isPracticeMode && (
+        maxPracticeAttempts === null || totalAttempts < maxPracticeAttempts
+      )
+      const canLiveRetake = !isPracticeMode && latestSubmission && (set.allowRetake || latestSubmission.canRetake)
+
+      // Block if practice mode limit reached
+      if (isPracticeMode && !canPracticeRetake && maxPracticeAttempts !== null && totalAttempts >= maxPracticeAttempts) {
+        console.warn(`[CQ_PRACTICE_BLOCKED] userId=${userId} setId=${setId} packageId=${set.packageId} totalAttempts=${totalAttempts} maxAllowed=${maxPracticeAttempts}`)
+        return apiError('আপনি এই CQ পরীক্ষার সর্বোচ্চ অনুমোদিত সংখ্যক অনুশীলন সম্পন্ন করেছেন।', 400, 'PRACTICE_LIMIT_REACHED')
+      }
+
+      // Practice mode: allow new attempt regardless of old results
+      if (isPracticeMode && latestSubmission?.status === 'SUBMITTED' && canPracticeRetake) {
+        return createSubmissionWithAnswers(true)
+      }
+
+      // Live retake: allow if set-level or admin-granted
+      if (!isPracticeMode && latestSubmission && canLiveRetake) {
+        return createSubmissionWithAnswers(false)
+      }
+
+      // Return existing in-progress submission
+      if (latestSubmission && (latestSubmission.status === 'IN_PROGRESS')) {
         const submission = await db.cQExamSubmission.findUnique({
-          where: { id: existing.id },
+          where: { id: latestSubmission.id },
           include: {
             answers: {
               include: { images: true },
@@ -446,13 +479,13 @@ export async function POST(request: Request) {
             },
           },
         })
-        return NextResponse.json({ success: true, data: { submission, status: 'IN_PROGRESS' } })
+        return NextResponse.json({ success: true, data: { submission, status: 'IN_PROGRESS', practiceMode: isPracticeMode } })
       }
 
       // Return already-submitted submission — let client redirect
-      if (existing && existing.status === 'SUBMITTED') {
+      if (latestSubmission && latestSubmission.status === 'SUBMITTED') {
         const submission = await db.cQExamSubmission.findUnique({
-          where: { id: existing.id },
+          where: { id: latestSubmission.id },
           include: {
             answers: {
               include: { images: true },
@@ -463,39 +496,35 @@ export async function POST(request: Request) {
         return NextResponse.json({ success: true, data: { submission, status: 'SUBMITTED' } })
       }
 
-      // Graded/published — reject unless retake granted
-      if (existing && (existing.status === 'GRADED' || existing.status === 'PUBLISHED')) {
+      // Graded/published — reject unless practice mode retake (with limit check)
+      if (latestSubmission && (latestSubmission.status === 'GRADED' || latestSubmission.status === 'PUBLISHED')) {
+        if (isPracticeMode && !canPracticeRetake && maxPracticeAttempts !== null && totalAttempts >= maxPracticeAttempts) {
+          console.warn(`[CQ_PRACTICE_BLOCKED] userId=${userId} setId=${setId} packageId=${set.packageId} totalAttempts=${totalAttempts} maxAllowed=${maxPracticeAttempts}`)
+          return apiError('আপনি এই CQ পরীক্ষার সর্বোচ্চ অনুমোদিত সংখ্যক অনুশীলন সম্পন্ন করেছেন।', 400, 'PRACTICE_LIMIT_REACHED')
+        }
+        if (isPracticeMode && canPracticeRetake) {
+          return createSubmissionWithAnswers(true)
+        }
         return apiError('আপনার পরীক্ষা মূল্যায়ন সম্পন্ন হয়েছে। পুনরায় পরীক্ষা দিতে "রিটেক অনুরোধ" করুন।', 400, 'ALREADY_GRADED')
       }
 
       // Create submission with type-appropriate answer slots
-      const submission = await db.cQExamSubmission.create({
-        data: {
-          userId,
-          setId,
-          totalMarks: set.totalMarks,
-          status: 'IN_PROGRESS',
-          startedAt: new Date(),
-          answers: { create: createAnswersForQuestions(set.questions) },
-        },
-        include: {
-          answers: {
-            include: { images: true },
-            orderBy: [{ questionId: 'asc' }, { subIndex: 'asc' }],
-          },
-        },
-      })
-
-      return NextResponse.json({ success: true, data: { submission, status: 'new' } }, { status: 201 })
+      return createSubmissionWithAnswers(isPracticeMode)
     }
 
-    // Helper: verify submission is still in progress
-    async function assertSubmissionInProgress(answerId: string): Promise<string> {
+    // Helper: verify answer exists, submission is in progress, and owned by user
+    async function assertOwnedAnswerInProgress(answerId: string, uid: string): Promise<string> {
       const ans = await db.cQExamAnswer.findUnique({
         where: { id: answerId },
-        select: { submissionId: true, submission: { select: { status: true } } },
+        select: {
+          submissionId: true,
+          submission: { select: { status: true, userId: true } },
+        },
       })
       if (!ans) throw new Error('Answer not found')
+      if (ans.submission.userId !== uid) {
+        throw new Error('Unauthorized')
+      }
       if (ans.submission.status !== 'IN_PROGRESS') {
         throw new Error('পরীক্ষা ইতিমধ্যে জমা দেওয়া হয়েছে — উত্তর পরিবর্তন করা যাবে না')
       }
@@ -506,7 +535,7 @@ export async function POST(request: Request) {
     if (action === 'save-answer') {
       const { answerId, answerText } = body
       if (!answerId) return apiError('Answer ID required', 400)
-      await assertSubmissionInProgress(answerId)
+      await assertOwnedAnswerInProgress(answerId, userId)
 
       const answer = await db.cQExamAnswer.update({
         where: { id: answerId },
@@ -520,7 +549,7 @@ export async function POST(request: Request) {
     if (action === 'add-image') {
       const { answerId, imageUrl } = body
       if (!answerId || !imageUrl) return apiError('Answer ID and image URL required', 400)
-      await assertSubmissionInProgress(answerId)
+      await assertOwnedAnswerInProgress(answerId, userId)
 
       // Get the current max order for this answer
       const existingImages = await db.cQExamAnswerImage.findMany({
@@ -546,12 +575,15 @@ export async function POST(request: Request) {
       const { imageId } = body
       if (!imageId) return apiError('Image ID required', 400)
 
-      // Look up the answer to check submission status
+      // Look up the answer to check submission status and ownership
       const img = await db.cQExamAnswerImage.findUnique({
         where: { id: imageId },
-        select: { answer: { select: { submissionId: true, submission: { select: { status: true } } } } },
+        select: { answer: { select: { submissionId: true, submission: { select: { status: true, userId: true } } } } },
       })
       if (!img) return apiError('Image not found', 404)
+      if (img.answer.submission.userId !== userId) {
+        return apiError('Unauthorized', 403)
+      }
       if (img.answer.submission.status !== 'IN_PROGRESS') {
         return apiError('পরীক্ষা ইতিমধ্যে জমা দেওয়া হয়েছে — ছবি পরিবর্তন করা যাবে না', 400)
       }
@@ -579,12 +611,12 @@ export async function POST(request: Request) {
         if (existing.status === 'APPROVED') {
           return apiError('ইতিমধ্যে পুনরায় পরীক্ষার অনুমতি দেওয়া হয়েছে', 400)
         }
-        // If rejected, allow re-request
+        // If rejected, allow re-request — build clean response, never leak admin data
         await db.cQExamRetakeRequest.update({
           where: { id: existing.id },
           data: { status: 'PENDING', reason: reason || null, reviewedBy: null, reviewedAt: null },
         })
-        return NextResponse.json({ success: true, data: { request: { ...existing, status: 'PENDING', reason: reason || null } } })
+        return NextResponse.json({ success: true, data: { request: { id: existing.id, userId, setId: existing.setId, status: 'PENDING', reason: reason || null, createdAt: existing.createdAt, updatedAt: new Date().toISOString() } } })
       }
 
       const request = await db.cQExamRetakeRequest.create({
@@ -603,12 +635,18 @@ export async function POST(request: Request) {
     if (action === 'submit-exam') {
       const { submissionId, timeTaken } = body
       if (!submissionId) return apiError('Submission ID required', 400)
+      if (timeTaken !== undefined && (typeof timeTaken !== 'number' || timeTaken < 0 || timeTaken > 86400)) {
+        return apiError('Invalid timeTaken value', 400)
+      }
 
       const existing = await db.cQExamSubmission.findUnique({
         where: { id: submissionId },
-        select: { status: true },
+        select: { status: true, userId: true },
       })
       if (!existing) return apiError('Submission not found', 404)
+      if (existing.userId !== userId) {
+        return apiError('Unauthorized', 403)
+      }
       if (existing.status !== 'IN_PROGRESS') {
         return apiError('পরীক্ষা ইতিমধ্যে জমা দেওয়া হয়েছে', 400)
       }
@@ -622,12 +660,14 @@ export async function POST(request: Request) {
         },
       })
 
+      logger.info('exam_submit', { userId, setId: submission.setId, timeTaken: timeTaken || 0, totalMarks: submission.totalMarks })
+
       return NextResponse.json({ success: true, data: { submission, message: 'আপনার উত্তর জমা দেওয়া হয়েছে। শিক্ষক উত্তর মূল্যায়ন করে ফলাফল প্রকাশ করবেন।' } })
     }
 
     return apiError('Unknown action', 400)
   } catch (error) {
-    console.error('CQ Exam POST error:', error)
+    logger.error('CQ Exam POST error', error, { route: 'cq-exam-packages', method: 'POST' })
     return apiError('Internal server error', 500)
   }
 }

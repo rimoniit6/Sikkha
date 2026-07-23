@@ -1,32 +1,33 @@
 'use client'
 
-import { useCallback,useEffect,useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 import CQExamPackagePurchaseDialog from '@/components/cq-exam/CQExamPackagePurchaseDialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card,CardContent } from '@/components/ui/card'
-import SafeImage from '@/components/ui/safe-image'
+import { Card, CardContent } from '@/components/ui/card'
+import Thumbnail from '@/components/ui/thumbnail'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useToast } from '@/hooks/use-toast'
-import { cn,toBengaliNumerals } from '@/lib/utils'
+import { cn, toBengaliNumerals } from '@/lib/utils'
 import { useShallowAuth } from '@/store/auth'
 import { useRouterStore, useRouteParams } from '@/store/router'
 import {
-AlertCircle,
-ArrowLeft,
-BookOpen,
-Calendar,
-CheckCircle,
-Clock,
-Crown,
-FileQuestion,
-Play,
-RefreshCw,
-ShoppingCart,
-Target,
-Timer,
-Trophy
+  AlertCircle,
+  ArrowLeft,
+  BookOpen,
+  Calendar,
+  CheckCircle,
+  Clock,
+  Crown,
+  FileQuestion,
+  Infinity,
+  Play,
+  RefreshCw,
+  ShoppingCart,
+  Target,
+  Timer,
+  Trophy,
 } from 'lucide-react'
 
 interface ExamSet {
@@ -43,6 +44,10 @@ interface ExamSet {
   instructions: string | null
   status: string
   order: number
+  practiceMode: boolean
+  practiceAvailability: 'available' | 'limit-reached' | 'unavailable'
+  totalPracticeAttempts: number
+  maxPracticeAttempts: number | null
   _count: {
     questions: number
     submissions: number
@@ -73,6 +78,8 @@ interface SubmissionBrief {
   timeTaken: number
   status: string
   canRetake?: boolean
+  attemptNumber: number
+  practiceMode: boolean
   set: { id: string; title: string; totalQuestions: number; totalMarks: number }
 }
 
@@ -130,46 +137,73 @@ function getDaysUntil(dateStr: string): number {
   }
 }
 
-function getSetStatusBadge(
-  set: ExamSet,
-  submission?: SubmissionBrief | null
-): {
+type BadgeInfo = {
   label: string
   color: string
   bgColor: string
   textColor: string
   icon: React.ReactNode
   score?: string
-} {
+}
+
+function getSetStatusBadge(
+  set: ExamSet,
+  submission?: SubmissionBrief | null,
+  hasPurchase?: boolean,
+): BadgeInfo {
   if (submission) {
     const s = submission.status?.toLowerCase()
     switch (s) {
       case 'published':
       case 'graded':
         return {
-          label: 'মূল্যায়িত',
-          color: 'bg-emerald-500',
-          bgColor: 'bg-emerald-100 dark:bg-emerald-900/30',
-          textColor: 'text-emerald-700 dark:text-emerald-400',
+          label: submission.practiceMode ? 'প্র্যাকটিস' : 'মূল্যায়িত',
+          color: submission.practiceMode ? 'bg-violet-500' : 'bg-emerald-500',
+          bgColor: submission.practiceMode ? 'bg-violet-100 dark:bg-violet-900/30' : 'bg-emerald-100 dark:bg-emerald-900/30',
+          textColor: submission.practiceMode ? 'text-violet-700 dark:text-violet-400' : 'text-emerald-700 dark:text-emerald-400',
           icon: <CheckCircle className="size-3" />,
           score: `${toBengaliNumerals(Math.round(submission.obtainedMarks))}/${toBengaliNumerals(Math.round(submission.totalMarks))}`,
         }
       case 'submitted':
         return {
-          label: 'জমা দেওয়া',
-          color: 'bg-amber-500',
-          bgColor: 'bg-amber-100 dark:bg-amber-900/30',
-          textColor: 'text-amber-700 dark:text-amber-400',
+          label: submission.practiceMode ? 'প্র্যাকটিস জমা' : 'জমা দেওয়া',
+          color: submission.practiceMode ? 'bg-violet-500' : 'bg-amber-500',
+          bgColor: submission.practiceMode ? 'bg-violet-100 dark:bg-violet-900/30' : 'bg-amber-100 dark:bg-amber-900/30',
+          textColor: submission.practiceMode ? 'text-violet-700 dark:text-violet-400' : 'text-amber-700 dark:text-amber-400',
           icon: <Clock className="size-3" />,
         }
       case 'in_progress':
         return {
-          label: 'চলমান',
-          color: 'bg-sky-500',
-          bgColor: 'bg-sky-100 dark:bg-sky-900/30',
-          textColor: 'text-sky-700 dark:text-sky-400',
+          label: submission.practiceMode ? 'প্র্যাকটিস চলমান' : 'চলমান',
+          color: submission.practiceMode ? 'bg-violet-500' : 'bg-sky-500',
+          bgColor: submission.practiceMode ? 'bg-violet-100 dark:bg-violet-900/30' : 'bg-sky-100 dark:bg-sky-900/30',
+          textColor: submission.practiceMode ? 'text-violet-700 dark:text-violet-400' : 'text-sky-700 dark:text-sky-400',
           icon: <Timer className="size-3" />,
         }
+    }
+  }
+
+  if (hasPurchase && set.practiceMode) {
+    if (set.practiceAvailability === 'available') {
+      const attemptLabel = set.maxPracticeAttempts == null
+        ? '∞'
+        : `${toBengaliNumerals(set.totalPracticeAttempts)}/${toBengaliNumerals(set.maxPracticeAttempts)}`
+      return {
+        label: `প্র্যাকটিস (${attemptLabel})`,
+        color: 'bg-violet-500',
+        bgColor: 'bg-violet-100 dark:bg-violet-900/30',
+        textColor: 'text-violet-700 dark:text-violet-400',
+        icon: <Infinity className="size-3" />,
+      }
+    }
+    if (set.practiceAvailability === 'limit-reached') {
+      return {
+        label: 'সীমা শেষ',
+        color: 'bg-gray-500',
+        bgColor: 'bg-gray-100 dark:bg-gray-900/30',
+        textColor: 'text-gray-600 dark:text-gray-400',
+        icon: <AlertCircle className="size-3" />,
+      }
     }
   }
 
@@ -357,17 +391,12 @@ export default function CQExamPackageDetailPage() {
           <Card className="border-emerald-200/50 dark:border-emerald-800/30 overflow-hidden">
             <div className="bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/20 dark:to-teal-950/20 p-5">
               <div className="flex items-start gap-4">
-                <div className="w-20 h-20 rounded-xl bg-gradient-to-br from-emerald-100 to-teal-100 dark:from-emerald-900/30 dark:to-teal-900/30 flex items-center justify-center shrink-0 overflow-hidden border border-emerald-200/50 dark:border-emerald-800/30">
-                  {pkgDetail.thumbnail ? (
-                    <SafeImage
-                      src={pkgDetail.thumbnail}
-                      alt={pkgDetail.title}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <BookOpen className="size-8 text-emerald-500" />
-                  )}
-                </div>
+                <Thumbnail
+                  src={pkgDetail.thumbnail}
+                  alt={pkgDetail.title}
+                  size="sm"
+                  fallbackIcon={<BookOpen className="size-8 text-emerald-500" />}
+                />
                 <div className="flex-1 min-w-0">
                   <h2 className="text-lg font-bold text-foreground mb-1">
                     {pkgDetail.title}
@@ -490,18 +519,20 @@ export default function CQExamPackageDetailPage() {
             <div className="space-y-4">
               {pkgDetail.examSets.map((set, _idx) => {
                 const submission = getSubmissionForSet(set.id)
-                const badge = getSetStatusBadge(set, submission)
+                const badge = getSetStatusBadge(set, submission, hasPurchased)
                 const subStatus = submission?.status?.toLowerCase()
                 const isGraded = subStatus === 'graded' || subStatus === 'published'
                 const isInProgress = subStatus === 'in_progress'
                 const isSubmitted = subStatus === 'submitted'
+                const isPracticeLimitReached = set.practiceAvailability === 'limit-reached'
+                const isPracticeAvailable = set.practiceAvailability === 'available'
 
                 return (
-                  <div
-                    key={set.id}
-                    className="animate-fade-in"
-                  >
-                    <Card className="border-border/50 hover:border-emerald-200 dark:hover:border-emerald-800 transition-colors">
+                  <div key={set.id} className="animate-fade-in">
+                    <Card className={cn(
+                      'border-border/50 transition-colors',
+                      isPracticeLimitReached && 'border-gray-200 dark:border-gray-800 opacity-80',
+                    )}>
                       <CardContent className="p-4">
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex-1 min-w-0">
@@ -511,7 +542,7 @@ export default function CQExamPackageDetailPage() {
                                 className={cn(
                                   'text-[10px] px-1.5 py-0 gap-1',
                                   badge.bgColor,
-                                  badge.textColor
+                                  badge.textColor,
                                 )}
                               >
                                 {badge.icon}
@@ -547,6 +578,33 @@ export default function CQExamPackageDetailPage() {
                               </span>
                             </div>
 
+                            {/* Practice mode info row */}
+                            {hasPurchased && set.practiceMode && (
+                              <div className="flex items-center gap-2 mt-2">
+                                <Badge
+                                  variant="outline"
+                                  className={cn(
+                                    'text-[10px] px-1.5 py-0 gap-1',
+                                    isPracticeLimitReached
+                                      ? 'border-gray-300 text-gray-500 dark:border-gray-700 dark:text-gray-400'
+                                      : 'border-violet-200 text-violet-600 dark:border-violet-800 dark:text-violet-400',
+                                  )}
+                                >
+                                  {set.maxPracticeAttempts == null ? (
+                                    <>
+                                      <Infinity className="size-3" />
+                                      প্র্যাকটিস: অসীম
+                                    </>
+                                  ) : (
+                                    <>
+                                      <FileQuestion className="size-3" />
+                                      প্র্যাকটিস: {toBengaliNumerals(set.totalPracticeAttempts)}/{toBengaliNumerals(set.maxPracticeAttempts)}টি
+                                    </>
+                                  )}
+                                </Badge>
+                              </div>
+                            )}
+
                             {set.instructions && (
                               <p className="text-xs text-muted-foreground mt-1.5 line-clamp-1">
                                 {set.instructions}
@@ -554,8 +612,14 @@ export default function CQExamPackageDetailPage() {
                             )}
                           </div>
 
-                          <div className="shrink-0">
-                            {!hasPurchased && pkgDetail.isPremium && pkgDetail.price > 0 ? (
+                          {isPracticeLimitReached ? (
+                            <div className="shrink-0 text-right">
+                              <Badge className="bg-gray-100 text-gray-500 dark:bg-gray-900/30 dark:text-gray-400 border-0 text-[10px] px-2 py-1">
+                                সম্পন্ন
+                              </Badge>
+                            </div>
+                          ) : !hasPurchased && pkgDetail.isPremium && pkgDetail.price > 0 ? (
+                            <div className="shrink-0">
                               <Button
                                 size="sm"
                                 className="gap-1 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white text-xs"
@@ -564,27 +628,29 @@ export default function CQExamPackageDetailPage() {
                                 <Crown className="size-3" />
                                 প্যাকেজ কিনুন
                               </Button>
-                            ) : isGraded && submission?.canRetake ? (
-                              <div className="flex items-center gap-1.5">
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="gap-1 text-xs"
-                                  onClick={() => handleViewResult(submission!.id)}
-                                >
-                                  <Trophy className="size-3" />
-                                  ফলাফল
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  className="gap-1 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white text-xs"
-                                  onClick={() => handleStartExam(submission!.setId)}
-                                >
-                                  <RefreshCw className="size-3" />
-                                  পুনরায় দিন
-                                </Button>
-                              </div>
-                            ) : isGraded ? (
+                            </div>
+                          ) : isGraded && submission?.canRetake ? (
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="gap-1 text-xs"
+                                onClick={() => handleViewResult(submission!.id)}
+                              >
+                                <Trophy className="size-3" />
+                                ফলাফল
+                              </Button>
+                              <Button
+                                size="sm"
+                                className="gap-1 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white text-xs"
+                                onClick={() => handleStartExam(submission!.setId)}
+                              >
+                                <RefreshCw className="size-3" />
+                                পুনরায় দিন
+                              </Button>
+                            </div>
+                          ) : isGraded ? (
+                            <div className="flex items-center gap-1.5 shrink-0">
                               <Button
                                 size="sm"
                                 variant="outline"
@@ -594,7 +660,19 @@ export default function CQExamPackageDetailPage() {
                                 <Trophy className="size-3" />
                                 ফলাফল দেখুন
                               </Button>
-                            ) : isInProgress || isSubmitted ? (
+                              {isPracticeAvailable && (
+                                <Button
+                                  size="sm"
+                                  className="gap-1 bg-gradient-to-r from-violet-500 to-purple-500 hover:from-violet-600 hover:to-purple-600 text-white text-xs"
+                                  onClick={() => handleStartExam(set.id)}
+                                >
+                                  <Infinity className="size-3" />
+                                  প্র্যাকটিস শুরু করুন
+                                </Button>
+                              )}
+                            </div>
+                          ) : isInProgress || isSubmitted ? (
+                            <div className="shrink-0">
                               <Button
                                 size="sm"
                                 variant="outline"
@@ -604,7 +682,20 @@ export default function CQExamPackageDetailPage() {
                                 <Play className="size-3" />
                                 {isInProgress ? 'চালিয়ে যান' : 'জমা হয়েছে'}
                               </Button>
-                            ) : (
+                            </div>
+                          ) : isPracticeAvailable ? (
+                            <div className="shrink-0">
+                              <Button
+                                size="sm"
+                                className="gap-1 bg-gradient-to-r from-violet-500 to-purple-500 hover:from-violet-600 hover:to-purple-600 text-white text-xs"
+                                onClick={() => handleStartExam(set.id)}
+                              >
+                                <Infinity className="size-3" />
+                                প্র্যাকটিস শুরু করুন
+                              </Button>
+                            </div>
+                          ) : (
+                            <div className="shrink-0">
                               <Button
                                 size="sm"
                                 className="gap-1 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white text-xs"
@@ -613,9 +704,26 @@ export default function CQExamPackageDetailPage() {
                                 <Play className="size-3" />
                                 শুরু করুন
                               </Button>
-                            )}
-                          </div>
+                            </div>
+                          )}
                         </div>
+
+                        {/* Limit-reached info card */}
+                        {isPracticeLimitReached && (
+                          <div className="mt-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-900/20 border border-gray-200 dark:border-gray-800">
+                            <div className="flex items-start gap-2">
+                              <AlertCircle className="size-4 text-gray-400 mt-0.5 shrink-0" />
+                              <div>
+                                <p className="text-xs font-medium text-gray-600 dark:text-gray-400">
+                                  আপনি এই CQ পরীক্ষার সর্বোচ্চ অনুমোদিত সংখ্যক অনুশীলন সম্পন্ন করেছেন।
+                                </p>
+                                <p className="text-[11px] text-gray-400 mt-0.5">
+                                  অনুশীলনের সীমা পুনরায় সেট করতে প্রশাসকের সাথে যোগাযোগ করুন।
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </CardContent>
                     </Card>
                   </div>

@@ -183,6 +183,11 @@ export function CQPackageDetail({
                           পুনরায় যোগ্য
                         </Badge>
                       )}
+                      {(set as any).practiceMode && (
+                        <Badge variant="secondary" className="text-[10px] bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400">
+                          {(set as any).allowUnlimitedAttempts ? '∞ প্র্যাকটিস' : `প্র্যাকটিস: ${(set as any).maxAttempts || '—'}টি`}
+                        </Badge>
+                      )}
                     </div>
                     {set.description && (
                       <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{set.description}</p>

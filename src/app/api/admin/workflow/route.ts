@@ -3,12 +3,37 @@ import { apiResponse, apiError, withAdmin, withCsrf } from '@/lib/api-utils'
 import { getClientIP } from '@/lib/audit'
 import { handleApiError } from '@/lib/errors'
 import { NextResponse } from 'next/server'
-import { transitionWorkflow, getWorkflow, getWorkflowHistory, type WorkflowAction } from '@/lib/workflow'
+import { transitionWorkflow, getWorkflow, getWorkflowHistory, ACTION_TARGET_STATE, type WorkflowAction } from '@/lib/workflow'
 
 const VALID_ACTIONS: WorkflowAction[] = [
   'submit_for_review', 'approve', 'reject', 'publish',
   'schedule', 'archive', 'reset_to_draft',
 ]
+
+// Reuses ACTION_TARGET_STATE from workflow.ts as the single source of truth
+
+// Entity types whose `status` field should be synced with workflow transitions.
+// Maps workflow status → entity status so the entity reflects the workflow state.
+const ENTITY_STATUS_SYNC: Record<string, Record<string, string>> = {
+  mCQExamPackage: {
+    DRAFT: 'DRAFT',
+    IN_REVIEW: 'DRAFT',
+    APPROVED: 'DRAFT',
+    REJECTED: 'DRAFT',
+    SCHEDULED: 'DRAFT',
+    PUBLISHED: 'PUBLISHED',
+    ARCHIVED: 'ARCHIVED',
+  },
+  cQExamPackage: {
+    DRAFT: 'DRAFT',
+    IN_REVIEW: 'DRAFT',
+    APPROVED: 'DRAFT',
+    REJECTED: 'DRAFT',
+    SCHEDULED: 'DRAFT',
+    PUBLISHED: 'PUBLISHED',
+    ARCHIVED: 'ARCHIVED',
+  },
+}
 
 export async function POST(request: Request) {
   const auth = await withAdmin(request)
@@ -42,6 +67,13 @@ export async function POST(request: Request) {
     const ipAddress = getClientIP(request)
     const userAgent = request.headers.get('user-agent') || undefined
 
+    // Compute entity status update from workflow transition
+    const targetState = ACTION_TARGET_STATE[action as WorkflowAction]
+    const statusSync = ENTITY_STATUS_SYNC[entityType]
+    const contentUpdate = statusSync && targetState
+      ? { data: { status: statusSync[targetState] || 'DRAFT' } }
+      : undefined
+
     const result = await transitionWorkflow(db as never, {
       entityType,
       entityId,
@@ -57,6 +89,7 @@ export async function POST(request: Request) {
         authorName: auth.user.email,
         authorRole: auth.user.role,
       },
+      contentUpdate,
     })
 
     if (!result.success) {

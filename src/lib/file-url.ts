@@ -1,11 +1,13 @@
 /**
  * Centralized file URL resolver.
  *
- * Converts relative paths (e.g. `/uploads/file.jpg`) to absolute URLs
- * using the current origin (browser) or NEXT_PUBLIC_SITE_URL (server).
+ * - Relative paths (e.g. `/uploads/file.jpg`) are returned as-is for
+ *   compatibility with Next.js <Image> (avoids remotePatterns checks).
+ * - Absolute URLs (http/https) are returned unchanged.
+ * - Legacy absolute localhost URLs are normalized back to relative paths.
  *
  * Usage:
- *   getFileUrl('/uploads/abc.jpg')          → 'https://domain.com/uploads/abc.jpg'
+ *   getFileUrl('/uploads/abc.jpg')          → '/uploads/abc.jpg'
  *   getFileUrl('https://cdn.com/img.jpg')   → 'https://cdn.com/img.jpg'
  *   getFileUrl(null)                         → ''
  *   getFileUrl('')                            → ''
@@ -20,18 +22,9 @@ const PLACEHOLDER =
     </svg>`,
   )
 
-function getBaseUrl(): string {
-  if (typeof window !== 'undefined') {
-    return window.location.origin
-  }
-  // Server-side — use env var or fallback
-  return process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
-}
-
 /**
- * Normalize an absolute URL that points to localhost — extract its pathname
- * so it can be re-resolved against the current domain.
- * This handles legacy records where the upload API stored absolute URLs
+ * Extract the pathname from an absolute URL that points to localhost.
+ * Handles legacy records where the upload API stored absolute URLs
  * like `http://localhost:3000/uploads/file.jpg`.
  */
 function normalizeLocalhostUrl(path: string): string | null {
@@ -62,16 +55,21 @@ export function getFileUrl(path: string | null | undefined): string {
   // Normalize absolute localhost URLs back to relative paths
   if (path.startsWith('http://') || path.startsWith('https://')) {
     const normalized = normalizeLocalhostUrl(path)
+    // Return relative path — Next.js <Image> doesn't need absolute URLs
+    // for same-origin images, and relative paths avoid remotePatterns checks.
     if (normalized !== null) {
-      return `${getBaseUrl()}${normalized}`
+      return normalized
     }
     return path
   }
   // Handle protocol-relative URLs (//cdn.com/file.jpg)
   if (path.startsWith('//')) return `https:${path}`
-  // Ensure path starts with /
+  // Return relative path as-is — the browser resolves it against the current origin.
+  // Do NOT prepend the base URL: Next.js <Image> checks remotePatterns for absolute
+  // URLs, and production domains are not listed there. Relative paths bypass this
+  // check entirely and work identically in dev, preview, and production.
   const normalized = path.startsWith('/') ? path : `/${path}`
-  return `${getBaseUrl()}${normalized}`
+  return normalized
 }
 
 /**

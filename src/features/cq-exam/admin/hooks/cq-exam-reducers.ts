@@ -135,6 +135,12 @@ export type SetFormState = {
   setPassMarks: string
   setShowCorrectAnswers: boolean
   setEnablePartialGrading: boolean
+  // ── Practice Mode ──
+  setPracticeMode: boolean
+  setAllowUnlimitedAttempts: boolean
+  setMaxAttempts: string
+  setReviewAnswers: boolean
+  setShowExplanations: boolean
 }
 
 export type SetFormAction =
@@ -160,6 +166,12 @@ export const initialSetFormState: SetFormState = {
   setPassMarks: '0',
   setShowCorrectAnswers: false,
   setEnablePartialGrading: true,
+  // ── Practice Mode defaults ──
+  setPracticeMode: true,
+  setAllowUnlimitedAttempts: true,
+  setMaxAttempts: '',
+  setReviewAnswers: true,
+  setShowExplanations: true,
 }
 
 export function setFormReducer(state: SetFormState, action: SetFormAction): SetFormState {

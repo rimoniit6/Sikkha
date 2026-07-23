@@ -176,15 +176,17 @@ export function useMCQExamPackages() {
         originalPrice: parseFloat(pkgForm.pkgOriginalPrice) || 0,
         thumbnail: pkgForm.pkgThumbnail || undefined,
         isActive: pkgForm.pkgIsActive,
+        isPremium: pkgForm.pkgIsPremium,
         order: parseInt(pkgForm.pkgOrder) || 0,
         status: pkgForm.pkgStatus,
       }
 
+      const silent = { silent: true }
       if (nav.editId) {
-        await mcqExamAdminService.updatePackage(nav.editId, data)
+        await mcqExamAdminService.updatePackage(nav.editId, data, silent)
         toast({ title: 'প্যাকেজ আপডেট হয়েছে' })
       } else {
-        await mcqExamAdminService.createPackage(data)
+        await mcqExamAdminService.createPackage(data, silent)
         toast({ title: 'প্যাকেজ তৈরি হয়েছে' })
       }
       navDispatch({ type: 'SET_VIEW', viewMode: 'list' })
@@ -212,17 +214,26 @@ export function useMCQExamPackages() {
         marksPerQ: parseFloat(setForm.setMarksPerQ) || 1,
         negativeMarks: parseFloat(setForm.setNegativeMarks) || 0,
         allowRetake: setForm.setAllowRetake,
+        practiceMode: setForm.setPracticeMode,
+        allowUnlimitedAttempts: setForm.setAllowUnlimitedAttempts,
+        maxAttempts: setForm.setMaxAttempts ? parseInt(setForm.setMaxAttempts) : undefined,
+        reviewAnswers: setForm.setReviewAnswers,
+        showExplanations: setForm.setShowExplanations,
+        showCorrectAnswers: setForm.setShowCorrectAnswers,
+        autoPublishResults: setForm.setAutoPublishResults,
+        passMarks: setForm.setPassMarks ? parseFloat(setForm.setPassMarks) : undefined,
         instructions: setForm.setInstructions || undefined,
         order: parseInt(setForm.setOrder) || 0,
         status: setForm.setStatus,
         ...(nav.editId ? {} : { packageId: nav.selectedPackageId }),
       }
 
+      const silent = { silent: true }
       if (nav.editId) {
-        await mcqExamAdminService.updateSet(nav.editId, data)
+        await mcqExamAdminService.updateSet(nav.editId, data, silent)
         toast({ title: 'এক্সাম সেট আপডেট হয়েছে' })
       } else {
-        await mcqExamAdminService.createSet(data)
+        await mcqExamAdminService.createSet(data, silent)
         toast({ title: 'এক্সাম সেট তৈরি হয়েছে' })
       }
       fetchPackageDetail(nav.selectedPackageId)
@@ -236,18 +247,18 @@ export function useMCQExamPackages() {
     if (!nav.deleteTarget) return
     try {
       if (nav.deleteTarget.type === 'package') {
-        await mcqExamAdminService.deletePackage(nav.deleteTarget.id)
+        await mcqExamAdminService.deletePackage(nav.deleteTarget.id, { silent: true })
         toast({ title: 'প্যাকেজ মুছে ফেলা হয়েছে' })
         navDispatch({ type: 'SET_DELETE_TARGET', target: null })
         fetchPackages()
       } else {
-        await mcqExamAdminService.deleteSet(nav.deleteTarget.id)
+        await mcqExamAdminService.deleteSet(nav.deleteTarget.id, { silent: true })
         toast({ title: 'এক্সাম সেট মুছে ফেলা হয়েছে' })
         navDispatch({ type: 'SET_DELETE_TARGET', target: null })
         if (nav.selectedPackageId) fetchPackageDetail(nav.selectedPackageId)
       }
-    } catch {
-      toast({ title: 'ত্রুটি', variant: 'destructive' })
+    } catch (err: unknown) {
+      toast({ title: 'ত্রুটি', description: getErrorMessage(err, 'মুছে ফেলা সম্ভব হয়নি'), variant: 'destructive' })
     }
   }
 
@@ -268,7 +279,7 @@ export function useMCQExamPackages() {
         duration: parseInt(bulkCreate.bulkDuration) || 30,
         marksPerQ: parseFloat(bulkCreate.bulkMarksPerQ) || 1,
         negativeMarks: parseFloat(bulkCreate.bulkNegativeMarks) || 0,
-      })
+      }, { silent: true })
       const data = unwrap<BulkCreateResponse>(json)
       toast({ title: `${data.count || 0}টি এক্সাম সেট তৈরি হয়েছে` })
       bulkCreateDispatch({ type: 'CLOSE' })
@@ -317,22 +328,25 @@ export function useMCQExamPackages() {
     if (searchDialog.selectedMcqIds.length === 0 || !nav.selectedSetId) return
     setSaving(true)
     try {
-      await mcqExamAdminService.addQuestions(nav.selectedSetId, searchDialog.selectedMcqIds)
+      await mcqExamAdminService.addQuestions(nav.selectedSetId, searchDialog.selectedMcqIds, { silent: true })
       toast({ title: `${searchDialog.selectedMcqIds.length}টি প্রশ্ন যোগ করা হয়েছে` })
       searchDialogDispatch({ type: 'RESET_SELECTED' })
       searchDialogDispatch({ type: 'CLOSE' })
       fetchSetDetail(nav.selectedSetId)
-    } catch (err) { console.error('[MCQExam] Failed to add MCQs:', err) }
-    finally { setSaving(false) }
+    } catch (err: unknown) {
+      toast({ title: 'ত্রুটি', description: getErrorMessage(err, 'প্রশ্ন যোগ করা সম্ভব হয়নি'), variant: 'destructive' })
+    } finally { setSaving(false) }
   }
 
   const handleRemoveQuestion = async (mcqId: string) => {
     if (!nav.selectedSetId) return
     try {
-      await mcqExamAdminService.removeQuestion(nav.selectedSetId, mcqId)
+      await mcqExamAdminService.removeQuestion(nav.selectedSetId, mcqId, { silent: true })
       toast({ title: 'প্রশ্ন সরানো হয়েছে' })
       fetchSetDetail(nav.selectedSetId)
-    } catch (err) { console.error('[MCQExam] Failed to remove question:', err) }
+    } catch (err: unknown) {
+      toast({ title: 'ত্রুটি', description: getErrorMessage(err, 'প্রশ্ন সরানো সম্ভব হয়নি'), variant: 'destructive' })
+    }
   }
 
   const handleMoveQuestion = async (questionId: string, direction: 'up' | 'down') => {
@@ -347,9 +361,11 @@ export function useMCQExamPackages() {
     const questionOrders = questions.map((q, i) => ({ id: q.id, order: i }))
 
     try {
-      await mcqExamAdminService.reorderQuestions(nav.selectedSetId, questionOrders)
+      await mcqExamAdminService.reorderQuestions(nav.selectedSetId, questionOrders, { silent: true })
       fetchSetDetail(nav.selectedSetId)
-    } catch (err) { console.error('[MCQExam] Failed to reorder questions:', err) }
+    } catch (err: unknown) {
+      toast({ title: 'ত্রুটি', description: getErrorMessage(err, 'পুনর্বিন্যাস করা সম্ভব হয়নি'), variant: 'destructive' })
+    }
   }
 
   const handleBulkUploadMcqs = async () => {
@@ -375,9 +391,25 @@ export function useMCQExamPackages() {
         toast({ title: json.data?.message || '' })
         bulkUploadDispatch({ type: 'CLOSE' })
         fetchSetDetail(nav.selectedSetId)
+      } else {
+        let errorMsg = `আপলোড ব্যর্থ হয়েছে (${res.status})`
+        try {
+          const json = await res.json()
+          if (json && typeof json === 'object') {
+            errorMsg = json.error || json.message || errorMsg
+          }
+        } catch {
+          // Response body is not JSON; use the status-based fallback
+        }
+        toast({
+          title: 'ত্রুটি',
+          description: errorMsg,
+          variant: 'destructive',
+        })
       }
-    } catch (err) { console.error('[MCQExam] Failed to bulk upload MCQs:', err) }
-    finally { bulkUploadDispatch({ type: 'SET_LOADING', loading: false }) }
+    } catch (err: unknown) {
+      toast({ title: 'ত্রুটি', description: 'নেটওয়ার্ক ত্রুটির কারণে আপলোড ব্যর্থ হয়েছে', variant: 'destructive' })
+    } finally { bulkUploadDispatch({ type: 'SET_LOADING', loading: false }) }
   }
 
   const openLeaderboard = async (setId: string, setTitle: string) => {
@@ -393,10 +425,12 @@ export function useMCQExamPackages() {
 
   const togglePackageActive = async (pkg: MCQExamPackageRecord) => {
     try {
-      await mcqExamAdminService.updatePackage(pkg.id, { isActive: !pkg.isActive })
+      await mcqExamAdminService.updatePackage(pkg.id, { isActive: !pkg.isActive }, { silent: true })
       toast({ title: pkg.isActive ? 'নিষ্ক্রিয় করা হয়েছে' : 'প্যাকেজ সক্রিয় করা হয়েছে' })
       fetchPackages()
-    } catch (err) { console.error('[MCQExam] Failed to toggle package:', err) }
+    } catch (err: unknown) {
+      toast({ title: 'ত্রুটি', description: getErrorMessage(err, 'স্টেটাস পরিবর্তন করা সম্ভব হয়নি'), variant: 'destructive' })
+    }
   }
 
   const fetchRetakeRequests = useCallback(async (setId: string) => {
@@ -415,13 +449,13 @@ export function useMCQExamPackages() {
   const handleApproveRetakeRequest = async (requestId: string, approve: boolean) => {
     setSaving(true)
     try {
-      await api.put('admin/mcq-exam-packages', { action: 'approve-retake-request', requestId, approve })
-      toast({ title: approve ? 'অনুরোধ অনুমোদিত হয়েছে' : 'অনুরোধ প্রত্যাখ্যান করা হয়েছে' })
+      await api.put('admin/mcq-exam-packages', { action: 'approve-retake-request', requestId, approve }, { silent: true })
+      toast({ title: approve ? 'অনুরোধ অনুমোদিত হয়েছে' : 'অনুরোধ প্রত্যাখ্যান করা হয়েছে', description: approve ? 'শিক্ষার্থী এখন পুনরায় পরীক্ষা দিতে পারবে' : 'শিক্ষার্থীকে জানানো হবে' })
       if (nav.selectedSetId) {
         fetchRetakeRequests(nav.selectedSetId)
       }
-    } catch {
-      toast({ title: 'ত্রুটি', variant: 'destructive' })
+    } catch (err: unknown) {
+      toast({ title: 'ত্রুটি', description: getErrorMessage(err, 'অনুরোধ প্রক্রিয়া করা সম্ভব হয়নি'), variant: 'destructive' })
     } finally {
       setSaving(false)
     }
@@ -450,6 +484,7 @@ export function useMCQExamPackages() {
     pkgOriginalPrice: pkgForm.pkgOriginalPrice, setPkgOriginalPrice: (v: string) => pkgFormDispatch({ type: 'SET_FIELD', field: 'pkgOriginalPrice', value: v }),
     pkgThumbnail: pkgForm.pkgThumbnail, setPkgThumbnail: (v: string) => pkgFormDispatch({ type: 'SET_FIELD', field: 'pkgThumbnail', value: v }),
     pkgIsActive: pkgForm.pkgIsActive, setPkgIsActive: (v: boolean) => pkgFormDispatch({ type: 'SET_FIELD', field: 'pkgIsActive', value: v }),
+    pkgIsPremium: pkgForm.pkgIsPremium, setPkgIsPremium: (v: boolean) => pkgFormDispatch({ type: 'SET_FIELD', field: 'pkgIsPremium', value: v }),
     pkgOrder: pkgForm.pkgOrder, setPkgOrder: (v: string) => pkgFormDispatch({ type: 'SET_FIELD', field: 'pkgOrder', value: v }),
     pkgStatus: pkgForm.pkgStatus, setPkgStatus: (v: string) => pkgFormDispatch({ type: 'SET_FIELD', field: 'pkgStatus', value: v }),
     setTitle: setForm.setTitle, setSetTitle: (v: string) => setFormDispatch({ type: 'SET_FIELD', field: 'setTitle', value: v }),
@@ -462,6 +497,14 @@ export function useMCQExamPackages() {
     setNegativeMarks: setForm.setNegativeMarks, setSetNegativeMarks: (v: string) => setFormDispatch({ type: 'SET_FIELD', field: 'setNegativeMarks', value: v }),
     setInstructions: setForm.setInstructions, setSetInstructions: (v: string) => setFormDispatch({ type: 'SET_FIELD', field: 'setInstructions', value: v }),
     setAllowRetake: setForm.setAllowRetake, setSetAllowRetake: (v: boolean) => setFormDispatch({ type: 'SET_FIELD', field: 'setAllowRetake', value: v }),
+    setPracticeMode: setForm.setPracticeMode, setSetPracticeMode: (v: boolean) => setFormDispatch({ type: 'SET_FIELD', field: 'setPracticeMode', value: v }),
+    setAllowUnlimitedAttempts: setForm.setAllowUnlimitedAttempts, setSetAllowUnlimitedAttempts: (v: boolean) => setFormDispatch({ type: 'SET_FIELD', field: 'setAllowUnlimitedAttempts', value: v }),
+    setMaxAttempts: setForm.setMaxAttempts, setSetMaxAttempts: (v: string) => setFormDispatch({ type: 'SET_FIELD', field: 'setMaxAttempts', value: v }),
+    setReviewAnswers: setForm.setReviewAnswers, setSetReviewAnswers: (v: boolean) => setFormDispatch({ type: 'SET_FIELD', field: 'setReviewAnswers', value: v }),
+    setShowExplanations: setForm.setShowExplanations, setSetShowExplanations: (v: boolean) => setFormDispatch({ type: 'SET_FIELD', field: 'setShowExplanations', value: v }),
+    setShowCorrectAnswers: setForm.setShowCorrectAnswers, setSetShowCorrectAnswers: (v: boolean) => setFormDispatch({ type: 'SET_FIELD', field: 'setShowCorrectAnswers', value: v }),
+    setAutoPublishResults: setForm.setAutoPublishResults, setSetAutoPublishResults: (v: boolean) => setFormDispatch({ type: 'SET_FIELD', field: 'setAutoPublishResults', value: v }),
+    setPassMarks: setForm.setPassMarks, setSetPassMarks: (v: string) => setFormDispatch({ type: 'SET_FIELD', field: 'setPassMarks', value: v }),
     setOrder: setForm.setOrder, setSetOrder: (v: string) => setFormDispatch({ type: 'SET_FIELD', field: 'setOrder', value: v }),
     setStatus: setForm.setStatus, setSetStatus: (v: string) => setFormDispatch({ type: 'SET_FIELD', field: 'setStatus', value: v }),
     searchDialogOpen: searchDialog.searchDialogOpen, setSearchDialogOpen: (v: boolean) => searchDialogDispatch({ type: v ? 'OPEN' : 'CLOSE' }),

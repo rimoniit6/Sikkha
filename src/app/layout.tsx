@@ -9,6 +9,7 @@ import QueryProvider from "@/providers/QueryProvider";
 import AuthProvider from "@/providers/AuthProvider";
 import { LearningPreferenceProvider } from "@/providers/LearningPreferenceProvider";
 import LoadingProvider from "@/providers/LoadingProvider";
+import ImageViewerProvider from "@/providers/ImageViewerProvider";
 import { RouteLoader } from "@/components/loading/RouteLoader";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
@@ -110,7 +111,9 @@ export default async function RootLayout({
                 <DynamicFavicon />
                 <ApiErrorHandler />
                 <GlobalStructuredData />
-                {children}
+                <ImageViewerProvider>
+                  {children}
+                </ImageViewerProvider>
               </LoadingProvider>
               </LearningPreferenceProvider>
             </AuthProvider>

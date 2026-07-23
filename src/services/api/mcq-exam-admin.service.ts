@@ -1,4 +1,4 @@
-import { api } from '@/lib/api-client'
+import { api, type RequestConfig } from '@/lib/api-client'
 import { 
   MCQExamPackageRecord, 
   MCQExamSetRecord, 
@@ -23,43 +23,43 @@ export const mcqExamAdminService = {
   getPackageDetail: (id: string) => 
     api.get<{ package: MCQExamPackageRecord }>('admin/mcq-exam-packages', { action: 'detail', id }),
   
-  createPackage: (data: AdminPayload) =>
-    api.post<{ package: MCQExamPackageRecord }>('admin/mcq-exam-packages', { action: 'create-package', ...data }),
+  createPackage: (data: AdminPayload, config?: RequestConfig) =>
+    api.post<{ package: MCQExamPackageRecord }>('admin/mcq-exam-packages', { action: 'create-package', ...data }, config),
   
-  updatePackage: (id: string, data: AdminPayload) =>
-    api.put<{ package: MCQExamPackageRecord }>('admin/mcq-exam-packages', { action: 'update-package', id, ...data }),
+  updatePackage: (id: string, data: AdminPayload, config?: RequestConfig) =>
+    api.put<{ package: MCQExamPackageRecord }>('admin/mcq-exam-packages', { action: 'update-package', id, ...data }, config),
   
-  deletePackage: (id: string) => 
-    api.delete('admin/mcq-exam-packages', { action: 'delete-package', id }),
+  deletePackage: (id: string, config?: RequestConfig) => 
+    api.delete('admin/mcq-exam-packages', { action: 'delete-package', id }, config),
 
   // Exam Sets
   getSetDetail: (setId: string) => 
     api.get<{ set: MCQExamSetRecord }>('admin/mcq-exam-packages', { action: 'set-detail', setId }),
   
-  createSet: (data: AdminPayload) =>
-    api.post<{ set: MCQExamSetRecord }>('admin/mcq-exam-packages', { action: 'create-set', ...data }),
+  createSet: (data: AdminPayload, config?: RequestConfig) =>
+    api.post<{ set: MCQExamSetRecord }>('admin/mcq-exam-packages', { action: 'create-set', ...data }, config),
   
-  updateSet: (id: string, data: AdminPayload) =>
-    api.put<{ set: MCQExamSetRecord }>('admin/mcq-exam-packages', { action: 'update-set', id, ...data }),
+  updateSet: (id: string, data: AdminPayload, config?: RequestConfig) =>
+    api.put<{ set: MCQExamSetRecord }>('admin/mcq-exam-packages', { action: 'update-set', id, ...data }, config),
   
-  deleteSet: (id: string) => 
-    api.delete('admin/mcq-exam-packages', { action: 'delete-set', id }),
+  deleteSet: (id: string, config?: RequestConfig) => 
+    api.delete('admin/mcq-exam-packages', { action: 'delete-set', id }, config),
   
-  bulkCreateSets: (data: AdminPayload) =>
-    api.post<{ sets: MCQExamSetRecord[], count: number }>('admin/mcq-exam-packages', { action: 'bulk-create-sets', ...data }),
+  bulkCreateSets: (data: AdminPayload, config?: RequestConfig) =>
+    api.post<{ sets: MCQExamSetRecord[], count: number }>('admin/mcq-exam-packages', { action: 'bulk-create-sets', ...data }, config),
 
   // Questions
   searchMcqs: (params: AdminQueryParams) =>
     api.get<{ mcqs: MCQSearchResult[], pagination: PaginationMeta }>('admin/mcq-exam-packages', { action: 'search-mcqs', ...params }),
   
-  addQuestions: (setId: string, mcqIds: string[]) => 
-    api.post('admin/mcq-exam-packages', { action: 'add-questions', setId, mcqIds }),
+  addQuestions: (setId: string, mcqIds: string[], config?: RequestConfig) => 
+    api.post('admin/mcq-exam-packages', { action: 'add-questions', setId, mcqIds }, config),
   
-  removeQuestion: (setId: string, mcqId: string) => 
-    api.delete('admin/mcq-exam-packages', { action: 'remove-question', setId, mcqId }),
+  removeQuestion: (setId: string, mcqId: string, config?: RequestConfig) => 
+    api.delete('admin/mcq-exam-packages', { action: 'remove-question', setId, mcqId }, config),
   
-  reorderQuestions: (setId: string, questionOrders: { id: string, order: number }[]) => 
-    api.put('admin/mcq-exam-packages', { action: 'reorder-questions', setId, questionOrders }),
+  reorderQuestions: (setId: string, questionOrders: { id: string, order: number }[], config?: RequestConfig) => 
+    api.put('admin/mcq-exam-packages', { action: 'reorder-questions', setId, questionOrders }, config),
 
   // Results & Leaderboard
   getResults: (setId: string) => 

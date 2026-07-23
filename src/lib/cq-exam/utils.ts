@@ -2,6 +2,22 @@ const bengaliLabels = ['ক', 'খ', 'গ', 'ঘ']
 
 export { bengaliLabels }
 
+/**
+ * Check if an answer has any content — text, images, or both.
+ * An answer is considered "answered" if any of the following is true:
+ * - trimmed text exists
+ * - one or more uploaded images exist
+ * - one or more annotated images exist (after evaluation)
+ *
+ * Use this helper everywhere instead of duplicating the logic.
+ */
+export function hasAnswerContent(
+  answerText: string | null | undefined,
+  images: { length: number },
+): boolean {
+  return !!answerText?.trim() || images.length > 0
+}
+
 export function formatTime(seconds: number): string {
   const m = Math.floor(seconds / 60)
   const s = seconds % 60

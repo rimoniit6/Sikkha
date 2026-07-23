@@ -2,21 +2,35 @@ import { NextResponse } from 'next/server'
 import { writeFile, mkdir } from 'fs/promises'
 import { join } from 'path'
 import crypto from 'crypto'
-import { withAdmin, withCsrf } from '@/lib/api-utils'
+import { verifyAuth } from '@/lib/auth'
 
 export async function POST(request: Request) {
   try {
-    // Only authenticated admins may upload files
-    const auth = await withAdmin(request)
-    if (auth instanceof Response) return auth
-
-    const csrfCheck = await withCsrf(request)
-    if ('error' in csrfCheck) return csrfCheck.error
+    // Any authenticated user (student, admin, etc.) may upload files
+    // Used by CQ exam answer images, payment screenshots, and admin content
+    // CSRF is intentionally omitted: file uploads use FormData (multipart)
+    // and are protected by auth + strict SameSite cookies.
+    const auth = await verifyAuth(request)
+    if (!auth) {
+      return NextResponse.json({ error: 'আপলোড করতে লগইন প্রয়োজন' }, { status: 401 })
+    }
 
     const formData = await request.formData()
     const file = formData.get('file') as File | null
     if (!file) {
-      return NextResponse.json({ error: 'No file provided' }, { status: 400 })
+      return NextResponse.json({ error: 'কোনো ফাইল পাওয়া যায়নি' }, { status: 400 })
+    }
+
+    // Validate file size (max 10MB)
+    const MAX_SIZE = 10 * 1024 * 1024
+    if (file.size > MAX_SIZE) {
+      return NextResponse.json({ error: 'ফাইলের সাইজ ১০MB এর বেশি হতে পারবে না' }, { status: 400 })
+    }
+
+    // Validate file type
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/svg+xml', 'application/pdf']
+    if (!allowedTypes.includes(file.type)) {
+      return NextResponse.json({ error: 'অসমর্থিত ফাইল ফরম্যাট। শুধুমাত্র ছবি ও PDF ফাইল সমর্থিত' }, { status: 400 })
     }
 
     const ext = file.name.split('.').pop() || 'jpg'
@@ -34,7 +48,13 @@ export async function POST(request: Request) {
     })
   } catch (error) {
     console.error('Local upload error:', error)
-    return NextResponse.json({ error: 'Upload failed' }, { status: 500 })
+    const message =
+      error instanceof Error
+        ? error.message.includes('ENOSPC')
+          ? 'সার্ভারে পর্যাপ্ত জায়গা নেই'
+          : 'আপলোড করতে সমস্যা হয়েছে। আবার চেষ্টা করুন।'
+        : 'আপলোড করতে সমস্যা হয়েছে। আবার চেষ্টা করুন।'
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }
 

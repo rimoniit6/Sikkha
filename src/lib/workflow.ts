@@ -110,7 +110,7 @@ const ADMIN_DRAFT_TRANSITIONS: WorkflowStatus[] = [
 
 // ─── Action → Target State Mapping ───
 
-const ACTION_TARGET_STATE: Record<WorkflowAction, WorkflowStatus> = {
+export const ACTION_TARGET_STATE: Record<WorkflowAction, WorkflowStatus> = {
   submit_for_review: 'IN_REVIEW',
   approve: 'APPROVED',
   reject: 'REJECTED',

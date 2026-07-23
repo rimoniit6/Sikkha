@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { BookOpen, Crown, Loader2, Layers, Award, RotateCcw, ArrowLeft, Bookmark, GraduationCap } from 'lucide-react'
-import SafeImage from '@/components/ui/safe-image'
+import Thumbnail from '@/components/ui/thumbnail'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -53,9 +53,7 @@ export default function LearningDashboardPage() {
           <CardContent className="p-0">
             <div className="flex gap-4 p-4">
               {c.thumbnail && (
-                <div className="h-20 w-28 shrink-0 overflow-hidden rounded-lg">
-                  <SafeImage src={c.thumbnail} alt={c.title} width={160} height={120} className="h-full w-full object-cover" />
-                </div>
+                <Thumbnail src={c.thumbnail} alt={c.title} width={112} height={80} className="rounded-lg shrink-0" />
               )}
               <div className="min-w-0 flex-1">
                 <div className="flex items-start justify-between gap-2">

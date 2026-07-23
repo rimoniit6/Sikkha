@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card,CardContent } from '@/components/ui/card'
 import ImageAnnotator from '@/components/ui/image-annotator'
-import ImageLightbox from '@/components/ui/image-lightbox'
+import { useImageViewer } from '@/providers/ImageViewerProvider'
 import RichContentRenderer from '@/components/ui/rich-content-renderer'
 import SafeImage from '@/components/ui/safe-image'
 import {
@@ -42,11 +42,7 @@ const SubmissionCard = memo(function SubmissionCard({
   saving: _saving,
   annotatingImage,
   setAnnotatingImage,
-  setLightboxImages,
-  setLightboxIndex,
-  setLightboxOpen,
-  lightboxImages: _lightboxImages,
-  lightboxIndex: _lightboxIndex,
+  viewer,
   handleQuickMark,
   syncedAnswerIds,
   handleAnnotationSave,
@@ -55,7 +51,6 @@ const SubmissionCard = memo(function SubmissionCard({
   ImageAnnotator,
   SafeImage,
   RichContentRenderer,
-  ImageLightbox: _ImageLightbox,
   User,
   Badge,
   Separator,
@@ -119,9 +114,7 @@ const SubmissionCard = memo(function SubmissionCard({
                                 isAnnotating && 'ring-2 ring-emerald-500'
                               )}
                               onClick={() => {
-                                setLightboxImages(allImgs)
-                                setLightboxIndex(imgIdx)
-                                setLightboxOpen(true)
+                                viewer?.openViewer(allImgs.map((i: {url: string; id: string; alt?: string}) => ({ src: i.url, alt: i.alt })), imgIdx)
                               }}
                             />
                             <button
@@ -232,9 +225,7 @@ function quickMarkButtons(maxMarks: number): number[] {
 export function CQBulkGradingView({ saving, set: setData, bulkSubmissions, onBulkFetch, onSaveBulk, onBack }: CQBulkGradingViewProps) {
   const [selectedQuestionId, setSelectedQuestionId] = useState<string>('')
   const [grades, setGrades] = useState<Record<string, Record<string, number>>>({})
-  const [lightboxOpen, setLightboxOpen] = useState(false)
-  const [lightboxImages, setLightboxImages] = useState<{ id: string; url: string; alt?: string }[]>([])
-  const [lightboxIndex, setLightboxIndex] = useState(0)
+  const viewer = useImageViewer()
   const [annotatingImage, setAnnotatingImage] = useState<string | null>(null)
 
   // Track which answer IDs have been saved to DB (not dirty)
@@ -364,11 +355,7 @@ export function CQBulkGradingView({ saving, set: setData, bulkSubmissions, onBul
             saving={saving}
             annotatingImage={annotatingImage}
             setAnnotatingImage={setAnnotatingImage}
-            setLightboxImages={setLightboxImages}
-            setLightboxIndex={setLightboxIndex}
-            setLightboxOpen={setLightboxOpen}
-            lightboxImages={lightboxImages}
-            lightboxIndex={lightboxIndex}
+            viewer={viewer}
             handleQuickMark={handleQuickMark}
             syncedAnswerIds={syncedAnswerIds}
             handleAnnotationSave={handleAnnotationSave}
@@ -377,7 +364,6 @@ export function CQBulkGradingView({ saving, set: setData, bulkSubmissions, onBul
             ImageAnnotator={ImageAnnotator}
             SafeImage={SafeImage}
             RichContentRenderer={RichContentRenderer}
-            ImageLightbox={ImageLightbox}
             User={User}
             Badge={Badge}
             Separator={Separator}
@@ -391,13 +377,7 @@ export function CQBulkGradingView({ saving, set: setData, bulkSubmissions, onBul
         ))}
       </div>
 
-      <ImageLightbox
-        images={lightboxImages}
-        initialIndex={lightboxIndex}
-        open={lightboxOpen}
-        onClose={() => { setLightboxOpen(false); setLightboxImages([]); setLightboxIndex(0) }}
-        onAnnotate={(imageId) => { setLightboxOpen(false); setAnnotatingImage(imageId) }}
-      />
+
     </div>
   )
 }

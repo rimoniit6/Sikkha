@@ -176,6 +176,11 @@ export async function createVersion(
   })
 
   // Automatically create Audit Log entry (single source of truth)
+  // NOTE: db is the (possibly transaction) client passed from the caller.
+  // We MUST pass it as tx to createAuditLog so that when createVersion is called
+  // inside a $transaction, the audit log participates in the same connection —
+  // otherwise it tries to write via the global db client, which blocks on the
+  // SQLite write lock held by the transaction, causing a deadlock/timeout.
   if (!skipAuditLog) {
     try {
       const { createAuditLog } = await import('@/lib/audit')
@@ -196,6 +201,7 @@ export async function createVersion(
         userAgent,
         userName: performedByName || undefined,
         userRole: performedByRole || undefined,
+        tx: db, // ← CRITICAL: pass transaction client to avoid deadlock
       })
     } catch {
       // Audit logging should never break the main operation
@@ -423,6 +429,7 @@ export async function rollbackVersion(
           userAgent: options.userAgent,
           userName: userName || undefined,
           userRole: userRole || undefined,
+          tx, // ← CRITICAL: pass transaction client to avoid deadlock
         })
       } catch {
         // Audit logging should never break the main operation

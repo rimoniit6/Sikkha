@@ -68,6 +68,17 @@ interface CQExamSetFormProps {
   setSetShowCorrectAnswers: (v: boolean) => void
   setEnablePartialGrading: boolean
   setSetEnablePartialGrading: (v: boolean) => void
+  // ── Practice Mode ──
+  setPracticeMode: boolean
+  setSetPracticeMode: (v: boolean) => void
+  setAllowUnlimitedAttempts: boolean
+  setSetAllowUnlimitedAttempts: (v: boolean) => void
+  setMaxAttempts: string
+  setSetMaxAttempts: (v: string) => void
+  setReviewAnswers: boolean
+  setSetReviewAnswers: (v: boolean) => void
+  setShowExplanations: boolean
+  setSetShowExplanations: (v: boolean) => void
   saving: boolean
   onSave: () => void
   onCancel: () => void
@@ -87,6 +98,11 @@ export function CQExamSetForm({
   setPassMarks, setSetPassMarks,
   setShowCorrectAnswers, setSetShowCorrectAnswers,
   setEnablePartialGrading, setSetEnablePartialGrading,
+  setPracticeMode, setSetPracticeMode,
+  setAllowUnlimitedAttempts, setSetAllowUnlimitedAttempts,
+  setMaxAttempts, setSetMaxAttempts,
+  setReviewAnswers, setSetReviewAnswers,
+  setShowExplanations, setSetShowExplanations,
   saving, onSave, onCancel
 }: CQExamSetFormProps) {
   const [datePickerOpen, setDatePickerOpen] = useState(false)
@@ -360,6 +376,108 @@ export function CQExamSetForm({
               onCheckedChange={setSetEnablePartialGrading}
             />
           </div>
+
+          <Separator className="my-1" />
+
+          {/* ══════ Practice Mode Section ══════ */}
+          <h4 className="text-sm font-semibold text-violet-600 dark:text-violet-400 flex items-center gap-2">
+            <RefreshCw className="h-4 w-4" />
+            প্র্যাকটিস মোড সেটিংস
+          </h4>
+
+          {/* Practice Mode Toggle */}
+          <div className="flex items-center gap-3 p-3 rounded-lg border bg-muted/30">
+            <RefreshCw className="h-4 w-4 text-violet-600 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <Label htmlFor="practice-mode" className="text-sm font-medium cursor-pointer">
+                প্র্যাকটিস মোড সক্রিয়
+              </Label>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                শিক্ষার্থীরা নির্ধারিত সময়ের পরেও অনুশীলনের জন্য পরীক্ষা দিতে পারবে
+              </p>
+            </div>
+            <Switch
+              id="practice-mode"
+              checked={setPracticeMode}
+              onCheckedChange={setSetPracticeMode}
+            />
+          </div>
+
+          {/* Allow Unlimited Practice Attempts */}
+          {setPracticeMode && (
+            <>
+              <div className="flex items-center gap-3 p-3 rounded-lg border bg-muted/30">
+                <RefreshCw className="h-4 w-4 text-violet-600 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <Label htmlFor="allow-unlimited-attempts" className="text-sm font-medium cursor-pointer">
+                    অসীম সংখ্যক অনুশীলনের অনুমতি
+                  </Label>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    ON থাকলে শিক্ষার্থী সীমাহীন বার অনুশীলন করতে পারবে
+                  </p>
+                </div>
+                <Switch
+                  id="allow-unlimited-attempts"
+                  checked={setAllowUnlimitedAttempts}
+                  onCheckedChange={setSetAllowUnlimitedAttempts}
+                />
+              </div>
+
+              {/* Max Attempts (hidden when unlimited) */}
+              {!setAllowUnlimitedAttempts && (
+                <div className="space-y-2 pl-2">
+                  <Label>সর্বোচ্চ অনুশীলনের সংখ্যা</Label>
+                  <Input
+                    type="number"
+                    min="1"
+                    max="999"
+                    value={setMaxAttempts}
+                    onChange={(e) => setSetMaxAttempts(e.target.value)}
+                    placeholder="যেমন: ৫"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    শিক্ষার্থী সর্বোচ্চ যতবার এই সেটটি অনুশীলন করতে পারবে (ন্যূনতম ১, সর্বোচ্চ ৯৯৯)
+                  </p>
+                </div>
+              )}
+
+              {/* Review Answers */}
+              <div className="flex items-center gap-3 p-3 rounded-lg border bg-muted/30">
+                <Eye className="h-4 w-4 text-violet-600 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <Label htmlFor="review-answers" className="text-sm font-medium cursor-pointer">
+                    অনুশীলনে উত্তর পর্যালোচনা দেখান
+                  </Label>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    জমা দেওয়ার পর সঠিক উত্তর ও ব্যাখ্যা দেখাবে
+                  </p>
+                </div>
+                <Switch
+                  id="review-answers"
+                  checked={setReviewAnswers}
+                  onCheckedChange={setSetReviewAnswers}
+                />
+              </div>
+
+              {/* Show Explanations */}
+              <div className="flex items-center gap-3 p-3 rounded-lg border bg-muted/30">
+                <Award className="h-4 w-4 text-violet-600 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <Label htmlFor="show-explanations" className="text-sm font-medium cursor-pointer">
+                    ব্যাখ্যা দেখান
+                  </Label>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    উত্তরের সঙ্গে বিস্তারিত ব্যাখ্যা প্রদর্শন
+                  </p>
+                </div>
+                <Switch
+                  id="show-explanations"
+                  checked={setShowExplanations}
+                  onCheckedChange={setSetShowExplanations}
+                />
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
 

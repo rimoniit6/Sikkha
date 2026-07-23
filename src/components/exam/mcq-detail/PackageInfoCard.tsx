@@ -2,7 +2,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import RichContentRenderer from '@/components/ui/rich-content-renderer'
-import SafeImage from '@/components/ui/safe-image'
+import Thumbnail from '@/components/ui/thumbnail'
 import {
   BookOpen,
   CheckCircle,
@@ -36,17 +36,12 @@ function PackageInfoCard({
         <Card className="border-emerald-200/50 dark:border-emerald-800/30 overflow-hidden">
           <div className="bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/20 dark:to-teal-950/20 p-5">
             <div className="flex items-start gap-4">
-              <div className="w-20 h-20 rounded-xl bg-gradient-to-br from-emerald-100 to-teal-100 dark:from-emerald-900/30 dark:to-teal-900/30 flex items-center justify-center shrink-0 overflow-hidden border border-emerald-200/50 dark:border-emerald-800/30">
-                {pkgDetail.thumbnail ? (
-                  <SafeImage
-                    src={pkgDetail.thumbnail}
-                    alt={pkgDetail.title}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <BookOpen className="size-8 text-emerald-500" />
-                )}
-              </div>
+              <Thumbnail
+                src={pkgDetail.thumbnail}
+                alt={pkgDetail.title}
+                size="sm"
+                fallbackIcon={<BookOpen className="size-8 text-emerald-500" />}
+              />
               <div className="flex-1 min-w-0">
                 <h2 className="text-lg font-bold text-foreground mb-1">
                   {pkgDetail.title}

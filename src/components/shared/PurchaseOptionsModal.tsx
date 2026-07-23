@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Card,CardContent } from '@/components/ui/card'
 import { toDecimal } from '@/lib/decimal'
 import { Dialog,DialogClose,DialogContent,DialogHeader,DialogTitle } from '@/components/ui/dialog'
-import SafeImage from '@/components/ui/safe-image'
+import Thumbnail from '@/components/ui/thumbnail'
 import { useContentTypes } from '@/hooks/use-content-types'
 import { useHierarchyMetadata } from '@/hooks/use-hierarchy-metadata'
 import { cn } from '@/lib/utils'
@@ -440,7 +440,7 @@ export default function PurchaseOptionsModal({
                               <div className="flex items-start gap-3">
                                 <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-emerald-100 to-teal-100 dark:from-emerald-900/30 dark:to-teal-900/30 flex items-center justify-center shrink-0 overflow-hidden border border-emerald-200/50 dark:border-emerald-800/30">
                                   {bundle.thumbnail ? (
-                                    <SafeImage src={bundle.thumbnail} alt={bundle.title} className="w-full h-full object-cover" />
+                                    <Thumbnail src={bundle.thumbnail} alt={bundle.title} width={48} height={48} />
                                   ) : (
                                     <Package className="size-6 text-emerald-600 dark:text-emerald-400" />
                                   )}
@@ -559,7 +559,7 @@ export default function PurchaseOptionsModal({
                                 <div className="flex items-start gap-3">
                                   <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-teal-100 to-cyan-100 dark:from-teal-900/30 dark:to-cyan-900/30 flex items-center justify-center shrink-0 overflow-hidden border border-teal-200/50 dark:border-teal-800/30">
                                     {pkg.thumbnail ? (
-                                      <SafeImage src={pkg.thumbnail} alt={pkg.title} className="w-full h-full object-cover" />
+                                      <Thumbnail src={pkg.thumbnail} alt={pkg.title} width={48} height={48} />
                                     ) : (
                                       <Timer className="size-6 text-teal-600 dark:text-teal-400" />
                                     )}

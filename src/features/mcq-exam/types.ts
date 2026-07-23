@@ -48,6 +48,14 @@ export interface MCQExamSetRecord {
   totalQuestions: number
   instructions: string | null
   allowRetake: boolean
+  practiceMode: boolean
+  allowUnlimitedAttempts: boolean
+  maxAttempts: number | null
+  reviewAnswers: boolean
+  showExplanations: boolean
+  showCorrectAnswers: boolean
+  autoPublishResults: boolean
+  passMarks: number
   status: string
   order: number
   createdAt: string

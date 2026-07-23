@@ -18,6 +18,7 @@ import { useCsrf,withCsrfHeaders } from '@/hooks/use-csrf'
 import { useToast } from '@/hooks/use-toast'
 import { useUploadThing } from '@/lib/upload/client'
 import { cn,toBengaliNumerals } from '@/lib/utils'
+import { useAutoScroll } from '@/hooks/use-auto-scroll'
 import { useAuthStore, useIsAuthenticated } from '@/store/auth'
 import { useRouterStore } from '@/store/router'
 import { AnimatePresence,motion } from 'framer-motion'
@@ -41,7 +42,7 @@ Timer,
 X
 } from 'lucide-react'
 import Image from 'next/image'
-import { useCallback,useEffect,useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -172,6 +173,27 @@ export default function MCQExamPackagePurchaseDialog({
     nagad: '018XXXXXXXX',
     rocket: '016XXXXXXXX',
   })
+
+  // ─── Refs (for auto-scroll after method selection) ─────────────────
+  const scrollContainerRef = useRef<HTMLDivElement>(null!)
+  const paymentInfoRef = useRef<HTMLDivElement>(null!)
+
+  // Auto-scroll to Payment Information when a method is selected
+  useAutoScroll(selectedMethod, {
+    containerRef: scrollContainerRef,
+    targetRef: paymentInfoRef,
+    offset: 16,
+  })
+
+  // Move focus to the first input field after method selection
+  useEffect(() => {
+    if (selectedMethod) {
+      const id = setTimeout(() => {
+        paymentInfoRef.current?.querySelector<HTMLElement>('input')?.focus()
+      }, 350)
+      return () => clearTimeout(id)
+    }
+  }, [selectedMethod])
 
   // ─── Fetch Payment Accounts ─────────────────────────────────────────────
 
@@ -468,7 +490,7 @@ export default function MCQExamPackagePurchaseDialog({
         </div>
 
         {/* ─── Scrollable Content ───────────────────────────────────── */}
-        <div className="flex-1 overflow-y-auto overscroll-contain min-h-0">
+        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto overscroll-contain min-h-0">
           {purchaseStatus === 'checking' ? (
             <div className="flex flex-col items-center justify-center py-20">
               <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mb-3" />
@@ -829,6 +851,7 @@ export default function MCQExamPackagePurchaseDialog({
                   {/* Transaction Form */}
                   {selectedMethod && (
                     <motion.div
+                      ref={paymentInfoRef}
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ duration: 0.2, delay: 0.1 }}

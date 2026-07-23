@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { ArrowLeft, BookOpen, Crown, Layers, Search, X, Award } from 'lucide-react'
-import SafeImage from '@/components/ui/safe-image'
+import Thumbnail from '@/components/ui/thumbnail'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -189,13 +189,12 @@ export default function CourseListPage() {
                   onClick={() => navigate('course-detail', { courseSlug: course.slug })}
                 >
                   {course.thumbnail && (
-                    <div className="aspect-video overflow-hidden">
-                      <SafeImage
+                    <div className="aspect-video overflow-hidden group">
+                      <Thumbnail
                         src={course.thumbnail}
                         alt={course.title}
-                        width={640}
-                        height={360}
-                        className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                        size="full"
+                        className="rounded-none transition-transform duration-300 group-hover:scale-105"
                       />
                     </div>
                   )}

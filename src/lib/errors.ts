@@ -110,28 +110,43 @@ function formatError(error: unknown): { message: string; statusCode: number; cod
 
   // Prisma errors
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    // Extract field names from meta when available
+    const targetFields: string[] = Array.isArray(error.meta?.target)
+      ? error.meta.target as string[]
+      : typeof error.meta?.target === 'string'
+        ? [error.meta.target as string]
+        : []
+
     switch (error.code) {
-      case 'P2002': // Unique constraint violation
+      case 'P2002': { // Unique constraint violation
+        const fieldHint = targetFields.length > 0
+          ? ` (${targetFields.join(', ')})`
+          : ''
         return {
-          message: 'এই তথ্য ইতিমধ্যে বিদ্যমান।',
+          message: `এই তথ্য ইতিমধ্যে বিদ্যমান${fieldHint}।`,
           statusCode: 409,
           code: 'DUPLICATE_ENTRY',
         }
+      }
       case 'P2025': // Record not found
         return {
           message: 'তথ্য খুঁজে পাওয়া যায়নি।',
           statusCode: 404,
           code: 'NOT_FOUND',
         }
-      case 'P2003': // Foreign key constraint
+      case 'P2003': { // Foreign key constraint
+        const fieldHint = targetFields.length > 0
+          ? ` (${targetFields.join(', ')})`
+          : ''
         return {
-          message: 'সম্পর্কিত তথ্য খুঁজে পাওয়া যায়নি।',
+          message: `সম্পর্কিত তথ্য খুঁজে পাওয়া যায়নি${fieldHint}।`,
           statusCode: 400,
           code: 'FOREIGN_KEY_ERROR',
         }
+      }
       default:
         return {
-          message: 'ডাটাবেস ত্রুটি হয়েছে।',
+          message: `ডাটাবেস ত্রুটি হয়েছে (${error.code})।`,
           statusCode: 500,
           code: 'DATABASE_ERROR',
         }

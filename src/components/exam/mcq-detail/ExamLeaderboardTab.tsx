@@ -1,7 +1,7 @@
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import SafeImage from '@/components/ui/safe-image'
+import Thumbnail from '@/components/ui/thumbnail'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn, toBengaliNumerals } from '@/lib/utils'
 import { motion } from 'framer-motion'
@@ -134,10 +134,12 @@ export default function ExamLeaderboardTab({
 
                   <div className="flex items-center gap-2 flex-1 min-w-0">
                     {entry.user.avatar ? (
-                      <SafeImage
+                      <Thumbnail
                         src={entry.user.avatar}
                         alt={entry.user.name}
-                        className="size-8 rounded-full object-cover shrink-0"
+                        width={32}
+                        height={32}
+                        className="rounded-full shrink-0"
                       />
                     ) : (
                       <div className="size-8 rounded-full bg-muted flex items-center justify-center shrink-0">

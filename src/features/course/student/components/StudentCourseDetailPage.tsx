@@ -9,7 +9,7 @@ import {
   MessageSquare, Star, PenSquare, CheckCircle, AlertCircle, FileUp, X, Paperclip,
   Layers, RefreshCw, Bookmark, RotateCcw,
 } from 'lucide-react'
-import SafeImage from '@/components/ui/safe-image'
+import Thumbnail from '@/components/ui/thumbnail'
 import { sanitizeHtml } from '@/lib/sanitize'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -399,7 +399,7 @@ export default function StudentCourseDetailPage({ slug }: Props) {
             {c.thumbnail && (
               <div className="shrink-0 lg:w-80">
                 <div className="relative overflow-hidden rounded-2xl shadow-2xl">
-                  <SafeImage src={c.thumbnail} alt={c.title} width={640} height={360} className="w-full aspect-video object-cover" />
+                  <Thumbnail src={c.thumbnail} alt={c.title} width={640} height={360} size="full" />
                 </div>
               </div>
             )}
@@ -991,7 +991,7 @@ export default function StudentCourseDetailPage({ slug }: Props) {
                      <Card key={rc.id} className="cursor-pointer overflow-hidden transition-all hover:shadow-md" onClick={() => navigate('course-detail', { courseSlug: rc.slug })}>
                        {rc.thumbnail && (
                          <div className="h-32 overflow-hidden">
-                           <SafeImage src={rc.thumbnail} alt={rc.title} width={480} height={240} className="h-full w-full object-cover" />
+                           <Thumbnail src={rc.thumbnail} alt={rc.title} size="full" />
                          </div>
                        )}
                        <CardContent className="p-4">
@@ -1239,12 +1239,7 @@ export default function StudentCourseDetailPage({ slug }: Props) {
                       {uploadedFiles.map((file, idx) => (
                         <div key={idx} className="group relative rounded-lg border bg-muted/30 overflow-hidden">
                           {isImageFile(file.type) ? (
-                             <div className="aspect-video relative">
-                               <SafeImage
-                                 src={file.url}
-                                 alt={file.name}
-                                 className="w-full h-full object-cover"
-                               />
+                             <div className="aspect-video relative">        <Thumbnail src={file.url} alt={file.name} size="full" />
                             </div>
                           ) : (
                             <div className="aspect-video flex items-center justify-center bg-blue-50 dark:bg-blue-950/20">

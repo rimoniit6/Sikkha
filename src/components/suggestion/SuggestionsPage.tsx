@@ -9,7 +9,7 @@ Breadcrumb,BreadcrumbItem,BreadcrumbLink,BreadcrumbList,BreadcrumbPage,Breadcrum
 import { Button } from '@/components/ui/button'
 import { Card,CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import SafeImage from '@/components/ui/safe-image'
+import Thumbnail from '@/components/ui/thumbnail'
 import {
 Select,SelectContent,SelectItem,SelectTrigger,SelectValue,
 } from '@/components/ui/select'
@@ -631,10 +631,11 @@ export default function SuggestionsPage() {
                         {/* Thumbnail */}
                         <div className="relative h-40 overflow-hidden">
                           {suggestion.thumbnail ? (
-                            <SafeImage
+                            <Thumbnail
                               src={suggestion.thumbnail}
                               alt={suggestion.title}
-                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                              size="full"
+                              className="transition-transform duration-500 group-hover:scale-105"
                             />
                           ) : (
                             <div className="w-full h-full bg-gradient-to-br from-violet-100 to-purple-100 dark:from-violet-950/40 dark:to-purple-950/40 flex items-center justify-center">

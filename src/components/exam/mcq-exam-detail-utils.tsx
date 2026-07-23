@@ -107,10 +107,17 @@ export interface ExamSetStatusItem {
   scheduledDate: string
   startTime: string
   endTime: string
-  status: 'completed' | 'in-progress' | 'not-started' | 'upcoming' | 'missed'
+  status: 'completed' | 'in-progress' | 'not-started' | 'upcoming' | 'missed' | 'practice-available'
   allowRetake?: boolean
   canRetake?: boolean
   retakeRequestStatus?: string | null
+  practiceMode?: boolean
+  practiceModeEnabled?: boolean
+  allowUnlimitedAttempts?: boolean
+  maxAttempts?: number
+  reviewAnswers?: boolean
+  showExplanations?: boolean
+  totalAttempts?: number
   result?: {
     id: string
     totalCorrect: number
@@ -288,6 +295,14 @@ export function getSetStatusInfo(
           bgColor: 'bg-gray-100 dark:bg-gray-900/30',
           textColor: 'text-gray-600 dark:text-gray-400',
           icon: <XCircle className="size-3" />,
+        }
+      case 'practice-available':
+        return {
+          label: 'প্র্যাকটিস মোড',
+          color: 'bg-violet-500',
+          bgColor: 'bg-violet-100 dark:bg-violet-900/30',
+          textColor: 'text-violet-700 dark:text-violet-400',
+          icon: <Play className="size-3" />,
         }
     }
   }

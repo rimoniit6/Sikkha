@@ -47,6 +47,7 @@ export default function AdminMCQExamPackagesPage() {
     pkgOriginalPrice, setPkgOriginalPrice,
     pkgThumbnail, setPkgThumbnail,
     pkgIsActive, setPkgIsActive,
+    pkgIsPremium, setPkgIsPremium,
     pkgOrder, setPkgOrder,
     pkgStatus, setPkgStatus,
     setTitle, setSetTitle,
@@ -59,6 +60,14 @@ export default function AdminMCQExamPackagesPage() {
     setNegativeMarks, setSetNegativeMarks,
     setInstructions, setSetInstructions,
     setAllowRetake, setSetAllowRetake,
+    setPracticeMode, setSetPracticeMode,
+    setAllowUnlimitedAttempts, setSetAllowUnlimitedAttempts,
+    setMaxAttempts, setSetMaxAttempts,
+    setReviewAnswers, setSetReviewAnswers,
+    setShowExplanations, setSetShowExplanations,
+    setShowCorrectAnswers, setSetShowCorrectAnswers,
+    setAutoPublishResults, setSetAutoPublishResults,
+    setPassMarks, setSetPassMarks,
     setOrder, setSetOrder,
     setStatus, setSetStatus,
     searchDialogOpen, setSearchDialogOpen,
@@ -116,7 +125,7 @@ export default function AdminMCQExamPackagesPage() {
               onOpenEdit={(pkg) => {
                 setEditId(pkg.id); setPkgTitle(pkg.title); setPkgDescription(pkg.description || '');
                 setPkgClassId(pkg.classId); setPkgPrice(String(pkg.price)); setPkgOriginalPrice(String(pkg.originalPrice));
-                setPkgThumbnail(pkg.thumbnail || ''); setPkgIsActive(pkg.isActive); setPkgOrder(String(pkg.order));
+                setPkgThumbnail(pkg.thumbnail || ''); setPkgIsActive(pkg.isActive); setPkgIsPremium(pkg.isPremium ?? true); setPkgOrder(String(pkg.order));
                 setPkgStatus(pkg.status); try { setPkgSubjectIds(        pkg.subjectIds || []) } catch { setPkgSubjectIds([]) }
                 fetchSubjectsForClass(pkg.classId); setViewMode('editor');
               }}
@@ -132,8 +141,9 @@ export default function AdminMCQExamPackagesPage() {
               pkgThumbnail={pkgThumbnail} setPkgThumbnail={setPkgThumbnail} pkgClassId={pkgClassId} onClassChange={(id) => { setPkgClassId(id); setPkgSubjectIds([]); fetchSubjectsForClass(id) }}
               classes={classes} pkgSubjectIds={pkgSubjectIds} setPkgSubjectIds={setPkgSubjectIds} subjects={subjects}
               pkgPrice={pkgPrice} setPkgPrice={setPkgPrice} pkgOriginalPrice={pkgOriginalPrice} setPkgOriginalPrice={setPkgOriginalPrice}
-              pkgIsActive={pkgIsActive} setPkgIsActive={setPkgIsActive} pkgOrder={pkgOrder} setPkgOrder={setPkgOrder}
+              pkgIsActive={pkgIsActive} setPkgIsActive={setPkgIsActive} pkgIsPremium={pkgIsPremium} setPkgIsPremium={setPkgIsPremium} pkgOrder={pkgOrder} setPkgOrder={setPkgOrder}
               pkgStatus={pkgStatus} setPkgStatus={setPkgStatus} saving={saving} onSave={handleSavePackage} onCancel={() => setViewMode('list')}
+              onWorkflowTransition={() => { _fetchPackages(); if (editId) fetchPackageDetail(editId) }}
             />
           </motion.div>
         )}
@@ -146,7 +156,7 @@ export default function AdminMCQExamPackagesPage() {
               onEditPackage={(pkg) => {
                 setEditId(pkg.id); setPkgTitle(pkg.title); setPkgDescription(pkg.description || '');
                 setPkgClassId(pkg.classId); setPkgPrice(String(pkg.price)); setPkgOriginalPrice(String(pkg.originalPrice));
-                setPkgThumbnail(pkg.thumbnail || ''); setPkgIsActive(pkg.isActive); setPkgOrder(String(pkg.order));
+                setPkgThumbnail(pkg.thumbnail || ''); setPkgIsActive(pkg.isActive); setPkgIsPremium(pkg.isPremium ?? true); setPkgOrder(String(pkg.order));
                 setPkgStatus(pkg.status); try { setPkgSubjectIds(        pkg.subjectIds || []) } catch { setPkgSubjectIds([]) }
                 fetchSubjectsForClass(pkg.classId); setViewMode('editor');
               }}
@@ -161,7 +171,12 @@ export default function AdminMCQExamPackagesPage() {
                 setSetScheduledDate(set.scheduledDate ? new Date(set.scheduledDate).toISOString().split('T')[0] : '');
                 setSetStartTime(set.startTime || '00:00'); setSetEndTime(set.endTime || '23:59');
                 setSetDuration(String(set.duration)); setSetMarksPerQ(String(set.marksPerQ)); setSetNegativeMarks(String(set.negativeMarks));
-                setSetInstructions(set.instructions || ''); setSetAllowRetake(set.allowRetake || false); setSetOrder(String(set.order)); setSetStatus(set.status);
+                setSetInstructions(set.instructions || ''); setSetAllowRetake(set.allowRetake || false);
+                setSetPracticeMode(set.practiceMode ?? true); setSetAllowUnlimitedAttempts(set.allowUnlimitedAttempts ?? true);
+                setSetMaxAttempts(String(set.maxAttempts ?? '')); setSetReviewAnswers(set.reviewAnswers ?? true);
+                setSetShowExplanations(set.showExplanations ?? true); setSetShowCorrectAnswers(set.showCorrectAnswers ?? true);
+                setSetAutoPublishResults(set.autoPublishResults ?? false); setSetPassMarks(String(set.passMarks ?? ''));
+                setSetOrder(String(set.order)); setSetStatus(set.status);
                 setViewMode('set-editor');
               }}
               onDeleteSet={(id) => setDeleteTarget({ type: 'set', id, packageId: selectedPackageId! })}
@@ -176,8 +191,16 @@ export default function AdminMCQExamPackagesPage() {
               setScheduledDate={setScheduledDate} setSetScheduledDate={setSetScheduledDate} setStartTime={setStartTime} setSetStartTime={setSetStartTime}
   setEndTime={setEndTime} setSetEndTime={setSetEndTime} setDuration={setDuration} setSetDuration={setSetDuration} setMarksPerQ={setMarksPerQ}
   setSetMarksPerQ={setSetMarksPerQ} setNegativeMarks={setNegativeMarks} setSetNegativeMarks={setSetNegativeMarks} setInstructions={setInstructions}
-  setSetInstructions={setSetInstructions} setAllowRetake={setAllowRetake} setSetAllowRetake={setSetAllowRetake} setOrder={setOrder}
-  setSetOrder={setSetOrder} setStatus={setStatus} setSetStatus={setSetStatus}
+  setSetInstructions={setSetInstructions} setAllowRetake={setAllowRetake} setSetAllowRetake={setSetAllowRetake}
+  setPracticeMode={setPracticeMode} setSetPracticeMode={setSetPracticeMode}
+  setAllowUnlimitedAttempts={setAllowUnlimitedAttempts} setSetAllowUnlimitedAttempts={setSetAllowUnlimitedAttempts}
+  setMaxAttempts={setMaxAttempts} setSetMaxAttempts={setSetMaxAttempts}
+  setReviewAnswers={setReviewAnswers} setSetReviewAnswers={setSetReviewAnswers}
+  setShowExplanations={setShowExplanations} setSetShowExplanations={setSetShowExplanations}
+  setShowCorrectAnswers={setShowCorrectAnswers} setSetShowCorrectAnswers={setSetShowCorrectAnswers}
+  setAutoPublishResults={setAutoPublishResults} setSetAutoPublishResults={setSetAutoPublishResults}
+  setPassMarks={setPassMarks} setSetPassMarks={setSetPassMarks}
+  setOrder={setOrder} setSetOrder={setSetOrder} setStatus={setStatus} setSetStatus={setSetStatus}
               saving={saving} onSave={handleSaveSet} onCancel={() => setViewMode('detail')}
             />
           </motion.div>

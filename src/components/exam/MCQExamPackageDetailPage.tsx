@@ -70,6 +70,7 @@ export default function MCQExamPackageDetailPage() {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [answers, setAnswers] = useState<Record<string, string>>({})
   const [markedForReview, setMarkedForReview] = useState<Record<string, boolean>>({})
+  const [skipped, setSkipped] = useState<Record<string, boolean>>({})
   const [timeRemaining, setTimeRemaining] = useState(0)
   const [examSetInfo, setExamSetInfo] = useState<ExamSet | null>(null)
 
@@ -111,6 +112,78 @@ export default function MCQExamPackageDetailPage() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const handleSubmitExamRef = useRef<() => void | Promise<void>>(() => {})
   const timerWarnedRef = useRef(false)
+
+  // ─── Auto-save answers ───────────────────────────────────────────────────
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const lastSavedAnswersRef = useRef<string>('{}')
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const saveAnswersToServer = useCallback(
+    async (resultId: string, currentAnswers: Record<string, string>) => {
+      setSaveStatus('saving')
+      try {
+        const csrfToken = await fetchCsrfToken()
+        const res = await fetch('/api/mcq-exam-packages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(csrfToken ? { 'x-csrf-token': csrfToken } : {}),
+          },
+          body: JSON.stringify({
+            action: 'save-answers',
+            resultId,
+            answers: currentAnswers,
+          }),
+        })
+        if (res.ok) {
+          lastSavedAnswersRef.current = JSON.stringify(currentAnswers)
+          setSaveStatus('saved')
+        } else {
+          setSaveStatus('error')
+        }
+      } catch {
+        setSaveStatus('error')
+      }
+    },
+    []
+  )
+
+  // Debounce auto-save: save 2 seconds after the last answer change
+  useEffect(() => {
+    if (currentView !== 'exam' || !examResult?.id) return
+
+    // Clear any pending save
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current)
+    }
+
+    const currentAnswersJson = JSON.stringify(answers)
+    // Skip save if nothing changed
+    if (currentAnswersJson === lastSavedAnswersRef.current) {
+      return
+    }
+
+    setSaveStatus('idle')
+    saveTimerRef.current = setTimeout(() => {
+      saveAnswersToServer(examResult.id!, answers)
+    }, 2000)
+
+    return () => {
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current)
+      }
+    }
+  }, [answers, examResult?.id, currentView, saveAnswersToServer])
+
+  // Save immediately when leaving exam view or submitting
+  useEffect(() => {
+    if (currentView !== 'exam' && saveStatus === 'idle' && examResult?.id) {
+      const currentAnswersJson = JSON.stringify(answers)
+      if (currentAnswersJson !== lastSavedAnswersRef.current) {
+        saveAnswersToServer(examResult.id, answers)
+      }
+    }
+  }, [currentView, answers, examResult?.id, saveStatus, saveAnswersToServer])
 
   // ─── Fetch Package Overview ─────────────────────────────────────────────
 
@@ -267,7 +340,7 @@ export default function MCQExamPackageDetailPage() {
         return
       }
 
-      const { set, questions, result, timeRemaining: remaining, alreadyCompleted } = json.data
+      const { set, questions, result, timeRemaining: remaining, alreadyCompleted, practiceMode } = json.data
 
       setExamSetInfo(set)
       setExamQuestions(questions)
@@ -283,7 +356,9 @@ export default function MCQExamPackageDetailPage() {
         setExamResult(result as ExamResult)
         setResultId(result.id)
         setAnswers(result.answers || {})
-        setTimeRemaining(remaining || set.duration * 60)
+        // In practice mode, use the full duration for the timer
+        // In live mode, use the remaining time from the server
+        setTimeRemaining(practiceMode ? set.duration * 60 : (remaining || set.duration * 60))
         setCurrentIndex(0)
         setCurrentView('exam')
       }
@@ -381,7 +456,14 @@ export default function MCQExamPackageDetailPage() {
   }, [])
 
   const handleSubmitExam = useCallback(async () => {
-    if (!examResult?.id || !activeSetId) return
+    if (!examResult?.id || !activeSetId) {
+      toast({
+        title: 'ত্রুটি',
+        description: 'পরীক্ষার তথ্য পাওয়া যায়নি। অনুগ্রহ করে পৃষ্ঠাটি রিফ্রেশ করুন।',
+        variant: 'destructive',
+      })
+      return
+    }
 
     setSubmitDialogOpen(false)
     setSubmitting(true)
@@ -470,14 +552,51 @@ export default function MCQExamPackageDetailPage() {
     }
   }, [timerShouldRun])
 
+  // ─── Derived state (must be before any callback that references it) ────
+
+  const currentQuestion = useMemo(
+    () => examQuestions[currentIndex],
+    [examQuestions, currentIndex]
+  )
+
+  const selectedAnswer = useMemo(
+    () => currentQuestion ? answers[currentQuestion.mcqId] : undefined,
+    [currentQuestion, answers]
+  )
+
   // ─── Exam UI Handlers ──────────────────────────────────────────────────
 
   const handleSelectOption = useCallback((questionId: string, optionKey: string) => {
     setAnswers((prev) => ({ ...prev, [questionId]: optionKey }))
+    // Clear skipped flag if this question was previously skipped
+    setSkipped((prev) => {
+      if (prev[questionId]) {
+        const { [questionId]: _, ...rest } = prev
+        return rest
+      }
+      return prev
+    })
     if (currentIndex < examQuestions.length - 1) {
       setCurrentIndex(currentIndex + 1)
     }
   }, [currentIndex, examQuestions.length])
+
+  const handleSkip = useCallback(() => {
+    if (!currentQuestion) return
+    // Mark current question as skipped
+    setSkipped((prev) => ({ ...prev, [currentQuestion.mcqId]: true }))
+    // Clear any existing answer for this question
+    setAnswers((prev) => {
+      if (prev[currentQuestion.mcqId]) {
+        const { [currentQuestion.mcqId]: _, ...rest } = prev
+        return rest
+      }
+      return prev
+    })
+    if (currentIndex < examQuestions.length - 1) {
+      setCurrentIndex(currentIndex + 1)
+    }
+  }, [currentQuestion, currentIndex, examQuestions.length])
 
   const handleNext = useCallback(() => {
     if (currentIndex < examQuestions.length - 1) {
@@ -538,9 +657,19 @@ export default function MCQExamPackageDetailPage() {
     [markedForReview]
   )
 
-  const currentQuestion = useMemo(
-    () => examQuestions[currentIndex],
-    [examQuestions, currentIndex]
+  const answeredCount = useMemo(
+    () => examQuestions.filter((q) => answers[q.mcqId]).length,
+    [examQuestions, answers]
+  )
+
+  const progressPercent = useMemo(
+    () => (examQuestions.length > 0 ? (answeredCount / examQuestions.length) * 100 : 0),
+    [answeredCount, examQuestions.length]
+  )
+
+  const computeSetStatusInfo = useCallback(
+    (set: ExamSet): SetStatusInfo => getSetStatusInfo(set, examSetStatuses),
+    [examSetStatuses]
   )
 
   useEffect(() => {
@@ -587,26 +716,6 @@ export default function MCQExamPackageDetailPage() {
     }
   }, [currentView, timeRemaining])
 
-  const answeredCount = useMemo(
-    () => examQuestions.filter((q) => answers[q.mcqId]).length,
-    [examQuestions, answers]
-  )
-
-  const progressPercent = useMemo(
-    () => (examQuestions.length > 0 ? (answeredCount / examQuestions.length) * 100 : 0),
-    [answeredCount, examQuestions.length]
-  )
-
-  const computeSetStatusInfo = useCallback(
-    (set: ExamSet): SetStatusInfo => getSetStatusInfo(set, examSetStatuses),
-    [examSetStatuses]
-  )
-
-  const selectedAnswer = useMemo(
-    () => currentQuestion ? answers[currentQuestion.mcqId] : undefined,
-    [currentQuestion, answers]
-  )
-
   // ─── Loading State ──────────────────────────────────────────────────────
 
   if (loading) {
@@ -636,6 +745,7 @@ export default function MCQExamPackageDetailPage() {
         examQuestions={examQuestions}
         currentIndex={currentIndex}
         answers={answers}
+        skipped={skipped}
         markedForReview={markedForReview}
         timeRemaining={timeRemaining}
         submitting={submitting}
@@ -645,9 +755,11 @@ export default function MCQExamPackageDetailPage() {
         reviewedCount={reviewedCount}
         currentQuestion={currentQuestion}
         selectedAnswer={selectedAnswer}
+        saveStatus={saveStatus}
         onSelectOption={handleSelectOption}
         onNext={handleNext}
         onPrev={handlePrev}
+        onSkip={handleSkip}
         onToggleMarkForReview={toggleMarkForReview}
         onSetCurrentIndex={setCurrentIndex}
         onSubmitDialogOpen={handleSubmitDialogOpen}

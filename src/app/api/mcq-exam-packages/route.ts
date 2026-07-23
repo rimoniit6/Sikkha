@@ -2,9 +2,9 @@ import { db } from '@/lib/db'
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth, verifyAuth } from '@/lib/auth'
 import { apiError, withCsrf } from '@/lib/api-utils'
-import { getExamTimeMs, getDhakaOffsetMs } from '@/lib/date-utils'
-import { resolveCourseLayerAccess } from '@/lib/course-access-resolver'
 import { toDecimal } from '@/lib/decimal'
+import { validateExamAccess, getExamTimeWindow, calculateTimeRemaining, parseSubjectIds } from '@/features/shared/exam-engine'
+import logger from '@/lib/logger'
 
 // ============================================================================
 // GET handler — all read operations for MCQ Exam Packages (public-facing)
@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
         return apiError(`Unknown action: ${action}`, 400)
     }
   } catch (error) {
-    console.error('MCQ Exam Packages API error:', error)
+    logger.error('MCQ Exam Packages API error', error, { route: 'mcq-exam-packages', method: 'GET' })
     return apiError('সার্ভার ত্রুটি হয়েছে', 500)
   }
 }
@@ -65,6 +65,8 @@ export async function POST(request: NextRequest) {
     const { action } = body
 
     switch (action) {
+      case 'save-answers':
+        return await handleSaveAnswers(body, request)
       case 'submit-exam':
         return await handleSubmitExam(body, request)
       case 'request-retake':
@@ -73,26 +75,8 @@ export async function POST(request: NextRequest) {
         return apiError(`Unknown action: ${action}`, 400)
     }
   } catch (error) {
-    console.error('MCQ Exam Packages POST error:', error)
+    logger.error('MCQ Exam Packages POST error', error, { route: 'mcq-exam-packages', method: 'POST' })
     return apiError('সার্ভার ত্রুটি হয়েছে', 500)
-  }
-}
-
-// ============================================================================
-// Utility: subjectIds is stored as a JSON string ("[]" default) in SQLite —
-// parse defensively so a malformed value never crashes the route.
-// ============================================================================
-
-function parseSubjectIds(raw: unknown): string[] {
-  if (Array.isArray(raw)) return raw.filter((id): id is string => typeof id === 'string')
-  if (typeof raw !== 'string' || raw.trim() === '') return []
-  try {
-    const parsed = JSON.parse(raw)
-    return Array.isArray(parsed)
-      ? parsed.filter((id): id is string => typeof id === 'string')
-      : []
-  } catch {
-    return []
   }
 }
 
@@ -285,33 +269,22 @@ async function handleDetail(searchParams: URLSearchParams, request: NextRequest)
     return apiError('প্যাকেজ খুঁজে পাওয়া যায়নি', 404)
   }
 
-  // Check purchase status for authenticated users
+    // Check purchase status for authenticated users
     let purchased = false
     let purchase: Record<string, unknown> | null = null
     let accessSource: 'direct_purchase' | 'course' | 'none' = 'none'
 
     const auth = await requireAuth(request)
     if (auth) {
-      // Direct purchase check
-      const purchaseRecord = await db.mCQExamPackagePurchase.findUnique({
-        where: {
-          userId_packageId: {
-            userId: auth.user.id,
-            packageId: id,
-          },
-        },
-      })
-      if (purchaseRecord && purchaseRecord.isActive) {
+      const access = await validateExamAccess(auth.user.id, id, 'mcq')
+      if (access.hasAccess) {
         purchased = true
-        purchase = purchaseRecord as unknown as Record<string, unknown>
-        accessSource = 'direct_purchase'
-      }
-      // Course-granted access check
-      if (!purchased) {
-        const courseAccess = await resolveCourseLayerAccess(auth.user.id, 'mcq-exam-package', id)
-        if (courseAccess.hasAccess) {
-          purchased = true
-          accessSource = 'course'
+        accessSource = access.accessSource
+        if (access.accessSource === 'direct_purchase') {
+          const purchaseRecord = await db.mCQExamPackagePurchase.findUnique({
+            where: { userId_packageId: { userId: auth.user.id, packageId: id } },
+          })
+          purchase = purchaseRecord as unknown as Record<string, unknown>
         }
       }
     }
@@ -366,64 +339,60 @@ async function handleTakeExam(searchParams: URLSearchParams, request: NextReques
   }
 
   // Check purchase — direct or course-granted
-  const purchaseRecord = await db.mCQExamPackagePurchase.findUnique({
-    where: {
-      userId_packageId: {
-        userId: auth.user.id,
-        packageId: examSet.packageId,
-      },
-    },
-  })
-
-  const hasDirectPurchase = purchaseRecord?.isActive ?? false
-  let hasCourseAccess = false
-  if (!hasDirectPurchase) {
-    const courseAccess = await resolveCourseLayerAccess(auth.user.id, 'mcq-exam-package', examSet.packageId)
-    hasCourseAccess = courseAccess.hasAccess
-  }
-
-  if (!hasDirectPurchase && !hasCourseAccess) {
+  const access = await validateExamAccess(auth.user.id, examSet.packageId, 'mcq')
+  if (!access.hasAccess) {
+    logger.warn('exam_access_denied', { userId: auth.user.id, packageId: examSet.packageId, reason: 'not_purchased' })
     return apiError('আপনি এই প্যাকেজটি কিনেননি', 403, 'NOT_PURCHASED')
   }
 
-  // Check scheduled date + startTime
-  const nowMs = Date.now()
-  const examStartMs = getExamTimeMs(examSet.scheduledDate, examSet.startTime || '00:00')
-  if (nowMs < examStartMs) {
-    const diffDays = Math.ceil((examStartMs - nowMs) / (1000 * 60 * 60 * 24))
-    return apiError(`পরীক্ষা এখনো শুরু হয়নি। ${diffDays} দিন পর পরীক্ষা শুরু হবে।`, 400, 'EXAM_NOT_YET_AVAILABLE', { scheduledDate: examSet.scheduledDate, startTime: examSet.startTime })
+  const hasPurchase = access.hasAccess
+
+  // ── Practice Mode ──
+  // Purchased students can access in practice mode regardless of schedule.
+  const isPracticeMode = hasPurchase && examSet.practiceMode
+  if (isPracticeMode) {
+    // Skip all time-window checks — start anytime, ignore end time.
+    // Fall through to the result/attempt logic below.
+  } else {
+    // LIVE EXAM mode: enforce the scheduled time window.
+    const { nowMs, examStartMs, effectiveEndMs } = getExamTimeWindow(examSet)
+    if (nowMs < examStartMs) {
+      const diffDays = Math.ceil((examStartMs - nowMs) / (1000 * 60 * 60 * 24))
+      return apiError(`পরীক্ষা এখনো শুরু হয়নি। ${diffDays} দিন পর পরীক্ষা শুরু হবে।`, 400, 'EXAM_NOT_YET_AVAILABLE', { scheduledDate: examSet.scheduledDate, startTime: examSet.startTime })
+    }
+
+    if (nowMs > effectiveEndMs) {
+      return apiError('পরীক্ষার সময় শেষ হয়েছে।', 400, 'EXAM_TIME_EXPIRED')
+    }
   }
 
-  // Check endTime — window has closed
-  const examEndMs = getExamTimeMs(examSet.scheduledDate, examSet.endTime || '23:59')
-  // Support windows that cross midnight (e.g. 22:00–02:00): if the end time is
-  // on or before the start time, treat it as the following day.
-  const effectiveEndMs =
-    examEndMs <= examStartMs ? examEndMs + 24 * 60 * 60 * 1000 : examEndMs
-  if (nowMs > effectiveEndMs) {
-    return apiError('পরীক্ষার সময় শেষ হয়েছে।', 400, 'EXAM_TIME_EXPIRED')
-  }
-
-  // Check if user already has a result for this set
-  let existingResult = await db.mCQExamSetResult.findUnique({
-    where: {
-      userId_setId: {
-        userId: auth.user.id,
-        setId: setId,
-      },
-    },
+  // ── Attempt / Retake Logic ──
+  // Get the latest result for this user + set
+  let latestResult = await db.mCQExamSetResult.findFirst({
+    where: { userId: auth.user.id, setId },
+    orderBy: { attemptNumber: 'desc' },
+  })
+  const totalAttempts = await db.mCQExamSetResult.count({
+    where: { userId: auth.user.id, setId },
   })
 
-  // If completed and retake is allowed (set-level or individual), delete old result and start fresh
-  const hadCanRetake = existingResult?.canRetake || false
-  if (existingResult && existingResult.status === ('COMPLETED' as const) && (examSet.allowRetake || existingResult.canRetake)) {
-    await db.mCQExamSetResult.delete({ where: { id: existingResult.id } })
-    existingResult = null
-    // Fall through to create new result below
+  // Practice mode: unlimited attempts unless maxAttempts is configured
+  const canPracticeRetake = isPracticeMode && (examSet.allowUnlimitedAttempts || totalAttempts < (examSet.maxAttempts || Infinity))
+  // Live mode retake: set-level allowRetake or admin-granted individual canRetake
+  const canLiveRetake = !isPracticeMode && latestResult?.status === ('COMPLETED' as const) && (examSet.allowRetake || latestResult?.canRetake)
+
+  // If we can start a new attempt (either practice retake or live retake), simply
+  // advance the attemptNumber. Old results are kept for history.
+  if (isPracticeMode && latestResult?.status === ('COMPLETED' as const) && canPracticeRetake) {
+    // Fall through to create new attempt below — do NOT return old result
+    latestResult = null // force new attempt creation
+  } else if (!isPracticeMode && latestResult?.status === ('COMPLETED' as const) && canLiveRetake) {
+    // Live retake: preserve old result, create a new attempt
+    latestResult = null
   }
 
-  // If completed, return the result (no retake allowed)
-  if (existingResult && existingResult.status === ('COMPLETED' as const)) {
+  // If completed and no retake allowed, return existing result for review
+  if (latestResult && latestResult.status === ('COMPLETED' as const)) {
     // Get questions with answers for review
     const setQuestions = await db.mCQExamSetQuestion.findMany({
       where: { setId },
@@ -493,16 +462,20 @@ async function handleTakeExam(searchParams: URLSearchParams, request: NextReques
           totalQuestions: examSet.totalQuestions,
           instructions: examSet.instructions,
         },
-        result: existingResult,
+        result: latestResult,
         questions: questionsWithAnswers,
         alreadyCompleted: true,
         timeRemaining: 0,
+        practiceMode: isPracticeMode,
       },
     })
   }
 
+  // Determine next attempt number
+  const nextAttemptNumber = totalAttempts + 1
+
   // If in-progress, resume it
-  if (existingResult && existingResult.status === 'IN_PROGRESS') {
+  if (latestResult && latestResult.status === 'IN_PROGRESS') {
     const setQuestions = await db.mCQExamSetQuestion.findMany({
       where: { setId },
       orderBy: { order: 'asc' },
@@ -544,7 +517,7 @@ async function handleTakeExam(searchParams: URLSearchParams, request: NextReques
     }))
 
     // Calculate time remaining
-    const timeRemaining = calculateTimeRemaining(existingResult.startedAt, examSet.duration)
+    const timeRemaining = calculateTimeRemaining(latestResult.startedAt, examSet.duration)
 
     return NextResponse.json({
       success: true,
@@ -565,18 +538,19 @@ async function handleTakeExam(searchParams: URLSearchParams, request: NextReques
         },
         questions: questionsForExam,
         result: {
-          id: existingResult.id,
-          status: existingResult.status,
-          startedAt: existingResult.startedAt,
-          answers: existingResult.answers,
+          id: latestResult.id,
+          status: latestResult.status,
+          startedAt: latestResult.startedAt,
+          answers: latestResult.answers,
         },
         timeRemaining: Math.max(0, timeRemaining),
         resuming: true,
+        practiceMode: isPracticeMode,
       },
     })
   }
 
-  // No existing result — create an in-progress result
+  // No existing result or starting new attempt — create an in-progress result
   const setQuestions = await db.mCQExamSetQuestion.findMany({
     where: { setId },
     orderBy: { order: 'asc' },
@@ -599,17 +573,38 @@ async function handleTakeExam(searchParams: URLSearchParams, request: NextReques
     },
   })
 
-  const newResult = await db.mCQExamSetResult.create({
-    data: {
-      userId: auth.user.id,
-      setId: setId,
-      status: 'IN_PROGRESS',
-      startedAt: new Date(),
+  let newResult: Awaited<ReturnType<typeof db.mCQExamSetResult.create>> | null = null
+  try {
+    newResult = await db.$transaction(async (tx) => {
+      // Re-check attempt count atomically inside the transaction (TOCTOU prevention)
+      const currentAttempts = await tx.mCQExamSetResult.count({
+        where: { userId: auth.user.id, setId },
+      })
+      const currentAttemptNumber = currentAttempts + 1
+
+      if (isPracticeMode && !examSet.allowUnlimitedAttempts && examSet.maxAttempts && examSet.maxAttempts > 0 && currentAttempts >= examSet.maxAttempts) {
+        throw new Error('PRACTICE_LIMIT_REACHED')
+      }
+
+      return tx.mCQExamSetResult.create({
+        data: {
+          userId: auth.user.id,
+          setId: setId,
+          attemptNumber: currentAttemptNumber,
+          practiceMode: isPracticeMode,
+          status: 'IN_PROGRESS',
+          startedAt: new Date(),
           answers: '{}',
-      totalMarks: examSet.totalMarks,
-      canRetake: hadCanRetake,
-    },
-  })
+          totalMarks: examSet.totalMarks,
+        },
+      })
+    })
+  } catch (error) {
+    if (error instanceof Error && error.message === 'PRACTICE_LIMIT_REACHED') {
+      return apiError('আপনার প্র্যাকটিসের সীমা শেষ হয়েছে', 403, 'PRACTICE_LIMIT_REACHED')
+    }
+    throw error
+  }
 
   // Questions without correct answer or explanation during exam
   const questionsForExam = setQuestions.map((sq) => ({
@@ -630,6 +625,8 @@ async function handleTakeExam(searchParams: URLSearchParams, request: NextReques
   }))
 
   const timeRemaining = calculateTimeRemaining(newResult.startedAt, examSet.duration)
+
+  logger.info('exam_start', { userId: auth.user.id, setId, attemptNumber: newResult.attemptNumber, practiceMode: isPracticeMode })
 
   return NextResponse.json({
     success: true,
@@ -657,8 +654,55 @@ async function handleTakeExam(searchParams: URLSearchParams, request: NextReques
       },
       timeRemaining: Math.max(0, timeRemaining),
       resuming: false,
+      practiceMode: isPracticeMode,
     },
   })
+}
+
+// ============================================================================
+// 3b. SAVE ANSWERS — Persist in-progress answers so they survive refresh
+// ============================================================================
+
+async function handleSaveAnswers(body: Record<string, unknown>, request: NextRequest) {
+  const { resultId, answers } = body as {
+    resultId?: string
+    answers?: Record<string, string>
+  }
+
+  if (!resultId || !answers) {
+    return apiError('resultId এবং answers প্রদান করুন', 400)
+  }
+
+  const auth = await requireAuth(request)
+  if (!auth) {
+    return apiError('উত্তর সংরক্ষণ করতে লগইন করুন', 401, 'UNAUTHORIZED')
+  }
+
+  // Verify the result exists and belongs to this user
+  const result = await db.mCQExamSetResult.findUnique({
+    where: { id: resultId },
+    select: { id: true, userId: true, status: true },
+  })
+
+  if (!result) {
+    return apiError('ফলাফল খুঁজে পাওয়া যায়নি', 404)
+  }
+
+  if (result.userId !== auth.user.id) {
+    return apiError('এই ফলাফল আপনার নয়', 403, 'FORBIDDEN')
+  }
+
+  // Only save answers for in-progress results
+  if (result.status !== 'IN_PROGRESS') {
+    return apiError('পরীক্ষা ইতিমধ্যে জমা দেওয়া হয়েছে', 400, 'ALREADY_SUBMITTED')
+  }
+
+  await db.mCQExamSetResult.update({
+    where: { id: resultId },
+    data: { answers: JSON.stringify(answers) },
+  })
+
+  return NextResponse.json({ success: true })
 }
 
 // ============================================================================
@@ -707,6 +751,17 @@ async function handleSubmitExam(body: Record<string, unknown>, request: NextRequ
   // Get the exam set for scoring info
   const examSet = await db.mCQExamSet.findUnique({
     where: { id: setId },
+    select: {
+      id: true,
+      duration: true,
+      marksPerQ: true,
+      negativeMarks: true,
+      totalMarks: true,
+      totalQuestions: true,
+      practiceMode: true,
+      reviewAnswers: true,
+      showExplanations: true,
+    },
   })
 
   if (!examSet) {
@@ -802,13 +857,13 @@ async function handleSubmitExam(body: Record<string, unknown>, request: NextRequ
       })
     }
 
-    // Update the result
+    // Update the result — answers must be a JSON string, not an object
     const updatedResult = await db.mCQExamSetResult.update({
       where: { id: resultId },
       data: {
         status: 'COMPLETED' as const,
         submittedAt: new Date(),
-          answers: answers,
+          answers: JSON.stringify(answers),
         totalCorrect,
         totalWrong,
         totalSkipped,
@@ -817,6 +872,8 @@ async function handleSubmitExam(body: Record<string, unknown>, request: NextRequ
         timeTaken: timeTaken || 0,
     },
   })
+
+  logger.info('exam_submit', { userId: auth.user.id, setId, timeTaken: timeTaken || 0, totalMarks: actualTotalMarks })
 
   // Build questions with correctAnswer and explanation for review
   const questionsWithAnswers = setQuestions.map((sq) => ({
@@ -841,10 +898,13 @@ async function handleSubmitExam(body: Record<string, unknown>, request: NextRequ
 
   return NextResponse.json({
     success: true,
-    data: {
-      result: updatedResult,
-      questions: questionsWithAnswers,
-    },
+      data: {
+        result: updatedResult,
+        questions: questionsWithAnswers,
+        reviewAnswers: examSet.reviewAnswers,
+        showExplanations: examSet.showExplanations,
+        practiceMode: result.practiceMode,
+      },
   })
 }
 
@@ -860,7 +920,7 @@ async function handleMyResults(searchParams: URLSearchParams, request: NextReque
 
   const userId = auth.user.id
   const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10))
-  const limit = Math.min(50, Math.max(1, parseInt(searchParams.get('limit') || '10', 10)))
+  const limit = Math.min(50, Math.max(1, parseInt(searchParams.get('limit') || '20', 10)))
   const skip = (page - 1) * limit
   const packageId = searchParams.get('packageId') || ''
   const sortBy = searchParams.get('sortBy') || 'recent'
@@ -874,55 +934,66 @@ async function handleMyResults(searchParams: URLSearchParams, request: NextReque
   if (sortBy === 'date') orderBy = { startedAt: 'asc' }
   else if (sortBy === 'score') orderBy = { marksObtained: 'desc' }
 
-  // Lightweight query for aggregates, package filter options and trend.
-  const allRows = await db.mCQExamSetResult.findMany({
-    where: { userId },
-    select: {
-      id: true,
-      marksObtained: true,
-      totalMarks: true,
-      totalCorrect: true,
-      totalWrong: true,
-      submittedAt: true,
-      startedAt: true,
-      set: {
-        select: {
-          title: true,
-          package: { select: { id: true, title: true } },
+  // Targeted aggregate queries (not paginated — these cover ALL results)
+  const [totalExams, sumAgg, scoreRows, packageRows, trendRows] = await Promise.all([
+    db.mCQExamSetResult.count({ where: { userId } }),
+    db.mCQExamSetResult.aggregate({
+      where: { userId },
+      _sum: { totalCorrect: true, totalWrong: true },
+    }),
+    db.mCQExamSetResult.findMany({
+      where: { userId },
+      select: { marksObtained: true, totalMarks: true },
+    }),
+    db.mCQExamSetResult.findMany({
+      where: { userId },
+      select: {
+        set: {
+          select: {
+            package: { select: { id: true, title: true } },
+          },
         },
       },
-    },
-  })
+    }),
+    db.mCQExamSetResult.findMany({
+      where: { userId },
+      orderBy: { submittedAt: 'desc' },
+      take: 10,
+      select: {
+        id: true,
+        marksObtained: true,
+        totalMarks: true,
+        submittedAt: true,
+        startedAt: true,
+        set: { select: { title: true } },
+      },
+    }),
+  ])
 
-  // Aggregates (computed over ALL of the user's results, not just the page)
-  const totalExams = allRows.length
+  const sumCorrect = sumAgg._sum.totalCorrect || 0
+  const sumWrong = sumAgg._sum.totalWrong || 0
+  const totalAttempted = sumCorrect + sumWrong
+
   let totalPercentage = 0
   let highestScore = 0
-  let totalCorrect = 0
-  let totalWrong = 0
-  let totalAttempted = 0
-  const packageMap = new Map<string, string>()
-  for (const r of allRows) {
+  for (const r of scoreRows) {
     const pct = toDecimal(r.totalMarks) > 0 ? (toDecimal(r.marksObtained) / toDecimal(r.totalMarks)) * 100 : 0
     totalPercentage += pct
     if (pct > highestScore) highestScore = pct
-    totalCorrect += r.totalCorrect
-    totalWrong += r.totalWrong
-    totalAttempted += r.totalCorrect + r.totalWrong
+  }
+  const avgScore = totalExams > 0 ? totalPercentage / totalExams : 0
+  const accuracyRate = totalAttempted > 0 ? (sumCorrect / totalAttempted) * 100 : 0
+
+  // Distinct packages from user results
+  const packageMap = new Map<string, string>()
+  for (const r of packageRows) {
     const pkg = r.set?.package
     if (pkg?.id) packageMap.set(pkg.id, pkg.title)
   }
-  const avgScore = totalExams > 0 ? totalPercentage / totalExams : 0
-  const accuracyRate = totalAttempted > 0 ? (totalCorrect / totalAttempted) * 100 : 0
 
   // Trend: last 10 results by date ascending
-  const trend = [...allRows]
-    .sort((a, b) => {
-      const da = a.submittedAt || a.startedAt || ''
-      const db = b.submittedAt || b.startedAt || ''
-      return new Date(da).getTime() - new Date(db).getTime()
-    })
-    .slice(-10)
+  const trend = trendRows
+    .reverse()
     .map((r) => ({
       id: r.id,
       title: r.set?.title || 'পরীক্ষা',
@@ -973,8 +1044,8 @@ async function handleMyResults(searchParams: URLSearchParams, request: NextReque
         totalExams,
         avgScore,
         highestScore,
-        totalCorrect,
-        totalWrong,
+        totalCorrect: sumCorrect,
+        totalWrong: sumWrong,
         accuracyRate,
       },
       packages: Array.from(packageMap.entries()).map(([id, title]) => ({ id, title })),
@@ -1013,6 +1084,9 @@ async function handleResultDetail(searchParams: URLSearchParams, request: NextRe
           marksPerQ: true,
           negativeMarks: true,
           instructions: true,
+          practiceMode: true,
+          reviewAnswers: true,
+          showExplanations: true,
           package: {
             select: {
               id: true,
@@ -1087,11 +1161,19 @@ async function handleResultDetail(searchParams: URLSearchParams, request: NextRe
     order: sq.order,
   }))
 
+  const resultData = {
+    ...result,
+    practiceMode: result.practiceMode,
+    attemptNumber: result.attemptNumber,
+  }
+
   return NextResponse.json({
     success: true,
     data: {
-      result,
+      result: resultData,
       questions: questionsWithAnswers,
+      reviewAnswers: result.set.reviewAnswers,
+      showExplanations: result.set.showExplanations,
     },
   })
 }
@@ -1111,17 +1193,9 @@ async function handleWeaknessAnalysis(searchParams: URLSearchParams, request: Ne
     return apiError('বিশ্লেষণ দেখতে লগইন করুন', 401, 'UNAUTHORIZED')
   }
 
-  // Check purchase
-  const purchaseRecord = await db.mCQExamPackagePurchase.findUnique({
-    where: {
-      userId_packageId: {
-        userId: auth.user.id,
-        packageId,
-      },
-    },
-  })
-
-  if (!purchaseRecord || !purchaseRecord.isActive) {
+  // Check purchase or course access
+  const access = await validateExamAccess(auth.user.id, packageId, 'mcq')
+  if (!access.hasAccess) {
     return apiError('আপনি এই প্যাকেজটি কিনেননি', 403, 'NOT_PURCHASED')
   }
 
@@ -1319,27 +1393,16 @@ async function handleCheckPurchase(searchParams: URLSearchParams, request: NextR
     return apiError('ক্রয় অবস্থা দেখতে লগইন করুন', 401, 'UNAUTHORIZED')
   }
 
-  const purchaseRecord = await db.mCQExamPackagePurchase.findUnique({
-    where: {
-      userId_packageId: {
-        userId: auth.user.id,
-        packageId,
-      },
-    },
-  })
+  const access = await validateExamAccess(auth.user.id, packageId, 'mcq')
 
-  let purchased = !!(purchaseRecord && purchaseRecord.isActive)
-  let accessSource: 'direct_purchase' | 'course' | 'none' = 'none'
+  const purchased = access.hasAccess
+  const accessSource = access.accessSource
 
-  if (purchased) {
-    accessSource = 'direct_purchase'
-  } else {
-    // Course-granted access check
-    const courseAccess = await resolveCourseLayerAccess(auth.user.id, 'mcq-exam-package', packageId)
-    if (courseAccess.hasAccess) {
-      purchased = true
-      accessSource = 'course'
-    }
+  let purchaseRecord = null
+  if (purchased && access.accessSource === 'direct_purchase') {
+    purchaseRecord = await db.mCQExamPackagePurchase.findUnique({
+      where: { userId_packageId: { userId: auth.user.id, packageId } },
+    })
   }
 
   // Check for pending payment in the Payment table
@@ -1443,14 +1506,10 @@ async function handleLeaderboard(searchParams: URLSearchParams, request: NextReq
     }),
   ])
 
-  // Find current user's rank
-  const userResult = await db.mCQExamSetResult.findUnique({
-    where: {
-      userId_setId: {
-        userId: auth.user.id,
-        setId,
-      },
-    },
+  // Find current user's best completed result for ranking
+  const userResult = await db.mCQExamSetResult.findFirst({
+    where: { userId: auth.user.id, setId, status: 'COMPLETED' as const },
+    orderBy: [{ marksObtained: 'desc' }, { timeTaken: 'asc' }],
     select: {
       id: true,
       marksObtained: true,
@@ -1548,6 +1607,11 @@ async function handleExamSetStatus(searchParams: URLSearchParams, request: NextR
           totalMarks: true,
           totalQuestions: true,
           allowRetake: true,
+          practiceMode: true,
+          allowUnlimitedAttempts: true,
+          maxAttempts: true,
+          reviewAnswers: true,
+          showExplanations: true,
         },
       },
     },
@@ -1571,6 +1635,15 @@ async function handleExamSetStatus(searchParams: URLSearchParams, request: NextR
 
   const resultMap = new Map(userResults.map((r) => [r.setId, r]))
 
+  const attemptCounts = setIds.length > 0
+    ? await db.mCQExamSetResult.groupBy({
+        by: ['setId'],
+        where: { userId: auth.user.id, setId: { in: setIds } },
+        _count: { id: true },
+      })
+    : []
+  const attemptCountMap = new Map(attemptCounts.map((r) => [r.setId, r._count.id]))
+
   // Fetch retake requests for this user's sets
   const retakeRequests = setIds.length > 0
     ? await db.mCQExamRetakeRequest.findMany({
@@ -1583,25 +1656,30 @@ async function handleExamSetStatus(searchParams: URLSearchParams, request: NextR
 
   const retakeRequestMap = new Map(retakeRequests.map((r) => [r.setId, r]))
 
+  // Check purchase status for practice mode logic
+  const access = await validateExamAccess(auth.user.id, packageId, 'mcq')
+  const hasPurchase = access.hasAccess
+
   const setsWithStatus = pkg.examSets.map((set) => {
     const result = resultMap.get(set.id)
+    const isPracticeMode = hasPurchase && set.practiceMode
 
-    const nowMs = Date.now()
-    const examStartMs = getExamTimeMs(set.scheduledDate, set.startTime || '00:00')
-    const examEndMs = getExamTimeMs(set.scheduledDate, set.endTime || '23:59')
-    // Support windows that cross midnight (e.g. 22:00–02:00).
-    const effectiveEndMs =
-      examEndMs <= examStartMs ? examEndMs + 24 * 60 * 60 * 1000 : examEndMs
+    const { nowMs, examStartMs, effectiveEndMs } = getExamTimeWindow(set)
+    const isExpired = nowMs > effectiveEndMs
+    const isUpcoming = nowMs < examStartMs
 
-    let status: 'completed' | 'not-started' | 'in-progress' | 'missed' | 'upcoming'
+    let status: 'completed' | 'not-started' | 'in-progress' | 'missed' | 'upcoming' | 'practice-available'
 
     if (result && result.status === ('COMPLETED' as const)) {
       status = 'completed'
     } else if (result && result.status === 'IN_PROGRESS') {
       status = 'in-progress'
-    } else if (nowMs < examStartMs) {
+    } else if (isUpcoming) {
       status = 'upcoming'
-    } else if (nowMs > effectiveEndMs) {
+    } else if (isExpired && isPracticeMode) {
+      // Purchased user + practice mode enabled: allow practice
+      status = 'practice-available'
+    } else if (isExpired) {
       status = 'missed'
     } else {
       status = 'not-started'
@@ -1621,6 +1699,13 @@ async function handleExamSetStatus(searchParams: URLSearchParams, request: NextR
       allowRetake: set.allowRetake,
       canRetake: !!(result && result.canRetake),
       retakeRequestStatus: retakeReq?.status || null,
+      practiceMode: isPracticeMode,
+      practiceModeEnabled: set.practiceMode,
+      allowUnlimitedAttempts: set.allowUnlimitedAttempts,
+      maxAttempts: set.maxAttempts,
+      reviewAnswers: set.reviewAnswers,
+      showExplanations: set.showExplanations,
+      totalAttempts: attemptCountMap.get(set.id) || 0,
       result: result
         ? {
             id: result.id,
@@ -1663,15 +1748,55 @@ async function handleCheckRetake(searchParams: URLSearchParams, request: NextReq
     return apiError('চেক করতে লগইন করুন', 401, 'UNAUTHORIZED')
   }
 
-  // Check exam set allowRetake
+  // Check exam set allowRetake + practice mode
   const examSet = await db.mCQExamSet.findUnique({
     where: { id: setId },
-    select: { allowRetake: true },
+    select: { allowRetake: true, practiceMode: true, allowUnlimitedAttempts: true, maxAttempts: true },
   })
 
-  // Check individual canRetake on result
-  const result = await db.mCQExamSetResult.findUnique({
-    where: { userId_setId: { userId: auth.user.id, setId } },
+  // Check user purchase for practice mode
+  let hasPurchase = false
+  if (examSet?.practiceMode) {
+    const examSetWithPackage = await db.mCQExamSet.findUnique({
+      where: { id: setId },
+      select: { packageId: true },
+    })
+    if (examSetWithPackage) {
+      const access = await validateExamAccess(auth.user.id, examSetWithPackage.packageId, 'mcq')
+      hasPurchase = access.hasAccess
+    }
+  }
+
+  const isPracticeRetake = hasPurchase && examSet?.practiceMode
+
+  // Check total attempts for practice mode
+  const totalAttempts = await db.mCQExamSetResult.count({
+    where: { userId: auth.user.id, setId },
+  })
+
+  // In practice mode: auto-allow retake if under limit
+  if (isPracticeRetake) {
+    const underLimit = examSet!.allowUnlimitedAttempts || totalAttempts < (examSet!.maxAttempts || Infinity)
+    return NextResponse.json({
+      success: true,
+      data: {
+        canRetake: underLimit,
+        hasPendingRequest: false,
+        hasApprovedRequest: true,
+        requestStatus: 'approved',
+        resultStatus: null,
+        practiceMode: true,
+        totalAttempts,
+        allowUnlimitedAttempts: examSet!.allowUnlimitedAttempts,
+        maxAttempts: examSet!.maxAttempts,
+      },
+    })
+  }
+
+  // Check individual canRetake on result (live mode)
+  const result = await db.mCQExamSetResult.findFirst({
+    where: { userId: auth.user.id, setId },
+    orderBy: { attemptNumber: 'desc' },
     select: { canRetake: true, status: true },
   })
 
@@ -1688,6 +1813,7 @@ async function handleCheckRetake(searchParams: URLSearchParams, request: NextReq
       hasApprovedRequest: retakeRequest?.status === 'APPROVED',
       requestStatus: retakeRequest?.status || null,
       resultStatus: result?.status || null,
+      practiceMode: false,
     },
   })
 }
@@ -1735,6 +1861,18 @@ async function handleRequestRetake(body: Record<string, unknown>, request: NextR
   const auth = await requireAuth(request)
   if (!auth) {
     return apiError('অনুরোধ করতে লগইন করুন', 401, 'UNAUTHORIZED')
+  }
+
+  // Validate set exists and is not soft-deleted
+  const examSet = await db.mCQExamSet.findUnique({
+    where: { id: setId },
+    select: { id: true, status: true, package: { select: { id: true, deletedAt: true } } },
+  })
+  if (!examSet) {
+    return apiError('এক্সাম সেটটি খুঁজে পাওয়া যায়নি', 404)
+  }
+  if (examSet.package.deletedAt || examSet.status === 'ARCHIVED') {
+    return apiError('এই পরীক্ষাটি আর উপলব্ধ নেই', 400)
   }
 
   // Check if already requested
@@ -1802,17 +1940,4 @@ async function handleSetOverview(searchParams: URLSearchParams, request: NextReq
   // DO NOT cache — contains user-specific purchase status and package price/premium data
   response.headers.set('Cache-Control', 'no-store')
   return response
-}
-
-// ============================================================================
-// Utility: Calculate time remaining for an in-progress exam
-// ============================================================================
-
-function calculateTimeRemaining(startedAt: Date | null, durationMinutes: number): number {
-  if (!startedAt) return durationMinutes * 60
-
-  const endTimeMs = startedAt.getTime() + durationMinutes * 60 * 1000
-  const remainingMs = endTimeMs - Date.now()
-
-  return Math.max(0, Math.floor(remainingMs / 1000))
 }

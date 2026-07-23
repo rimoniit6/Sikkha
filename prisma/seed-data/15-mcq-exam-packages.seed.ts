@@ -76,10 +76,8 @@ export async function seedMCQExamPackages(db: PrismaClient) {
         for (let si = 0; si < Math.min(students.length, 3); si++) {
           const student = students[si]
           const corrects = 4 + Math.floor(Math.random() * (setMcqs.length - 4))
-          await db.mCQExamSetResult.upsert({
-            where: { userId_setId: { userId: student.id, setId: set.id } },
-            update: {},
-            create: {
+          await db.mCQExamSetResult.create({
+            data: {
               id: deterministicId('mesr'),
               userId: student.id,
               setId: set.id,

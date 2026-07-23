@@ -12,7 +12,7 @@ import SafeImage from '@/components/ui/safe-image'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useToast } from '@/hooks/use-toast'
-import { bengaliLabels,formatDuration,getAnswerModeLabel,getStatusBadge } from '@/lib/cq-exam/utils'
+import { bengaliLabels,formatDuration,getAnswerModeLabel,getStatusBadge,hasAnswerContent } from '@/lib/cq-exam/utils'
 import { cn,toBengaliNumerals } from '@/lib/utils'
 import { useRouterStore, useRouteParams } from '@/store/router'
 import {
@@ -180,9 +180,9 @@ function AnswerBlock({
         </div>
       </div>
 
-      {answerText ? (
+      {hasAnswerContent(answerText, images) ? (
         <div className="rounded-lg bg-muted/30 p-3 border">
-          <RichContentRenderer content={answerText} className="text-sm leading-relaxed" />
+          <RichContentRenderer content={answerText ?? ''} className="text-sm leading-relaxed" />
         </div>
       ) : (
         <div className="rounded-lg bg-muted/20 p-3 border border-dashed">
@@ -678,9 +678,9 @@ export default function CQExamResultPage() {
                           return (
                             <div className="space-y-3">
                               <p className="font-semibold text-sm">আপনার উত্তর:</p>
-                              {ans?.answerText ? (
+                              {hasAnswerContent(ans?.answerText, imgAns?.images || []) ? (
                                 <div className="rounded-lg bg-muted/30 p-4 border">
-                                  <RichContentRenderer content={ans.answerText} className="text-sm leading-relaxed" />
+                                  <RichContentRenderer content={ans?.answerText ?? ''} className="text-sm leading-relaxed" />
                                 </div>
                               ) : (
                                 <div className="rounded-lg bg-muted/20 p-3 border border-dashed">
@@ -939,7 +939,7 @@ export default function CQExamResultPage() {
                 </Button>
               </>
             )}
-            {!isPending && !retakeRequested && (
+            {isGraded && !retakeRequested && (
               <Button
                 variant="outline"
                 className="gap-2 text-amber-600 border-amber-300 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-400"
@@ -954,7 +954,7 @@ export default function CQExamResultPage() {
                 পুনরায় পরীক্ষার অনুরোধ করুন
               </Button>
             )}
-            {!isPending && retakeRequested && (
+            {isGraded && retakeRequested && (
               <div className="flex items-center gap-2 text-sm text-amber-600 bg-amber-50 dark:bg-amber-950/20 px-4 py-2 rounded-lg border border-amber-200 dark:border-amber-800">
                 <Clock className="size-4" />
                 অনুরোধ পাঠানো হয়েছে — অ্যাডমিন অনুমোদনের অপেক্ষায়

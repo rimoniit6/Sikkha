@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card,CardContent } from '@/components/ui/card'
 import ImageUploader from '@/components/ui/image-uploader'
@@ -16,8 +17,27 @@ import {
 ClassCategory,
 SubjectOption
 } from '@/types/admin-mcq-exam'
-import { ArrowLeft,BookOpen,FileQuestion,GraduationCap,Loader2,Power,Save,Tag } from 'lucide-react'
+import { ArrowLeft,BookOpen,Crown,FileQuestion,GraduationCap,Loader2,Power,Save,Tag } from 'lucide-react'
 import { WorkflowPanel } from '@/components/admin/workflow'
+
+interface ValidationErrors {
+  [key: string]: string
+}
+
+function validatePackageForm(fields: {
+  pkgTitle: string; pkgPrice: string; pkgClassId: string; pkgOrder: string
+}): ValidationErrors {
+  const errors: ValidationErrors = {}
+  if (!fields.pkgTitle?.trim()) errors.title = 'শিরোনাম প্রয়োজন'
+  if (fields.pkgPrice === undefined || fields.pkgPrice === '' || isNaN(Number(fields.pkgPrice)) || Number(fields.pkgPrice) < 0) {
+    errors.price = 'বৈধ মূল্য দিন'
+  }
+  if (!fields.pkgClassId) errors.classId = 'শ্রেণি নির্বাচন করুন'
+  if (fields.pkgOrder !== '' && (isNaN(Number(fields.pkgOrder)) || !Number.isInteger(Number(fields.pkgOrder)) || Number(fields.pkgOrder) < 0)) {
+    errors.order = 'বৈধ ক্রম নম্বর দিন'
+  }
+  return errors
+}
 
 interface PackageFormProps {
   editId: string | null
@@ -39,6 +59,8 @@ interface PackageFormProps {
   setPkgOriginalPrice: (v: string) => void
   pkgIsActive: boolean
   setPkgIsActive: (v: boolean) => void
+  pkgIsPremium: boolean
+  setPkgIsPremium: (v: boolean) => void
   pkgOrder: string
   setPkgOrder: (v: string) => void
   pkgStatus: string
@@ -46,6 +68,7 @@ interface PackageFormProps {
   saving: boolean
   onSave: () => void
   onCancel: () => void
+  onWorkflowTransition?: () => void
 }
 
 export function PackageForm({
@@ -53,8 +76,21 @@ export function PackageForm({
   pkgThumbnail, setPkgThumbnail, pkgClassId, onClassChange, classes,
   pkgSubjectIds, setPkgSubjectIds, subjects, pkgPrice, setPkgPrice,
   pkgOriginalPrice, setPkgOriginalPrice, pkgIsActive, setPkgIsActive,
-  pkgOrder, setPkgOrder, pkgStatus, setPkgStatus, saving, onSave, onCancel
+  pkgIsPremium, setPkgIsPremium,
+  pkgOrder, setPkgOrder, pkgStatus, setPkgStatus, saving, onSave, onCancel, onWorkflowTransition
 }: PackageFormProps) {
+  const [errors, setErrors] = useState<ValidationErrors>({})
+
+  function handleSave() {
+    const validationErrors = validatePackageForm({
+      pkgTitle, pkgPrice, pkgClassId, pkgOrder
+    })
+    setErrors(validationErrors)
+    if (Object.keys(validationErrors).length === 0) {
+      onSave()
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
@@ -72,6 +108,8 @@ export function PackageForm({
           entityType="mCQExamPackage"
           entityId={editId}
           compact
+          hideActions
+          onTransition={onWorkflowTransition}
         />
       )}
 
@@ -89,6 +127,7 @@ export function PackageForm({
               value={pkgTitle}
               onChange={(e) => setPkgTitle(e.target.value)}
             />
+            {errors.title && <p className="text-sm text-red-500">{errors.title}</p>}
           </div>
 
           <div className="space-y-2">
@@ -123,6 +162,7 @@ export function PackageForm({
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">প্যাকেজ কোন শ্রেণির জন্য</p>
+              {errors.classId && <p className="text-sm text-red-500">{errors.classId}</p>}
             </div>
             <div className="space-y-2">
               <Label className="flex items-center gap-1.5">
@@ -169,6 +209,7 @@ export function PackageForm({
                   value={pkgPrice}
                   onChange={(e) => setPkgPrice(e.target.value)}
                 />
+                {errors.price && <p className="text-sm text-red-500">{errors.price}</p>}
               </div>
               <div className="space-y-2">
                 <Label>আসল মূল্য (৳)</Label>
@@ -192,6 +233,19 @@ export function PackageForm({
 
           <Separator />
 
+          <div className="flex items-center justify-between p-3 rounded-lg bg-gradient-to-r from-yellow-50/60 to-amber-50/60 dark:from-yellow-950/20 dark:to-amber-950/20 border border-yellow-200/30 dark:border-yellow-800/20">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-yellow-100 dark:bg-yellow-900/40">
+                <Crown className="h-4 w-4 text-yellow-600" />
+              </div>
+              <div>
+                <Label className="text-sm font-medium">প্রিমিয়াম প্যাকেজ</Label>
+                <p className="text-xs text-muted-foreground">প্রিমিয়াম ব্যবহারকারীদের জন্য সংরক্ষিত</p>
+              </div>
+            </div>
+            <Switch checked={pkgIsPremium} onCheckedChange={setPkgIsPremium} />
+          </div>
+
           <div className="flex items-center justify-between p-3 rounded-lg bg-gradient-to-r from-emerald-50/60 to-teal-50/60 dark:from-emerald-950/20 dark:to-teal-950/20 border border-emerald-200/30 dark:border-emerald-800/20">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-emerald-100 dark:bg-emerald-900/40">
@@ -213,10 +267,11 @@ export function PackageForm({
               value={pkgOrder}
               onChange={(e) => setPkgOrder(e.target.value)}
             />
+            {errors.order && <p className="text-sm text-red-500">{errors.order}</p>}
           </div>
 
           <div className="flex gap-3 pt-2">
-            <Button className="gap-2 bg-emerald-600 hover:bg-emerald-700" onClick={onSave} disabled={saving}>
+            <Button className="gap-2 bg-emerald-600 hover:bg-emerald-700" onClick={handleSave} disabled={saving}>
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
               {saving ? 'সংরক্ষণ হচ্ছে...' : editId ? 'আপডেট করুন' : 'তৈরি করুন'}
             </Button>

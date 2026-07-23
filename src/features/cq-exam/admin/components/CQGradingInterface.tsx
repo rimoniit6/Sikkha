@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card,CardContent } from '@/components/ui/card'
 import ImageAnnotator from '@/components/ui/image-annotator'
-import ImageLightbox from '@/components/ui/image-lightbox'
+import { useImageViewer } from '@/providers/ImageViewerProvider'
 import { Input } from '@/components/ui/input'
 import RichContentRenderer from '@/components/ui/rich-content-renderer'
 import SafeImage from '@/components/ui/safe-image'
@@ -41,15 +41,11 @@ export function CQGradingInterface({ submission, set: setData, saving, onGrade, 
   const [savedAnswers, setSavedAnswers] = useState<Set<string>>(new Set())
   const [annotatingImage, setAnnotatingImage] = useState<string | null>(null)
   const [expandedQuestions, setExpandedQuestions] = useState<Record<string, boolean>>({})
-  const [lightboxOpen, setLightboxOpen] = useState(false)
-  const [lightboxImages, setLightboxImages] = useState<{ id: string; url: string; alt?: string; annotations?: string | null }[]>([])
-  const [lightboxIndex, setLightboxIndex] = useState(0)
+  const viewer = useImageViewer()
 
   const openLightbox = useCallback((images: { id: string; url: string; alt?: string; annotations?: string | null }[], index: number) => {
-    setLightboxImages(images)
-    setLightboxIndex(index)
-    setLightboxOpen(true)
-  }, [])
+    viewer?.openViewer(images.map(img => ({ src: img.url, alt: img.alt })), index)
+  }, [viewer])
 
   const handleAnnotationSave = useCallback(async (imageId: string, annotations: unknown) => {
     try {
@@ -645,17 +641,7 @@ export function CQGradingInterface({ submission, set: setData, saving, onGrade, 
         })}
       </div>
 
-      {/* Image Lightbox */}
-      <ImageLightbox
-        images={lightboxImages}
-        initialIndex={lightboxIndex}
-        open={lightboxOpen}
-        onClose={() => {
-        setLightboxOpen(false)
-        setLightboxImages([])
-        setLightboxIndex(0)
-      }}
-      />
+
     </div>
   )
 }

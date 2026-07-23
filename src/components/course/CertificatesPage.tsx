@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { Award, Loader2, ArrowLeft, Download, BookOpen } from 'lucide-react'
-import SafeImage from '@/components/ui/safe-image'
+import Thumbnail from '@/components/ui/thumbnail'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -69,9 +69,7 @@ export default function CertificatesPage() {
                   <CardContent className="p-0">
                     <div className="flex gap-4 p-4">
                       {cert.course.thumbnail && (
-                        <div className="h-20 w-28 shrink-0 overflow-hidden rounded-lg">
-                          <SafeImage src={cert.course.thumbnail} alt={cert.course.title} width={160} height={120} className="h-full w-full object-cover" />
-                        </div>
+                        <Thumbnail src={cert.course.thumbnail} alt={cert.course.title} width={112} height={80} className="rounded-lg shrink-0" />
                       )}
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">

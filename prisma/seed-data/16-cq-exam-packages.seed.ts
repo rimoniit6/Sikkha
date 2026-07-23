@@ -76,10 +76,8 @@ export async function seedCQExamPackages(db: PrismaClient) {
       if (students.length > 0 && setI === 0) {
         for (let si = 0; si < Math.min(students.length, 2); si++) {
           const student = students[si]
-          const submission = await db.cQExamSubmission.upsert({
-            where: { userId_setId: { userId: student.id, setId: set.id } },
-            update: {},
-            create: {
+          const submission = await db.cQExamSubmission.create({
+            data: {
               id: deterministicId('cesub'),
               userId: student.id,
               setId: set.id,

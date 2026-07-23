@@ -1,7 +1,7 @@
 'use client'
 
-import Image from 'next/image'
 import { Plus, Search, FileText, GraduationCap, BookOpen, Users, Power, Edit, Trash2, BookMarked } from 'lucide-react'
+import Thumbnail from '@/components/ui/thumbnail'
 import { Card, CardContent } from '@/components/ui/card'
 import { toDecimal } from '@/lib/decimal'
 import { Button } from '@/components/ui/button'
@@ -172,13 +172,13 @@ export function CQPackageList({
               )} onClick={() => onOpenDetail(pkg)}>
                 <CardContent className="p-4">
                   <div className="flex items-start gap-4">
-                    <div className="w-16 h-16 rounded-lg bg-muted/30 flex items-center justify-center shrink-0 overflow-hidden">
-                      {pkg.thumbnail ? (
-                        <Image src={pkg.thumbnail} alt={pkg.title} fill className="object-cover" unoptimized />
-                      ) : (
-                        <FileText className="size-8 text-muted-foreground/40" />
-                      )}
-                    </div>
+                    <Thumbnail
+                      src={pkg.thumbnail}
+                      alt={pkg.title}
+                      size="xs"
+                      fallbackIcon={<FileText className="size-8 text-muted-foreground/40" />}
+                      clickable={false}
+                    />
 
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-2">

@@ -1,13 +1,15 @@
 import { db } from '@/lib/db'
 import { apiResponse, apiError, withAdmin, withCsrf, validateBody } from '@/lib/api-utils'
 import { handleApiError } from '@/lib/errors'
+import logger from '@/lib/logger'
 import { toBengaliNumerals } from '@/lib/utils'
 import { deriveIsPremium } from '@/lib/premium'
 import { NextResponse } from 'next/server'
 import { toDecimal } from '@/lib/decimal'
 import { z } from 'zod'
+import { Prisma } from '@prisma/client'
 import { guardDeleteDependencies } from '@/lib/delete-guard'
-import { auditFromRequest, AuditActions, getClientIP } from '@/lib/audit'
+import { auditFromRequest, AuditActions, EntityTypes, getClientIP } from '@/lib/audit'
 import { createVersion } from '@/lib/version-history'
 
 const createMcqPackageSchema = z.object({
@@ -38,6 +40,11 @@ const createSetSchema = z.object({
   instructions: z.string().nullable().optional(),
   allowRetake: z.boolean().default(false),
   order: z.coerce.number().min(0).default(0),
+  practiceMode: z.boolean().default(true),
+  allowUnlimitedAttempts: z.boolean().default(true),
+  maxAttempts: z.coerce.number().int().min(0).default(0),
+  reviewAnswers: z.boolean().default(true),
+  showExplanations: z.boolean().default(true),
 })
 
 const addQuestionsSchema = z.object({
@@ -58,18 +65,25 @@ const bulkCreateSetsSchema = z.object({
   negativeMarks: z.coerce.number().min(0).default(0),
   startTime: z.string().optional(),
   endTime: z.string().optional(),
+  practiceMode: z.boolean().default(true),
+  allowUnlimitedAttempts: z.boolean().default(true),
+  maxAttempts: z.coerce.number().int().min(0).default(0),
+  reviewAnswers: z.boolean().default(true),
+  showExplanations: z.boolean().default(true),
 })
 
 // Helper: recalculate totalQuestions and totalMarks for an exam set
-async function recalculateSetTotals(setId: string) {
-  const questions = await db.mCQExamSetQuestion.findMany({
+// When called inside $transaction, pass the tx client so queries run on the
+// same connection and see uncommitted writes from the transaction.
+async function recalculateSetTotals(setId: string, client: typeof db = db) {
+  const questions = await client.mCQExamSetQuestion.findMany({
     where: { setId },
   })
 
   const totalQuestions = questions.length
   const totalMarks = questions.reduce((sum, q) => sum + toDecimal(q.marks), 0)
 
-  await db.mCQExamSet.update({
+  await client.mCQExamSet.update({
     where: { id: setId },
     data: { totalQuestions, totalMarks },
   })
@@ -129,7 +143,7 @@ export async function GET(request: Request) {
             include: {
               class: { select: { id: true, name: true, slug: true } },
               _count: { select: { examSets: true, purchases: true } },
-              ...(includeSets ? { examSets: { select: { id: true, title: true, scheduledDate: true, startTime: true, endTime: true }, orderBy: { scheduledDate: 'asc' } } } : {}),
+              ...(includeSets ? { examSets: { select: { id: true, title: true, scheduledDate: true, startTime: true, endTime: true, practiceMode: true, allowUnlimitedAttempts: true, maxAttempts: true, reviewAnswers: true, showExplanations: true }, orderBy: { scheduledDate: 'asc' } } } : {}),
             },
             orderBy: { order: 'asc' },
             skip: (page - 1) * limit,
@@ -220,23 +234,32 @@ export async function GET(request: Request) {
         const setId = searchParams.get('setId')
         if (!setId) return apiError('Set ID is required', 400)
 
-        const results = await db.mCQExamSetResult.findMany({
-          where: { setId },
-          include: {
-            user: {
-              select: {
-                id: true,
-                name: true,
-                email: true,
-                avatar: true,
-                classLevel: true,
+        const page = parseInt(searchParams.get('page') || '1')
+        const limit = parseInt(searchParams.get('limit') || '50')
+        const skip = (page - 1) * limit
+
+        const [results, total] = await Promise.all([
+          db.mCQExamSetResult.findMany({
+            where: { setId },
+            skip,
+            take: limit,
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                  avatar: true,
+                  classLevel: true,
+                },
               },
             },
-          },
-          orderBy: { submittedAt: 'desc' },
-        })
+            orderBy: { submittedAt: 'desc' },
+          }),
+          db.mCQExamSetResult.count({ where: { setId } }),
+        ])
 
-        return apiResponse({ results })
+        return apiResponse({ results, total, page, limit, totalPages: Math.ceil(total / limit) })
       }
 
       // 5. Search MCQs for adding to a set
@@ -248,7 +271,7 @@ export async function GET(request: Request) {
         const page = parseInt(searchParams.get('page') || '1')
         const limit = parseInt(searchParams.get('limit') || '20')
 
-        const where: any = {
+        const where: Prisma.MCQWhereInput = {
           isActive: true,
         }
 
@@ -300,7 +323,24 @@ export async function GET(request: Request) {
         })
       }
 
-      // 6. Leaderboard for a specific exam set
+      // 6. List retake requests for a set (read operation)
+      case 'list-retake-requests': {
+        const setId = searchParams.get('setId')
+        if (!setId) return apiError('Set ID is required', 400)
+
+        const requests = await db.mCQExamRetakeRequest.findMany({
+          where: { setId },
+          include: {
+            user: { select: { id: true, name: true, email: true, avatar: true, classLevel: true } },
+            set: { select: { id: true, title: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+        })
+
+        return apiResponse({ requests })
+      }
+
+      // 7. Leaderboard for a specific exam set
       case 'leaderboard': {
         const setId = searchParams.get('setId')
         if (!setId) return apiError('Set ID is required', 400)
@@ -309,23 +349,32 @@ export async function GET(request: Request) {
         const setExists = await db.mCQExamSet.findUnique({ where: { id: setId } })
         if (!setExists) return apiError('Exam set not found', 404)
 
-        const results = await db.mCQExamSetResult.findMany({
-          where: { setId, status: 'COMPLETED' },
-          include: {
-            user: {
-              select: {
-                id: true,
-                name: true,
-                email: true,
-                avatar: true,
-                classLevel: true,
+        const page = parseInt(searchParams.get('page') || '1')
+        const limit = parseInt(searchParams.get('limit') || '50')
+        const skip = (page - 1) * limit
+
+        const [results, total] = await Promise.all([
+          db.mCQExamSetResult.findMany({
+            where: { setId, status: 'COMPLETED' },
+            skip,
+            take: limit,
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                  avatar: true,
+                  classLevel: true,
+                },
               },
             },
-          },
-          orderBy: { marksObtained: 'desc' },
-        })
+            orderBy: { marksObtained: 'desc' },
+          }),
+          db.mCQExamSetResult.count({ where: { setId, status: 'COMPLETED' } }),
+        ])
 
-        return apiResponse({ leaderboard: results })
+        return apiResponse({ leaderboard: results, total, page, limit, totalPages: Math.ceil(total / limit) })
       }
 
       default:
@@ -346,8 +395,9 @@ export async function POST(request: Request) {
   const csrfCheck = await withCsrf(request)
   if ('error' in csrfCheck) return csrfCheck.error
 
+  let body: Record<string, unknown> = {}
   try {
-    const body = await request.json()
+    body = (await request.json()) as Record<string, unknown>
     const { action } = body
 
     switch (action) {
@@ -372,6 +422,19 @@ export async function POST(request: Request) {
         const classExists = await db.classCategory.findUnique({ where: { id: classId } })
         if (!classExists) return apiError('Class not found', 400)
 
+        // Check for duplicate title within the same class
+        const duplicateTitle = await db.mCQExamPackage.findFirst({
+          where: {
+            title,
+            classId,
+            deletedAt: null,
+          },
+          select: { id: true },
+        })
+        if (duplicateTitle) {
+          return apiError('এই শ্রেণিতে একই নামের একটি প্যাকেজ ইতিমধ্যে বিদ্যমান।', 409, 'PACKAGE_NAME_EXISTS')
+        }
+
         const pkg = await db.$transaction(async (tx) => {
           const created = await tx.mCQExamPackage.create({
             data: {
@@ -381,7 +444,7 @@ export async function POST(request: Request) {
               subjectIds: subjectIds ? JSON.stringify(subjectIds) : '[]',
               price: price ?? 0,
               originalPrice: originalPrice ?? 0,
-              isPremium: deriveIsPremium(price),
+              isPremium: isPremium ?? deriveIsPremium(price),
               thumbnail: thumbnail || null,
               isActive: isActive ?? true,
               order: order ?? 0,
@@ -391,14 +454,14 @@ export async function POST(request: Request) {
               _count: { select: { examSets: true, purchases: true } },
             },
           })
-          await auditFromRequest(request, auth.user.id, AuditActions.MCQ_EXAM_PACKAGE_CREATE, 'mcq_exam_package', created.id, body, { title: created.title }, tx as never)
+          await auditFromRequest(request, auth.user.id, AuditActions.MCQ_EXAM_PACKAGE_CREATE, EntityTypes.MCQ_EXAM_PACKAGE, created.id, body, { title: created.title }, tx as never)
           return created
         })
 
         return apiResponse({ package: pkg }, 201)
       }
 
-      // 9. Create an exam set within a package
+      // 9. Create an exam set within a package (transactional)
       case 'create-set': {
         const validation = validateBody(createSetSchema, body)
         if ('error' in validation) return validation.error
@@ -421,41 +484,47 @@ export async function POST(request: Request) {
         const pkgExists = await db.mCQExamPackage.findUnique({ where: { id: packageId } })
         if (!pkgExists) return apiError('Package not found', 404)
 
-        const examSet = await db.mCQExamSet.create({
-          data: {
-            packageId,
-            title,
-            description: description || null,
-            scheduledDate: new Date(scheduledDate),
-            startTime: startTime || '00:00',
-            endTime: endTime || '23:59',
-            duration: duration ?? 30,
-            marksPerQ: marksPerQ ?? 1,
-            negativeMarks: negativeMarks ?? 0,
-            totalMarks: 0,
-            totalQuestions: 0,
-            instructions: instructions || null,
-            allowRetake: allowRetake ?? false,
-            order: order ?? 0,
-          },
-          include: {
-            _count: { select: { questions: true, results: true } },
-          },
-        })
+        const examSet = await db.$transaction(async (tx) => {
+          const created = await tx.mCQExamSet.create({
+            data: {
+              packageId,
+              title,
+              description: description || null,
+              scheduledDate: new Date(scheduledDate),
+              startTime: startTime || '00:00',
+              endTime: endTime || '23:59',
+              duration: duration ?? 30,
+              marksPerQ: marksPerQ ?? 1,
+              negativeMarks: negativeMarks ?? 0,
+              totalMarks: 0,
+              totalQuestions: 0,
+              instructions: instructions || null,
+              allowRetake: allowRetake ?? false,
+              order: order ?? 0,
+              practiceMode: validation.data.practiceMode ?? true,
+              allowUnlimitedAttempts: validation.data.allowUnlimitedAttempts ?? true,
+              maxAttempts: validation.data.maxAttempts ?? 0,
+              reviewAnswers: validation.data.reviewAnswers ?? true,
+              showExplanations: validation.data.showExplanations ?? true,
+            },
+            include: { _count: { select: { questions: true, results: true } } },
+          })
 
-        // Update package totalSets + audit atomically
-        await db.$transaction(async (tx) => {
+          // Update package totalSets + audit atomically
           const count = await tx.mCQExamSet.count({ where: { packageId } })
           await tx.mCQExamPackage.update({
             where: { id: packageId },
             data: { totalSets: count },
           })
-          await auditFromRequest(request, auth.user.id, AuditActions.MCQ_EXAM_SET_CREATE, 'mcq_exam_set', examSet.id, body, { title: examSet.title }, tx as never)
+          await auditFromRequest(request, auth.user.id, AuditActions.MCQ_EXAM_SET_CREATE, EntityTypes.MCQ_EXAM_SET, created.id, body, { title: created.title }, tx as never)
+
+          return created
         })
+
         return apiResponse({ set: examSet }, 201)
       }
 
-      // 12. Add MCQs to an exam set
+      // 12. Add MCQs to an exam set (transactional)
       case 'add-questions': {
         const validation = validateBody(addQuestionsSchema, body)
         if ('error' in validation) return validation.error
@@ -488,18 +557,19 @@ export async function POST(request: Request) {
         })
         const startOrder = (maxOrderResult?.order ?? -1) + 1
 
-        await db.mCQExamSetQuestion.createMany({
-          data: newMcqIds.map((mcqId: string, index: number) => ({
-            setId,
-            mcqId,
-            marks: examSet.marksPerQ,
-            order: startOrder + index,
-          })),
-        })
-
+        // Atomic: create questions + recalculate totals + audit in one transaction
         await db.$transaction(async (tx) => {
-          await recalculateSetTotals(setId)
-          await auditFromRequest(request, auth.user.id, AuditActions.MCQ_EXAM_SET_QUESTIONS_ADD, 'mcq_exam_set', setId, undefined, { mcqIds: newMcqIds, count: newMcqIds.length }, tx as never)
+          await tx.mCQExamSetQuestion.createMany({
+            data: newMcqIds.map((mcqId: string, index: number) => ({
+              setId,
+              mcqId,
+              marks: examSet.marksPerQ,
+              order: startOrder + index,
+            })),
+          })
+
+          await recalculateSetTotals(setId, tx)
+          await auditFromRequest(request, auth.user.id, AuditActions.MCQ_EXAM_SET_QUESTIONS_ADD, EntityTypes.MCQ_EXAM_SET, setId, undefined, { mcqIds: newMcqIds, count: newMcqIds.length }, tx as never)
         })
 
         const updatedSet = await db.mCQExamSet.findUnique({
@@ -541,6 +611,11 @@ export async function POST(request: Request) {
           negativeMarks,
           startTime,
           endTime,
+          practiceMode,
+          allowUnlimitedAttempts,
+          maxAttempts,
+          reviewAnswers,
+          showExplanations,
         } = validation.data
 
         const pkgExists = await db.mCQExamPackage.findUnique({ where: { id: packageId } })
@@ -584,6 +659,11 @@ export async function POST(request: Request) {
                 totalMarks: 0,
                 totalQuestions: 0,
                 order: startOrder + i,
+                practiceMode: practiceMode ?? true,
+                allowUnlimitedAttempts: allowUnlimitedAttempts ?? true,
+                maxAttempts: maxAttempts ?? 0,
+                reviewAnswers: reviewAnswers ?? true,
+                showExplanations: showExplanations ?? true,
               },
             })
             createdSets.push(examSet)
@@ -597,7 +677,7 @@ export async function POST(request: Request) {
           })
 
           // Audit log inside the transaction
-          await auditFromRequest(request, auth.user.id, AuditActions.MCQ_EXAM_SET_CREATE, 'mcq_exam_set', packageId, undefined, { count: createdSets.length, prefix, startDate }, tx as never)
+          await auditFromRequest(request, auth.user.id, AuditActions.MCQ_EXAM_SET_CREATE, EntityTypes.MCQ_EXAM_SET, packageId, undefined, { count: createdSets.length, prefix, startDate }, tx as never)
         }, {
           maxWait: 10000,
           timeout: 30000,
@@ -610,6 +690,11 @@ export async function POST(request: Request) {
         return apiError(`Unknown action: ${action}`, 400)
     }
   } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      logger.error(`[MCQ Exam Package POST] Prisma error ${error.code}: ${error.message}`, error, {
+        context: `action: ${body?.action ?? 'unknown'}, prismaCode: ${error.code}`,
+      })
+    }
     return handleApiError(error, 'Admin MCQ Exam Package POST')
   }
 }
@@ -636,6 +721,9 @@ export async function PUT(request: Request) {
         const existing = await db.mCQExamPackage.findUnique({ where: { id } })
         if (!existing) return apiError('Package not found', 404)
 
+        // Check if package is soft-deleted
+        if (existing.deletedAt) return apiError('এই প্যাকেজটি মুছে ফেলা হয়েছে। এটি সম্পাদনা করা যাবে না।', 400, 'PACKAGE_DELETED')
+
         const data: Record<string, unknown> = {}
         const allowedFields = [
           'title', 'description', 'classId', 'price', 'originalPrice',
@@ -651,11 +739,54 @@ export async function PUT(request: Request) {
           data.status = updateData.status
         }
 
+        // Validate status transitions
+        if (data.status !== undefined && data.status !== existing.status) {
+          const validTransitions: Record<string, string[]> = {
+            DRAFT: ['PUBLISHED', 'ARCHIVED'],
+            PUBLISHED: ['ARCHIVED'],
+            ARCHIVED: ['DRAFT', 'PUBLISHED'],
+          }
+          const allowed = validTransitions[existing.status] || []
+          if (!allowed.includes(data.status as string)) {
+            return apiError(
+              `বর্তমান স্ট্যাটাস "${existing.status}" থেকে "${data.status}"-এ পরিবর্তন অনুমোদিত নয়।`,
+              400,
+              'INVALID_STATUS_TRANSITION'
+            )
+          }
+        }
+
+        // Check for duplicate title within the same class
+        if (data.title && typeof data.title === 'string' && data.title !== existing.title) {
+          const classIdCheck = data.classId || existing.classId
+          const duplicate = await db.mCQExamPackage.findFirst({
+            where: {
+              title: data.title as string,
+              classId: classIdCheck as string,
+              id: { not: id },
+              deletedAt: null,
+            },
+            select: { id: true },
+          })
+          if (duplicate) {
+            return apiError('এই শ্রেণিতে একই নামের একটি প্যাকেজ ইতিমধ্যে বিদ্যমান।', 409, 'PACKAGE_NAME_EXISTS')
+          }
+        }
+
         if (updateData.subjectIds !== undefined)       data.subjectIds = JSON.stringify(updateData.subjectIds)
 
-        // Derive isPremium from price if price is being changed
-        if (updateData.price !== undefined) {
+        // Derive isPremium from price if price is being changed and isPremium not explicitly set
+        if (updateData.price !== undefined && updateData.isPremium === undefined) {
           data.isPremium = deriveIsPremium(updateData.price)
+        }
+        if (updateData.isPremium !== undefined) {
+          data.isPremium = updateData.isPremium
+        }
+
+        // Validate classId exists if changed
+        if (data.classId && data.classId !== existing.classId) {
+          const classExists = await db.classCategory.findUnique({ where: { id: data.classId as string } })
+          if (!classExists) return apiError('নির্বাচিত শ্রেণিটি খুঁজে পাওয়া যায়নি।', 400, 'CLASS_NOT_FOUND')
         }
 
         const ipAddress = getClientIP(request)
@@ -677,7 +808,7 @@ export async function PUT(request: Request) {
               _count: { select: { examSets: true, purchases: true } },
             },
           })
-          await auditFromRequest(request, auth.user.id, AuditActions.MCQ_EXAM_PACKAGE_UPDATE, 'mcq_exam_package', id, existing, data, tx as never)
+          await auditFromRequest(request, auth.user.id, AuditActions.MCQ_EXAM_PACKAGE_UPDATE, EntityTypes.MCQ_EXAM_PACKAGE, id, existing, data, tx as never)
           return result
         }, { maxWait: 10000, timeout: 30000 })
 
@@ -696,6 +827,8 @@ export async function PUT(request: Request) {
           'title', 'description', 'startTime', 'endTime',
           'duration', 'marksPerQ', 'negativeMarks', 'instructions',
           'status', 'order', 'allowRetake',
+          'practiceMode', 'allowUnlimitedAttempts', 'maxAttempts',
+          'reviewAnswers', 'showExplanations',
         ]
 
         for (const field of allowedFields) {
@@ -707,19 +840,52 @@ export async function PUT(request: Request) {
           data.status = updateData.status
         }
 
-        if (updateData.scheduledDate !== undefined) data.scheduledDate = new Date(updateData.scheduledDate)
-
-        if (updateData.marksPerQ !== undefined) {
-          await db.mCQExamSetQuestion.updateMany({
-            where: { setId: id },
-            data: { marks: updateData.marksPerQ },
-          })
+        // Validate status transitions for sets
+        if (data.status !== undefined && data.status !== existing.status) {
+          const validTransitions: Record<string, string[]> = {
+            DRAFT: ['PUBLISHED', 'ARCHIVED'],
+            PUBLISHED: ['ARCHIVED'],
+            ARCHIVED: ['DRAFT'],
+          }
+          const allowed = validTransitions[existing.status] || []
+          if (!allowed.includes(data.status as string)) {
+            return apiError(
+              `বর্তমান স্ট্যাটাস "${existing.status}" থেকে "${data.status}"-এ পরিবর্তন অনুমোদিত নয়।`,
+              400,
+              'INVALID_STATUS_TRANSITION'
+            )
+          }
         }
 
+        // Check for duplicate set title within the same package
+        if (data.title && typeof data.title === 'string' && data.title !== existing.title) {
+          const duplicate = await db.mCQExamSet.findFirst({
+            where: {
+              title: data.title as string,
+              packageId: existing.packageId,
+              id: { not: id },
+            },
+            select: { id: true },
+          })
+          if (duplicate) {
+            return apiError('এই প্যাকেজে একই নামের একটি এক্সাম সেট ইতিমধ্যে বিদ্যমান।', 409, 'SET_NAME_EXISTS')
+          }
+        }
+
+        if (updateData.scheduledDate !== undefined) data.scheduledDate = new Date(updateData.scheduledDate)
+
+        // Atomic: update marks + set metadata + recalculate + audit in one transaction
         await db.$transaction(async (tx) => {
+          if (updateData.marksPerQ !== undefined) {
+            await tx.mCQExamSetQuestion.updateMany({
+              where: { setId: id },
+              data: { marks: updateData.marksPerQ },
+            })
+          }
+
           await tx.mCQExamSet.update({ where: { id }, data: data as never })
-          await recalculateSetTotals(id)
-          await auditFromRequest(request, auth.user.id, AuditActions.MCQ_EXAM_SET_UPDATE, 'mcq_exam_set', id, existing, data, tx as never)
+          await recalculateSetTotals(id, tx)
+          await auditFromRequest(request, auth.user.id, AuditActions.MCQ_EXAM_SET_UPDATE, EntityTypes.MCQ_EXAM_SET, id, existing, data, tx as never)
         })
 
         const refreshedSet = await db.mCQExamSet.findUnique({
@@ -762,29 +928,20 @@ export async function PUT(request: Request) {
         })
         if (!result) return apiError('Result not found', 404)
 
-        const updated = await db.mCQExamSetResult.update({
-          where: { id: resultId },
-          data: { canRetake: !result.canRetake },
+        const newCanRetake = !result.canRetake
+
+        const updated = await db.$transaction(async (tx) => {
+          const res = await tx.mCQExamSetResult.update({
+            where: { id: resultId },
+            data: { canRetake: newCanRetake },
+          })
+          // Audit log — use the correct constant
+          const auditAction = newCanRetake ? AuditActions.RETAKE_APPROVE : AuditActions.RETAKE_REJECT
+          await auditFromRequest(request, auth.user.id, auditAction, 'mcq_exam_set', result.setId, { resultId, previousCanRetake: result.canRetake }, { canRetake: newCanRetake }, tx as never)
+          return res
         })
 
         return apiResponse({ canRetake: updated.canRetake })
-      }
-
-      // List retake requests for a set
-      case 'list-retake-requests': {
-        const { setId } = body
-        if (!setId) return apiError('Set ID is required', 400)
-
-        const requests = await db.mCQExamRetakeRequest.findMany({
-          where: { setId },
-          include: {
-            user: { select: { id: true, name: true, email: true, avatar: true, classLevel: true } },
-            set: { select: { id: true, title: true } },
-          },
-          orderBy: { createdAt: 'desc' },
-        })
-
-        return apiResponse({ requests })
       }
 
       // Approve or reject retake request
@@ -799,19 +956,23 @@ export async function PUT(request: Request) {
 
         const newStatus = approve ? 'APPROVED' : 'REJECTED'
 
-        await db.mCQExamRetakeRequest.update({
-          where: { id: requestId },
-          data: {
-            status: newStatus,
-            reviewedBy: auth?.user?.id || null,
-            reviewedAt: new Date(),
-          },
+        await db.$transaction(async (tx) => {
+          await tx.mCQExamRetakeRequest.update({
+            where: { id: requestId },
+            data: {
+              status: newStatus,
+              reviewedBy: auth?.user?.id || null,
+              reviewedAt: new Date(),
+            },
+          })
+          await auditFromRequest(request, auth.user.id, 'mcq_exam_retake_approve' as never, EntityTypes.MCQ_EXAM_SET, existing.setId, { requestId, previousStatus: existing.status }, { status: newStatus, approved: approve }, tx as never)
         })
 
         // If approved, set canRetake on the user's result
         if (approve) {
-          const result = await db.mCQExamSetResult.findUnique({
-            where: { userId_setId: { userId: existing.userId, setId: existing.setId } },
+          const result = await db.mCQExamSetResult.findFirst({
+            where: { userId: existing.userId, setId: existing.setId },
+            orderBy: { attemptNumber: 'desc' },
           })
           if (result) {
             await db.mCQExamSetResult.update({
@@ -886,7 +1047,7 @@ export async function DELETE(request: Request) {
             where: { id },
             data: { deletedAt: new Date(), deletedBy: auth.user.id },
           })
-          await auditFromRequest(request, auth.user.id, AuditActions.MCQ_EXAM_PACKAGE_DELETE, 'mcq_exam_package', id, undefined, undefined, tx as never)
+          await auditFromRequest(request, auth.user.id, AuditActions.MCQ_EXAM_PACKAGE_DELETE, EntityTypes.MCQ_EXAM_PACKAGE, id, undefined, undefined, tx as never)
         })
         return apiResponse({ message: 'Package deleted' })
       }
@@ -899,15 +1060,20 @@ export async function DELETE(request: Request) {
 
         const packageId = existing.packageId
         await db.$transaction(async (tx) => {
-          await tx.mCQExamSet.delete({ where: { id } })
-          const count = await tx.mCQExamSet.count({ where: { packageId } })
+          await tx.mCQExamSet.update({
+            where: { id },
+            data: { status: 'ARCHIVED' },
+          })
+          const count = await tx.mCQExamSet.count({
+            where: { packageId, status: { not: 'ARCHIVED' } },
+          })
           await tx.mCQExamPackage.update({
             where: { id: packageId },
             data: { totalSets: count },
           })
-          await auditFromRequest(request, auth.user.id, AuditActions.MCQ_EXAM_SET_DELETE, 'mcq_exam_set', id, undefined, undefined, tx as never)
+          await auditFromRequest(request, auth.user.id, AuditActions.MCQ_EXAM_SET_DELETE, EntityTypes.MCQ_EXAM_SET, id, undefined, { status: 'ARCHIVED' }, tx as never)
         })
-        return apiResponse({ message: 'Set deleted' })
+        return apiResponse({ message: 'Set archived' })
       }
 
       case 'remove-question': {
@@ -922,8 +1088,8 @@ export async function DELETE(request: Request) {
 
         await db.$transaction(async (tx) => {
           await tx.mCQExamSetQuestion.delete({ where: { id: question.id } })
-          await recalculateSetTotals(setId)
-          await auditFromRequest(request, auth.user.id, AuditActions.MCQ_EXAM_SET_QUESTIONS_REMOVE, 'mcq_exam_set', setId, undefined, { mcqId }, tx as never)
+          await recalculateSetTotals(setId, tx)
+          await auditFromRequest(request, auth.user.id, AuditActions.MCQ_EXAM_SET_QUESTIONS_REMOVE, EntityTypes.MCQ_EXAM_SET, setId, undefined, { mcqId }, tx as never)
         })
         return apiResponse({ message: 'Question removed' })
       }

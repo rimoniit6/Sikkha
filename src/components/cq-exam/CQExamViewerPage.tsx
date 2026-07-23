@@ -19,11 +19,12 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
 import { fetchCsrfToken } from '@/lib/api-client'
 import { useToast } from '@/hooks/use-toast'
-import { bengaliLabels,formatTime,getTypeLabel } from '@/lib/cq-exam/utils'
+import { bengaliLabels,formatTime,getTypeLabel,hasAnswerContent } from '@/lib/cq-exam/utils'
 import { useUploadThing } from '@/lib/upload/client'
 import { cn,toBengaliNumerals } from '@/lib/utils'
 import { useShallowAuth } from '@/store/auth'
 import { useRouterStore, useRouteParams } from '@/store/router'
+import { useImageViewer } from '@/providers/ImageViewerProvider'
 import { AnimatePresence,motion } from 'framer-motion'
 import {
 AlertCircle,
@@ -119,6 +120,7 @@ function NonCQQuestionBlock({
   onRemoveImage,
   maxImagesPerAnswer: _maxImagesPerAnswer = 5,
   answerMode = 'flexible',
+  onImageClick,
 }: {
   question: CQQuestionData
   index: number
@@ -131,6 +133,7 @@ function NonCQQuestionBlock({
   onRemoveImage: (imageId: string, questionId: string, subIndex: number) => void
   maxImagesPerAnswer?: number
   answerMode?: AnswerMode
+  onImageClick?: (src: string, alt?: string) => void
 }) {
   const qType = (question.type || 'mcq-single').toLowerCase()
   let config: any = {}
@@ -337,11 +340,15 @@ function NonCQQuestionBlock({
                     {imgAns.images.length > 0 && (
                       <div className="flex flex-wrap gap-2">
                         {imgAns.images.map((img: AnswerImage) => (
-                          <div key={img.id} className="relative group rounded-lg overflow-hidden border bg-muted/30">
+                          <div
+                            key={img.id}
+                            className="relative group rounded-lg overflow-hidden border bg-muted/30 cursor-pointer"
+                            onClick={() => onImageClick?.(img.imageUrl, 'উত্তরের ছবি')}
+                          >
                             <SafeImage src={img.imageUrl} alt="উত্তরের ছবি" className="size-20 object-cover" />
                             <button
                               type="button"
-                              onClick={() => onRemoveImage(img.id, question.id, 1)}
+                              onClick={(e) => { e.stopPropagation(); onRemoveImage(img.id, question.id, 1); }}
                               className="absolute top-0.5 right-0.5 p-0.5 rounded bg-black/60 text-white opacity-0 group-hover:opacity-100 transition-opacity"
                             >
                               <X className="size-3" />
@@ -381,6 +388,7 @@ function CQBlock({
   onRemoveImage,
   answerMode = 'flexible',
   maxImagesPerAnswer = 5,
+  onImageClick,
 }: {
   question: CQQuestionData
   index: number
@@ -397,6 +405,7 @@ function CQBlock({
   onRemoveImage: (imageId: string, questionId: string, subIndex: number) => void
   answerMode?: AnswerMode
   maxImagesPerAnswer?: number
+  onImageClick?: (src: string, alt?: string) => void
 }) {
   const questionType = (question.type || 'cq').toLowerCase()
   if (questionType !== 'cq' && questionType !== 'typed') {
@@ -413,6 +422,7 @@ function CQBlock({
         onRemoveImage={onRemoveImage}
         maxImagesPerAnswer={maxImagesPerAnswer}
         answerMode={answerMode}
+        onImageClick={onImageClick}
       />
     )
   }
@@ -527,13 +537,12 @@ function CQBlock({
               {answerMode !== 'complete-image-only' && subQuestions.map((sq, si) => {
                 const key = `${question.id}-${si}`
                 const ans = answers[key] || { answerText: '', images: [] }
-                const answerId = answerIdMap[question.id]?.[si]
-
-                const isAnswered = answerMode === 'text-only'
-                  ? !!ans.answerText?.trim()
-                  : answerMode === 'image-only'
-                    ? ans.images.length > 0
-                    : !!ans.answerText?.trim() || ans.images.length > 0
+                const answerId = answerIdMap[question.id]?.[si];
+              const isAnswered = answerMode === 'text-only'
+    ? !!ans.answerText?.trim()
+    : answerMode === 'image-only'
+      ? ans.images.length > 0
+      : hasAnswerContent(ans.answerText, ans.images)
 
                 return (
                   <div key={si} className="space-y-3">
@@ -560,11 +569,15 @@ function CQBlock({
                     {answerMode !== 'text-only' && ans.images.length > 0 && (
                       <div className="flex flex-wrap gap-2">
                         {ans.images.map((img) => (
-                          <div key={img.id} className="relative group rounded-lg overflow-hidden border bg-muted/30">
+                          <div
+                            key={img.id}
+                            className="relative group rounded-lg overflow-hidden border bg-muted/30 cursor-pointer"
+                            onClick={() => onImageClick?.(img.imageUrl, 'উত্তরের ছবি')}
+                          >
                             <SafeImage src={img.imageUrl} alt="উত্তরের ছবি" className="size-20 object-cover" />
                             <button
                               type="button"
-                              onClick={() => onRemoveImage(img.id, question.id, si)}
+                              onClick={(e) => { e.stopPropagation(); onRemoveImage(img.id, question.id, si); }}
                               className="absolute top-0.5 right-0.5 p-0.5 rounded bg-black/60 text-white opacity-0 group-hover:opacity-100 transition-opacity"
                             >
                               <X className="size-3" />
@@ -629,11 +642,15 @@ function CQBlock({
                     {globalAnsLocal.images.length > 0 && (
                       <div className="flex flex-wrap gap-2">
                         {globalAnsLocal.images.map((img) => (
-                          <div key={img.id} className="relative group rounded-lg overflow-hidden border bg-muted/30">
+                          <div
+                            key={img.id}
+                            className="relative group rounded-lg overflow-hidden border bg-muted/30 cursor-pointer"
+                            onClick={() => onImageClick?.(img.imageUrl, 'সম্পূর্ণ উত্তরের ছবি')}
+                          >
                             <SafeImage src={img.imageUrl} alt="সম্পূর্ণ উত্তরের ছবি" className={cn(isCompleteMode ? 'size-32' : 'size-24', 'object-cover')} />
                             <button
                               type="button"
-                              onClick={() => onRemoveImage(img.id, question.id, 4)}
+                              onClick={(e) => { e.stopPropagation(); onRemoveImage(img.id, question.id, 4); }}
                               className="absolute top-0.5 right-0.5 p-0.5 rounded bg-black/60 text-white opacity-0 group-hover:opacity-100 transition-opacity"
                             >
                               <X className="size-3" />
@@ -704,6 +721,12 @@ export default function CQExamViewerPage() {
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const abortTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const viewer = useImageViewer()
+
+  const handleImagePreview = useCallback((src: string, alt?: string) => {
+    viewer?.openViewer([{ src, alt }])
+  }, [viewer])
 
   const fetchSetDetail = useCallback(async () => {
     if (!setId) {
@@ -1215,6 +1238,7 @@ export default function CQExamViewerPage() {
             onRemoveImage={removeAnswerImage}
             answerMode={answerMode}
             maxImagesPerAnswer={setData.set.maxImagesPerAnswer ?? 5}
+            onImageClick={handleImagePreview}
           />
         ))}
 

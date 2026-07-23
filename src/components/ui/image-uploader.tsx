@@ -39,22 +39,24 @@ export default function ImageUploader({
     <div className={cn('space-y-1.5', className)}>
       {label && <label className="text-sm font-medium">{label}</label>}
       {value ? (
-        <div className="relative group rounded-lg border border-border overflow-hidden bg-muted/30">
+        <div className="relative group rounded-lg border border-border bg-muted/30 overflow-hidden">
           {value.endsWith('.pdf') || value.toLowerCase().includes('application/pdf') ? (
             <div className="flex flex-col items-center justify-center py-6 gap-2">
               <FileText className="size-12 text-red-500" />
               <p className="text-sm text-muted-foreground">PDF ফাইল আপলোড হয়েছে</p>
             </div>
           ) : (
-            <Image
-              src={value}
-              alt="Uploaded"
-              fill
-              className="object-contain"
-              unoptimized
-            />
+            <div className="relative w-full aspect-video max-h-64 overflow-hidden">
+              <Image
+                src={value}
+                alt="Uploaded"
+                fill
+                className="object-contain"
+                unoptimized
+              />
+            </div>
           )}
-          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 rounded-lg">
             <button
               type="button"
               onClick={() => handleRemove()}

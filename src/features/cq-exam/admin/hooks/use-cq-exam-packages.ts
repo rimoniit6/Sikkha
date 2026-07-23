@@ -64,7 +64,11 @@ type AllowRetakeResponse = { canRetake?: boolean }
 
 async function unwrapResponse<T = unknown>(url: string, options?: RequestInit): Promise<T> {
   const res = await fetch(url, options)
-  const json = await res.json()
+  const json = await res.json().catch(() => null)
+  if (!res.ok || json?.success === false) {
+    const errorMsg = json?.error || json?.message || `অনুরোধ ব্যর্থ হয়েছে (${res.status})`
+    throw new Error(errorMsg)
+  }
   if (json?.error) throw new Error(json.error)
   return json?.data ?? json
 }
@@ -161,7 +165,6 @@ export function useCQExamPackages() {
         setTotal(data.pagination?.total || 0)
       }
     } catch (err: unknown) {
-      if (err instanceof DOMException && err.name === 'AbortError') return
       if (!isStale()) console.error('[CQExamPackages] Failed to fetch:', err)
     } finally {
       if (!isStale()) setLoading(false)
@@ -183,7 +186,6 @@ export function useCQExamPackages() {
         setExamSets((pkg as any)?.examSets || [])
       }
     } catch (err: unknown) {
-      if (err instanceof DOMException && err.name === 'AbortError') return
       if (!isStale()) console.error('[CQExamPackages] Failed to fetch package detail:', err)
     } finally {
       if (!isStale()) setLoading(false)
@@ -197,7 +199,6 @@ export function useCQExamPackages() {
       const data = await unwrapResponse<CqSetDetailResponse>(`/api/admin/cq-exam-packages?action=set-detail&setId=${setId}`)
       if (!isStale()) setCurrentSet(data.set ?? null)
     } catch (err: unknown) {
-      if (err instanceof DOMException && err.name === 'AbortError') return
       if (!isStale()) console.error('[CQExamPackages] Failed to fetch set detail:', err)
     } finally {
       if (!isStale()) setLoading(false)
@@ -211,7 +212,6 @@ export function useCQExamPackages() {
       const data = await unwrapResponse<CqSubmissionsResponse>(`/api/admin/cq-exam-packages?action=submissions&setId=${setId}`)
       if (!isStale()) setSubmissions(data.submissions || [])
     } catch (err: unknown) {
-      if (err instanceof DOMException && err.name === 'AbortError') return
       if (!isStale()) console.error('[CQExamPackages] Failed to fetch submissions:', err)
     } finally {
       if (!isStale()) setLoading(false)
@@ -225,7 +225,6 @@ export function useCQExamPackages() {
       const data = await unwrapResponse<CqSubmissionDetailResponse>(`/api/admin/cq-exam-packages?action=submission-detail&submissionId=${submissionId}`)
       if (!isStale()) setSubmissionDetail(data.submission ?? null)
     } catch (err: unknown) {
-      if (err instanceof DOMException && err.name === 'AbortError') return
       if (!isStale()) console.error('[CQExamPackages] Failed to fetch submission detail:', err)
     } finally {
       if (!isStale()) setLoading(false)
@@ -254,7 +253,6 @@ export function useCQExamPackages() {
         isPremium: pkgForm.pkgIsPremium,
         isActive: pkgForm.pkgIsActive,
         order: parseInt(pkgForm.pkgOrder) || 0,
-        status: pkgForm.pkgStatus,
       }
       if (nav.editId) body.id = nav.editId
 
@@ -301,6 +299,12 @@ export function useCQExamPackages() {
         passMarks: parseFloat(setForm.setPassMarks) || 0,
         showCorrectAnswers: setForm.setShowCorrectAnswers,
         enablePartialGrading: setForm.setEnablePartialGrading,
+        // ── Practice Mode ──
+        practiceMode: setForm.setPracticeMode,
+        allowUnlimitedAttempts: setForm.setAllowUnlimitedAttempts,
+        maxAttempts: setForm.setMaxAttempts ? parseInt(setForm.setMaxAttempts) || undefined : undefined,
+        reviewAnswers: setForm.setReviewAnswers,
+        showExplanations: setForm.setShowExplanations,
       }
       if (nav.editId) {
         body.id = nav.editId
@@ -323,6 +327,8 @@ export function useCQExamPackages() {
     }
   }
 
+  // ─── CQ Search Handlers ───────────────────────────────────────────
+
   // ─── Delete Handler ───────────────────────────────────────────────
 
   const handleDelete = async () => {
@@ -341,8 +347,8 @@ export function useCQExamPackages() {
         navDispatch({ type: 'SET_DELETE_TARGET', target: null })
         if (nav.selectedPackageId) fetchPackageDetail(nav.selectedPackageId)
       }
-    } catch {
-      toast({ title: 'ত্রুটি', variant: 'destructive' })
+    } catch (err: unknown) {
+      toast({ title: 'ত্রুটি', description: getErrorMessage(err, 'মুছে ফেলা সম্ভব হয়নি'), variant: 'destructive' })
     }
   }
 
@@ -414,8 +420,8 @@ export function useCQExamPackages() {
       dispatchSearchDlg({ type: 'RESET_SELECTED' })
       dispatchSearchDlg({ type: 'CLOSE' })
       fetchSetDetail(nav.selectedSetId)
-    } catch (err) {
-      console.error('[CQExam] Failed to add CQs:', err)
+    } catch (err: unknown) {
+      toast({ title: 'ত্রুটি', description: getErrorMessage(err, 'প্রশ্ন যোগ করা সম্ভব হয়নি'), variant: 'destructive' })
     } finally {
       setSaving(false)
     }
@@ -548,8 +554,8 @@ export function useCQExamPackages() {
       })
       toast({ title: 'নম্বর আপডেট করা হয়েছে' })
       if (nav.selectedSetId) await fetchSetDetail(nav.selectedSetId)
-    } catch {
-      toast({ title: 'ত্রুটি', variant: 'destructive' })
+    } catch (err: unknown) {
+      toast({ title: 'ত্রুটি', description: getErrorMessage(err, 'নম্বর আপডেট করা সম্ভব হয়নি'), variant: 'destructive' })
     } finally {
       setSaving(false)
     }
@@ -568,8 +574,8 @@ export function useCQExamPackages() {
       })
       toast({ title: 'প্রশ্ন সরানো হয়েছে' })
       fetchSetDetail(nav.selectedSetId)
-    } catch (err) {
-      console.error('[CQExam] Failed to remove question:', err)
+    } catch (err: unknown) {
+      toast({ title: 'ত্রুটি', description: getErrorMessage(err, 'প্রশ্ন সরানো সম্ভব হয়নি'), variant: 'destructive' })
     }
   }
 
@@ -590,8 +596,8 @@ export function useCQExamPackages() {
         body: JSON.stringify({ action: 'reorder-questions', setId: nav.selectedSetId, questionOrders }),
       })
       fetchSetDetail(nav.selectedSetId)
-    } catch (err) {
-      console.error('[CQExam] Failed to reorder questions:', err)
+    } catch (err: unknown) {
+      toast({ title: 'ত্রুটি', description: getErrorMessage(err, 'পুনর্বিন্যাস করা সম্ভব হয়নি'), variant: 'destructive' })
     }
   }
 
@@ -615,8 +621,8 @@ export function useCQExamPackages() {
       })
       toast({ title: 'উত্তর মূল্যায়ন সংরক্ষিত হয়েছে' })
       fetchSubmissions(submissionView.selectedSubmission?.setId || '')
-    } catch {
-      toast({ title: 'ত্রুটি', variant: 'destructive' })
+    } catch (err: unknown) {
+      toast({ title: 'ত্রুটি', description: getErrorMessage(err, 'মূল্যায়ন সংরক্ষণ করা সম্ভব হয়নি'), variant: 'destructive' })
     } finally {
       setSaving(false)
     }
@@ -633,7 +639,7 @@ export function useCQExamPackages() {
       )
       dispatchBulkGrade({ type: 'SET_SUBMISSIONS', submissions: data.submissions || [] })
     } catch {
-      toast({ title: 'ত্রুটি', variant: 'destructive' })
+      toast({ title: 'ত্রুটি', description: 'জমা তালিকা লোড করা সম্ভব হয়নি', variant: 'destructive' })
       dispatchBulkGrade({ type: 'SET_SUBMISSIONS', submissions: [] })
     } finally {
       dispatchBulkGrade({ type: 'SET_LOADING', loading: false })
@@ -656,8 +662,8 @@ export function useCQExamPackages() {
       })
       toast({ title: 'গ্রেড সংরক্ষিত হয়েছে' })
       handleFetchBulkSubmissions(questionId)
-    } catch {
-      toast({ title: 'ত্রুটি', variant: 'destructive' })
+    } catch (err: unknown) {
+      toast({ title: 'ত্রুটি', description: getErrorMessage(err, 'গ্রেড সংরক্ষণ করা সম্ভব হয়নি'), variant: 'destructive' })
     } finally {
       setSaving(false)
     }
@@ -677,8 +683,8 @@ export function useCQExamPackages() {
         description: `${data.gradedCount}টি জমা গ্রেডেড • ${data.defaultMarks} নম্বর করে দেওয়া হয়েছে`,
       })
       fetchSubmissions(setId)
-    } catch {
-      toast({ title: 'ত্রুটি', variant: 'destructive' })
+    } catch (err: unknown) {
+      toast({ title: 'ত্রুটি', description: getErrorMessage(err, 'বাল্ক গ্রেড করা সম্ভব হয়নি'), variant: 'destructive' })
     } finally {
       setSaving(false)
     }
@@ -693,8 +699,8 @@ export function useCQExamPackages() {
       })
       toast({ title: 'ফলাফল প্রকাশিত হয়েছে' })
       fetchSubmissions(setId)
-    } catch {
-      toast({ title: 'ত্রুটি', variant: 'destructive' })
+    } catch (err: unknown) {
+      toast({ title: 'ত্রুটি', description: getErrorMessage(err, 'ফলাফল প্রকাশ করা সম্ভব হয়নি'), variant: 'destructive' })
     } finally {
       setSaving(false)
     }
@@ -714,8 +720,8 @@ export function useCQExamPackages() {
         title: canRetake ? 'পুনরায় পরীক্ষার অনুমতি দেওয়া হয়েছে' : 'পুনরায় পরীক্ষার অনুমতি সরানো হয়েছে',
       })
       if (nav.selectedSetId) fetchSubmissions(nav.selectedSetId)
-    } catch {
-      toast({ title: 'ত্রুটি', variant: 'destructive' })
+    } catch (err: unknown) {
+      toast({ title: 'ত্রুটি', description: getErrorMessage(err, 'পুনরায় পরীক্ষার অনুমতি পরিবর্তন করা সম্ভব হয়নি'), variant: 'destructive' })
     } finally {
       setSaving(false)
     }
@@ -730,8 +736,8 @@ export function useCQExamPackages() {
       })
       toast({ title: 'গ্রেডিং পুনরায় খোলা হয়েছে', description: 'এখন আবার গ্রেড করতে পারবেন' })
       if (nav.selectedSetId) fetchSubmissions(nav.selectedSetId)
-    } catch {
-      toast({ title: 'ত্রুটি', variant: 'destructive' })
+    } catch (err: unknown) {
+      toast({ title: 'ত্রুটি', description: getErrorMessage(err, 'গ্রেডিং পুনরায় খোলা সম্ভব হয়নি'), variant: 'destructive' })
     } finally {
       setSaving(false)
     }
@@ -781,8 +787,8 @@ export function useCQExamPackages() {
         fetchSubmissions(nav.selectedSetId)
       }
       return data
-    } catch {
-      toast({ title: 'ত্রুটি', variant: 'destructive' })
+    } catch (err: unknown) {
+      toast({ title: 'ত্রুটি', description: getErrorMessage(err, 'অনুরোধ প্রক্রিয়া করা সম্ভব হয়নি'), variant: 'destructive' })
       return null
     } finally {
       setSaving(false)
@@ -857,8 +863,8 @@ export function useCQExamPackages() {
       })
       toast({ title: pkg.isActive ? 'নিষ্ক্রিয় করা হয়েছে' : 'প্যাকেজ সক্রিয় করা হয়েছে' })
       fetchPackages()
-    } catch (err) {
-      console.error('[CQExam] Failed to toggle package:', err)
+    } catch (err: unknown) {
+      toast({ title: 'ত্রুটি', description: getErrorMessage(err, 'স্টেটাস পরিবর্তন করা সম্ভব হয়নি'), variant: 'destructive' })
     }
   }
 
@@ -1023,6 +1029,27 @@ export function useCQExamPackages() {
     setEnablePartialGrading: setForm.setEnablePartialGrading,
     setSetEnablePartialGrading: (v: boolean | ((prev: boolean) => boolean)) => {
       if (typeof v === 'function') { dispatchSetForm({ type: 'SET_FIELD', field: 'setEnablePartialGrading', value: v(setForm.setEnablePartialGrading) }) } else { dispatchSetForm({ type: 'SET_FIELD', field: 'setEnablePartialGrading', value: v }) }
+    },
+    // ── Practice Mode ──
+    setPracticeMode: setForm.setPracticeMode,
+    setSetPracticeMode: (v: boolean | ((prev: boolean) => boolean)) => {
+      if (typeof v === 'function') { dispatchSetForm({ type: 'SET_FIELD', field: 'setPracticeMode', value: v(setForm.setPracticeMode) }) } else { dispatchSetForm({ type: 'SET_FIELD', field: 'setPracticeMode', value: v }) }
+    },
+    setAllowUnlimitedAttempts: setForm.setAllowUnlimitedAttempts,
+    setSetAllowUnlimitedAttempts: (v: boolean | ((prev: boolean) => boolean)) => {
+      if (typeof v === 'function') { dispatchSetForm({ type: 'SET_FIELD', field: 'setAllowUnlimitedAttempts', value: v(setForm.setAllowUnlimitedAttempts) }) } else { dispatchSetForm({ type: 'SET_FIELD', field: 'setAllowUnlimitedAttempts', value: v }) }
+    },
+    setMaxAttempts: setForm.setMaxAttempts,
+    setSetMaxAttempts: (v: string | ((prev: string) => string)) => {
+      if (typeof v === 'function') { dispatchSetForm({ type: 'SET_FIELD', field: 'setMaxAttempts', value: v(setForm.setMaxAttempts) }) } else { dispatchSetForm({ type: 'SET_FIELD', field: 'setMaxAttempts', value: v }) }
+    },
+    setReviewAnswers: setForm.setReviewAnswers,
+    setSetReviewAnswers: (v: boolean | ((prev: boolean) => boolean)) => {
+      if (typeof v === 'function') { dispatchSetForm({ type: 'SET_FIELD', field: 'setReviewAnswers', value: v(setForm.setReviewAnswers) }) } else { dispatchSetForm({ type: 'SET_FIELD', field: 'setReviewAnswers', value: v }) }
+    },
+    setShowExplanations: setForm.setShowExplanations,
+    setSetShowExplanations: (v: boolean | ((prev: boolean) => boolean)) => {
+      if (typeof v === 'function') { dispatchSetForm({ type: 'SET_FIELD', field: 'setShowExplanations', value: v(setForm.setShowExplanations) }) } else { dispatchSetForm({ type: 'SET_FIELD', field: 'setShowExplanations', value: v }) }
     },
 
     searchDialogOpen: searchDlg.searchDialogOpen,

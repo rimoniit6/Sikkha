@@ -2,6 +2,7 @@
 
 import { Suspense } from 'react'
 import dynamic from 'next/dynamic'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { useRouterStore, useRouteParams, useCurrentRoute, RoutePath, isAdminRoute } from '@/store/router'
 import { usePageMeta } from '@/hooks/use-page-meta'
 import AppShell from '@/components/layout/AppShell'
@@ -120,9 +121,11 @@ function RouteRenderer() {
 export default function CatchAll() {
   return (
     <AppShell>
-      <Suspense fallback={<div className="flex items-center justify-center min-h-[60vh]"><div className="size-8 rounded-full border-2 border-primary border-t-transparent animate-spin" /></div>}>
-        <RouteRenderer />
-      </Suspense>
+      <ErrorBoundary>
+        <Suspense fallback={<div className="flex items-center justify-center min-h-[60vh]"><div className="size-8 rounded-full border-2 border-primary border-t-transparent animate-spin" /></div>}>
+          <RouteRenderer />
+        </Suspense>
+      </ErrorBoundary>
     </AppShell>
   )
 }

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ArrowLeft, Timer, Calendar, Tag, Loader2, Save } from 'lucide-react'
+import { ArrowLeft, Timer, Calendar, Tag, Loader2, Save, GraduationCap, RefreshCw, Eye, MessageSquare } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
+import { Switch } from '@/components/ui/switch'
 import {
   Popover, PopoverContent, PopoverTrigger,
 } from '@/components/ui/popover'
@@ -18,6 +19,33 @@ import { Calendar as CalendarComponent } from '@/components/ui/calendar'
 import { cn } from '@/lib/utils'
 import { MCQExamSetRecord } from '@/types/admin-mcq-exam'
 import { formatDate } from './MCQExamConstants'
+
+interface ValidationErrors {
+  [key: string]: string
+}
+
+function validateExamSetForm(fields: {
+  setTitle: string; setDuration: string; setMarksPerQ: string; setMaxAttempts: string; setOrder: string;
+  setPracticeMode: boolean; setAllowUnlimitedAttempts: boolean
+}): ValidationErrors {
+  const errors: ValidationErrors = {}
+  if (!fields.setTitle?.trim()) errors.title = 'শিরোনাম প্রয়োজন'
+  if (fields.setDuration === '' || isNaN(Number(fields.setDuration)) || Number(fields.setDuration) <= 0) {
+    errors.duration = 'বৈধ সময়কাল দিন'
+  }
+  if (fields.setMarksPerQ !== '' && (isNaN(Number(fields.setMarksPerQ)) || Number(fields.setMarksPerQ) <= 0)) {
+    errors.marksPerQ = 'বৈধ নম্বর দিন'
+  }
+  if (fields.setPracticeMode && !fields.setAllowUnlimitedAttempts) {
+    if (fields.setMaxAttempts === '' || isNaN(Number(fields.setMaxAttempts)) || !Number.isInteger(Number(fields.setMaxAttempts)) || Number(fields.setMaxAttempts) < 1) {
+      errors.maxAttempts = 'বৈধ সংখ্যা দিন'
+    }
+  }
+  if (fields.setOrder !== '' && (isNaN(Number(fields.setOrder)) || !Number.isInteger(Number(fields.setOrder)) || Number(fields.setOrder) < 0)) {
+    errors.order = 'বৈধ ক্রম নম্বর দিন'
+  }
+  return errors
+}
 
 interface ExamSetFormProps {
   editId: string | null
@@ -42,6 +70,22 @@ interface ExamSetFormProps {
   setSetInstructions: (v: string) => void
   setAllowRetake: boolean
   setSetAllowRetake: (v: boolean) => void
+  setPracticeMode: boolean
+  setSetPracticeMode: (v: boolean) => void
+  setAllowUnlimitedAttempts: boolean
+  setSetAllowUnlimitedAttempts: (v: boolean) => void
+  setMaxAttempts: string
+  setSetMaxAttempts: (v: string) => void
+  setReviewAnswers: boolean
+  setSetReviewAnswers: (v: boolean) => void
+  setShowExplanations: boolean
+  setSetShowExplanations: (v: boolean) => void
+  setShowCorrectAnswers: boolean
+  setSetShowCorrectAnswers: (v: boolean) => void
+  setAutoPublishResults: boolean
+  setSetAutoPublishResults: (v: boolean) => void
+  setPassMarks: string
+  setSetPassMarks: (v: string) => void
   setOrder: string
   setSetOrder: (v: string) => void
   setStatus: string
@@ -56,10 +100,31 @@ export function ExamSetForm({
   setScheduledDate, setSetScheduledDate, setStartTime, setSetStartTime,
   setEndTime, setSetEndTime, setDuration, setSetDuration, setMarksPerQ, setSetMarksPerQ,
   setNegativeMarks, setSetNegativeMarks, setInstructions, setSetInstructions,
-  setAllowRetake, setSetAllowRetake, setOrder, setSetOrder, setStatus, setSetStatus,
+  setAllowRetake, setSetAllowRetake,
+  setPracticeMode, setSetPracticeMode,
+  setAllowUnlimitedAttempts, setSetAllowUnlimitedAttempts,
+  setMaxAttempts, setSetMaxAttempts,
+  setReviewAnswers, setSetReviewAnswers,
+  setShowExplanations, setSetShowExplanations,
+  setShowCorrectAnswers, setSetShowCorrectAnswers,
+  setAutoPublishResults, setSetAutoPublishResults,
+  setPassMarks, setSetPassMarks,
+  setOrder, setSetOrder, setStatus, setSetStatus,
   saving, onSave, onCancel
 }: ExamSetFormProps) {
   const [datePickerOpen, setDatePickerOpen] = useState(false)
+  const [errors, setErrors] = useState<ValidationErrors>({})
+
+  function handleSave() {
+    const validationErrors = validateExamSetForm({
+      setTitle, setDuration, setMarksPerQ, setMaxAttempts, setOrder,
+      setPracticeMode, setAllowUnlimitedAttempts
+    })
+    setErrors(validationErrors)
+    if (Object.keys(validationErrors).length === 0) {
+      onSave()
+    }
+  }
   const questionCount = currentSet?.totalQuestions || 0
   const autoTotalMarks = parseFloat(setMarksPerQ || '1') * questionCount
 
@@ -89,6 +154,7 @@ export function ExamSetForm({
               value={setTitle}
               onChange={(e) => setSetTitle(e.target.value)}
             />
+            {errors.title && <p className="text-sm text-red-500">{errors.title}</p>}
           </div>
 
           <div className="space-y-2">
@@ -154,6 +220,7 @@ export function ExamSetForm({
                 <Timer className="h-3.5 w-3.5 text-emerald-600" /> সময়কাল (মিনিট)
               </Label>
               <Input type="number" placeholder="30" value={setDuration} onChange={(e) => setSetDuration(e.target.value)} />
+              {errors.duration && <p className="text-sm text-red-500">{errors.duration}</p>}
             </div>
           </div>
 
@@ -167,6 +234,7 @@ export function ExamSetForm({
               <div className="space-y-2">
                 <Label>প্রতি প্রশ্নে নম্বর</Label>
                 <Input type="number" step="0.5" value={setMarksPerQ} onChange={(e) => setSetMarksPerQ(e.target.value)} />
+                {errors.marksPerQ && <p className="text-sm text-red-500">{errors.marksPerQ}</p>}
               </div>
               <div className="space-y-2">
                 <Label>নেগেটিভ মার্কস</Label>
@@ -202,13 +270,134 @@ export function ExamSetForm({
             <Label htmlFor="allowRetake" className="cursor-pointer">পুনরায় পরীক্ষা অনুমতি দিন (Retake)</Label>
           </div>
 
+          <Separator />
+
+          <div className="space-y-3">
+            <Label className="text-sm font-semibold flex items-center gap-2">
+              <GraduationCap className="h-4 w-4 text-purple-600" /> প্র্যাকটিস মোড
+            </Label>
+            <div className="flex items-center justify-between p-3 rounded-lg bg-gradient-to-r from-purple-50/60 to-violet-50/60 dark:from-purple-950/20 dark:to-violet-950/20 border border-purple-200/30 dark:border-purple-800/20">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-purple-100 dark:bg-purple-900/40">
+                  <RefreshCw className="h-4 w-4 text-purple-600" />
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">প্র্যাকটিস মোড</Label>
+                  <p className="text-xs text-muted-foreground">সক্রিয় থাকলে শিক্ষার্থীরা প্র্যাকটিস মোডে পরীক্ষা দিতে পারবে</p>
+                </div>
+              </div>
+              <Switch checked={setPracticeMode} onCheckedChange={setSetPracticeMode} />
+            </div>
+
+            {setPracticeMode && (
+              <div className="pl-4 space-y-3 border-l-2 border-purple-200 dark:border-purple-800">
+                <div className="flex items-center justify-between p-3 rounded-lg bg-gradient-to-r from-blue-50/60 to-indigo-50/60 dark:from-blue-950/20 dark:to-indigo-950/20 border border-blue-200/30 dark:border-blue-800/20">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/40">
+                      <RefreshCw className="h-4 w-4 text-blue-600" />
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium">সীমাহীন প্রচেষ্টা</Label>
+                      <p className="text-xs text-muted-foreground">সীমাহীন সংখ্যকবার পরীক্ষা দেওয়ার অনুমতি দিন</p>
+                    </div>
+                  </div>
+                  <Switch checked={setAllowUnlimitedAttempts} onCheckedChange={setSetAllowUnlimitedAttempts} />
+                </div>
+
+                {!setAllowUnlimitedAttempts && (
+                  <div className="space-y-2">
+                    <Label>সর্বোচ্চ প্রচেষ্টা</Label>
+                    <Input
+                      type="number"
+                      min="1"
+                      max="999"
+                      placeholder="সর্বোচ্চ সংখ্যা"
+                      value={setMaxAttempts}
+                      onChange={(e) => setSetMaxAttempts(e.target.value)}
+                    />
+                    {errors.maxAttempts && <p className="text-sm text-red-500">{errors.maxAttempts}</p>}
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between p-3 rounded-lg bg-gradient-to-r from-emerald-50/60 to-teal-50/60 dark:from-emerald-950/20 dark:to-teal-950/20 border border-emerald-200/30 dark:border-emerald-800/20">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-emerald-100 dark:bg-emerald-900/40">
+                      <Eye className="h-4 w-4 text-emerald-600" />
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium">উত্তর পর্যালোচনা</Label>
+                      <p className="text-xs text-muted-foreground">প্রত্যেক প্রচেষ্টার পর উত্তর দেখার অনুমতি দিন</p>
+                    </div>
+                  </div>
+                  <Switch checked={setReviewAnswers} onCheckedChange={setSetReviewAnswers} />
+                </div>
+
+                <div className="flex items-center justify-between p-3 rounded-lg bg-gradient-to-r from-amber-50/60 to-orange-50/60 dark:from-amber-950/20 dark:to-orange-950/20 border border-amber-200/30 dark:border-amber-800/20">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-amber-100 dark:bg-amber-900/40">
+                      <MessageSquare className="h-4 w-4 text-amber-600" />
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium">ব্যাখ্যা দেখান</Label>
+                      <p className="text-xs text-muted-foreground">উত্তর পর্যালোচনার সময় ব্যাখ্যা দেখান</p>
+                    </div>
+                  </div>
+                  <Switch checked={setShowExplanations} onCheckedChange={setSetShowExplanations} />
+                </div>
+              </div>
+            )}
+          </div>
+
+          <Separator />
+
+          <div className="space-y-3">
+            <Label className="text-sm font-semibold flex items-center gap-2">
+              <Eye className="h-4 w-4 text-violet-600" /> উত্তর ও মূল্যায়ন সেটিংস
+            </Label>
+
+            <div className="flex items-center justify-between p-3 rounded-lg bg-gradient-to-r from-violet-50/60 to-purple-50/60 dark:from-violet-950/20 dark:to-purple-950/20 border border-violet-200/30 dark:border-violet-800/20">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-violet-100 dark:bg-violet-900/40">
+                  <Eye className="h-4 w-4 text-violet-600" />
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">সঠিক উত্তর দেখান</Label>
+                  <p className="text-xs text-muted-foreground">মূল্যায়নের পর শিক্ষার্থীদের সঠিক উত্তর দেখানো হবে</p>
+                </div>
+              </div>
+              <Switch checked={setShowCorrectAnswers} onCheckedChange={setSetShowCorrectAnswers} />
+            </div>
+
+            <div className="flex items-center justify-between p-3 rounded-lg bg-gradient-to-r from-teal-50/60 to-emerald-50/60 dark:from-teal-950/20 dark:to-emerald-950/20 border border-teal-200/30 dark:border-teal-800/20">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-teal-100 dark:bg-teal-900/40">
+                  <Eye className="h-4 w-4 text-teal-600" />
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">স্বয়ংক্রিয়ভাবে ফলাফল প্রকাশ</Label>
+                  <p className="text-xs text-muted-foreground">পরীক্ষা শেষ হলে স্বয়ংক্রিয়ভাবে ফলাফল প্রকাশিত হবে</p>
+                </div>
+              </div>
+              <Switch checked={setAutoPublishResults} onCheckedChange={setSetAutoPublishResults} />
+            </div>
+
+            <div className="space-y-2">
+              <Label>পাস মার্কস</Label>
+              <Input type="number" step="0.5" min="0" value={setPassMarks} onChange={(e) => setSetPassMarks(e.target.value)} />
+              <p className="text-xs text-muted-foreground">ফাঁকা রাখলে ৪০% ধরা হবে</p>
+            </div>
+          </div>
+
+          <Separator />
+
           <div className="space-y-2">
             <Label>ক্রম (Order)</Label>
             <Input type="number" placeholder="0" value={setOrder} onChange={(e) => setSetOrder(e.target.value)} />
+            {errors.order && <p className="text-sm text-red-500">{errors.order}</p>}
           </div>
 
           <div className="flex gap-3 pt-2">
-            <Button className="gap-2 bg-emerald-600 hover:bg-emerald-700" onClick={onSave} disabled={saving}>
+            <Button className="gap-2 bg-emerald-600 hover:bg-emerald-700" onClick={handleSave} disabled={saving}>
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
               {saving ? 'সংরক্ষণ হচ্ছে...' : editId ? 'আপডেট করুন' : 'তৈরি করুন'}
             </Button>

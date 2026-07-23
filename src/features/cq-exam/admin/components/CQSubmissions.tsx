@@ -25,7 +25,10 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Table,TableBody,TableCell,TableHead,TableHeader,TableRow } from '@/components/ui/table'
 import { formatDate,formatTime } from '@/features/mcq-exam/admin/components/MCQExamConstants'
 import { cn } from '@/lib/utils'
-import { AlertTriangle,ArrowLeft,CheckCircle2,CheckSquare,ClipboardList,FileText,Filter,GraduationCap,RefreshCw,Search } from 'lucide-react'
+import { hasAnswerContent } from '@/lib/cq-exam/utils'
+import SafeImage from '@/components/ui/safe-image'
+import { useImageViewer } from '@/providers/ImageViewerProvider'
+import { AlertTriangle,ArrowLeft,CheckCircle2,CheckSquare,ClipboardList,FileText,Filter,GraduationCap,ImageIcon,RefreshCw,Search } from 'lucide-react'
 import { useMemo,useState } from 'react'
 import { CQExamSetRecord,CQExamSubmissionRecord } from '../../types'
 
@@ -38,6 +41,138 @@ const cqStatusInfo: Record<string, { label: string; className: string }> = {
 }
 
 const _bengaliLabels = ['ক', 'খ', 'গ', 'ঘ']
+
+// ─── Answer Images Section ───────────────────────────────────────────────────
+
+function AnswerImagesSection({ answers: _answers }: { answers: CQExamSubmissionRecord['answers'] }) {
+  const viewer = useImageViewer()
+
+  // Group answers by questionId
+  const grouped = useMemo(() => {
+    const map = new Map<string, typeof _answers>()
+    for (const a of _answers) {
+      if (!map.has(a.questionId)) map.set(a.questionId, [])
+      map.get(a.questionId)!.push(a)
+    }
+    return Array.from(map.entries())
+  }, [_answers])
+
+  // Calculate which answers have content worth showing
+  const hasAnyImages = _answers.some(a => (a.images?.length ?? 0) > 0)
+  const hasAnyText = _answers.some(a => a.answerText?.trim())
+
+  if (!hasAnyImages && !hasAnyText) return null
+
+  return (
+    <>
+      <Separator />
+      <div className="space-y-3">
+        <p className="text-sm font-semibold flex items-center gap-1.5">
+          <ClipboardList className="h-4 w-4 text-emerald-600" />
+          উত্তরের সারসংক্ষেপ
+        </p>
+
+        {grouped.map(([qId, answers], gi) => {
+          const sorted = [...answers].sort((a, b) => a.subIndex - b.subIndex)
+          const answeredCount = answers.filter(
+            a => a.subIndex < 4 && (a.answerText?.trim() || (a.images?.length ?? 0) > 0)
+          ).length
+
+          return (
+            <div key={qId} className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+                  CQ {gi + 1}
+                </span>
+                <span className={cn(
+                  'text-[10px] font-medium',
+                  answeredCount === 4 ? 'text-emerald-600' : 'text-amber-600'
+                )}>
+                  {answeredCount}/{sorted.filter(a => a.subIndex < 4).length} উত্তর
+                </span>
+              </div>
+
+              <div className="space-y-1.5 pl-1">
+                {sorted.map((ans) => {
+                  const hasImages = (ans.images?.length ?? 0) > 0
+                  const label = _bengaliLabels[ans.subIndex] || `#${ans.subIndex}`
+
+                  return (
+                    <div key={ans.id} className="text-xs">
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        <span className="font-medium text-muted-foreground">{label})</span>
+                        {ans.answerText?.trim() && (
+                          <span className="text-muted-foreground line-clamp-1">
+                            {ans.answerText.slice(0, 60)}
+                            {ans.answerText.length > 60 ? '...' : ''}
+                          </span>
+                        )}
+                        {!hasAnswerContent(ans.answerText, ans.images || []) && (
+                          <span className="text-muted-foreground/50 italic">উত্তর দেওয়া হয়নি</span>
+                        )}
+                        {ans.maxMarks > 0 && (
+                          <span className="text-muted-foreground/60 ml-auto">
+                            {ans.obtainedMarks ?? '—'}/{ans.maxMarks}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Image thumbnails */}
+                      {hasImages && (
+                        <div className="flex flex-wrap gap-1.5 ml-4 mt-1">
+                          {ans.images.map((img) => (
+                            <div
+                              key={img.id}
+                              className="cursor-pointer rounded-md overflow-hidden border border-border/50 hover:ring-2 hover:ring-emerald-400 transition-all"
+                              onClick={() => viewer?.openViewer([{ src: img.imageUrl, alt: 'উত্তরের ছবি' }])}
+                            >
+                              <SafeImage
+                                src={img.imageUrl}
+                                alt="উত্তরের ছবি"
+                                className="size-12 object-cover"
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })}
+
+        {/* Global images (subIndex 4) */}
+        {_answers.some(a => a.subIndex === 4 && (a.images?.length ?? 0) > 0) && (
+          <div className="pt-1">
+            <p className="text-xs font-medium text-muted-foreground mb-1.5 flex items-center gap-1">
+              <ImageIcon className="size-3" /> সম্পূর্ণ উত্তরের ছবি
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {_answers
+                .filter(a => a.subIndex === 4)
+                .flatMap(a => a.images || [])
+                .map((img) => (
+                  <div
+                    key={img.id}
+                    className="cursor-pointer rounded-md overflow-hidden border border-border/50 hover:ring-2 hover:ring-emerald-400 transition-all"
+                    onClick={() => viewer?.openViewer([{ src: img.imageUrl, alt: 'সম্পূর্ণ উত্তরের ছবি' }])}
+                  >
+                    <SafeImage
+                      src={img.imageUrl}
+                      alt="সম্পূর্ণ উত্তরের ছবি"
+                      className="size-16 object-cover"
+                    />
+                  </div>
+                ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </>
+  )
+}
 
 interface CQSubmissionsProps {
   loading: boolean
@@ -408,46 +543,9 @@ export function CQSubmissions({
                 </div>
               </div>
 
-              {/* Answer preview in detail */}
+              {/* Answer images in detail */}
               {(selectedSubmission.answers?.length ?? 0) > 0 && (
-                <>
-                  <Separator />
-                  <div>
-                    <p className="text-sm font-semibold mb-2 flex items-center gap-1.5">
-                      <ClipboardList className="h-4 w-4 text-emerald-600" />
-                      উত্তরের সারসংক্ষেপ
-                    </p>
-                    <div className="space-y-1.5">
-                      {selectedSubmission.answers
-                        .filter(a => a.subIndex < 4)
-                        .reduce<{ questionId: string; answered: number; total: number }[]>((acc, a) => {
-                          const existing = acc.find(x => x.questionId === a.questionId)
-                          if (existing) {
-                            existing.total++
-                            if (a.answerText?.trim() || (a.images?.length ?? 0) > 0) existing.answered++
-                          } else {
-                            acc.push({
-                              questionId: a.questionId,
-                              answered: (a.answerText?.trim() || (a.images?.length ?? 0) > 0) ? 1 : 0,
-                              total: 1,
-                            })
-                          }
-                          return acc
-                        }, [])
-                        .map((q, i) => (
-                          <div key={q.questionId} className="flex items-center justify-between p-2 rounded bg-muted/30">
-                            <span className="text-xs font-medium">CQ {i + 1}</span>
-                            <span className={cn(
-                              'text-xs',
-                              q.answered === q.total ? 'text-emerald-600' : 'text-amber-600'
-                            )}>
-                              {q.answered}/{q.total} উত্তর
-                            </span>
-                          </div>
-                        ))}
-                    </div>
-                  </div>
-                </>
+                <AnswerImagesSection answers={selectedSubmission.answers} />
               )}
 
               {selectedSubmission.status?.toLowerCase() === 'submitted' && (

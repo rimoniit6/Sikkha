@@ -14,12 +14,14 @@ interface WorkflowPanelProps {
   onTransition?: () => void
   /** Show compact or full layout */
   compact?: boolean
+  /** When true, hide status-changing actions — use when an external control (e.g. form dropdown) handles status */
+  hideActions?: boolean
 }
 
 /**
  * Drop-in workflow panel for any admin content page.
  */
-export function WorkflowPanel({ entityType, entityId, version: propVersion, onTransition, compact = false }: WorkflowPanelProps) {
+export function WorkflowPanel({ entityType, entityId, version: propVersion, onTransition, compact = false, hideActions = false }: WorkflowPanelProps) {
   const [workflow, setWorkflow] = useState<{ status: string; version: number } | null>(null)
   const [loading, setLoading] = useState(true)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
@@ -89,13 +91,15 @@ export function WorkflowPanel({ entityType, entityId, version: propVersion, onTr
         <Workflow className="h-4 w-4 text-muted-foreground" />
         <WorkflowBadge status={workflow?.status || 'DRAFT'} />
         <div className="flex-1" />
-        <WorkflowActions
-          entityType={entityType}
-          entityId={entityId}
-          currentStatus={workflow?.status || 'DRAFT'}
-          version={effectiveVersion}
-          onTransition={handleTransition}
-        />
+        {!hideActions && (
+          <WorkflowActions
+            entityType={entityType}
+            entityId={entityId}
+            currentStatus={workflow?.status || 'DRAFT'}
+            version={effectiveVersion}
+            onTransition={handleTransition}
+          />
+        )}
       </div>
     )
   }
@@ -114,13 +118,15 @@ export function WorkflowPanel({ entityType, entityId, version: propVersion, onTr
           <span className="text-xs text-muted-foreground">v{effectiveVersion}</span>
         </div>
 
-        <WorkflowActions
-          entityType={entityType}
-          entityId={entityId}
-          currentStatus={workflow?.status || 'DRAFT'}
-          version={effectiveVersion}
-          onTransition={handleTransition}
-        />
+        {!hideActions && (
+          <WorkflowActions
+            entityType={entityType}
+            entityId={entityId}
+            currentStatus={workflow?.status || 'DRAFT'}
+            version={effectiveVersion}
+            onTransition={handleTransition}
+          />
+        )}
 
         <WorkflowHistoryPanel
           entityType={entityType}

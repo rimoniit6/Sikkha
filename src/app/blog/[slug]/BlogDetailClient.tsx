@@ -11,7 +11,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Home, Calendar, User, Clock, Eye, ArrowRight, ArrowLeft, Share2, Check, ChevronLeft, ChevronRight } from 'lucide-react'
 import Image from 'next/image'
 import RichContentRenderer from '@/components/ui/rich-content-renderer'
-import ImageLightbox from '@/components/ui/image-lightbox'
+import { useImageViewer } from '@/providers/ImageViewerProvider'
 import TableOfContents from '@/components/ui/table-of-contents'
 import type { BlogPostRecord } from '@/features/blog/types/blog'
 
@@ -23,14 +23,15 @@ interface Props {
 }
 
 export default function BlogDetailClient({ post, relatedPosts, prevPost, nextPost }: Props) {
+  const viewer = useImageViewer()
   const [copied, setCopied] = useState(false)
   const [readingProgress, setReadingProgress] = useState(0)
-  const [lightboxImage, setLightboxImage] = useState<{ src: string; alt?: string; title?: string | null } | null>(null)
 
   const contentRef = useRef<HTMLDivElement>(null)
 
   // Image click delegation for lightbox
   useEffect(() => {
+    if (!viewer) return
     const el = contentRef.current
     if (!el) return
 
@@ -38,17 +39,13 @@ export default function BlogDetailClient({ post, relatedPosts, prevPost, nextPos
       const target = e.target as HTMLElement
       if (target.tagName === 'IMG' && target.closest('.blog-content')) {
         const img = target as HTMLImageElement
-        setLightboxImage({
-          src: img.src,
-          alt: img.alt || undefined,
-          title: img.title || null,
-        })
+        viewer.openViewer([{ src: img.src, alt: img.alt || undefined }])
       }
     }
 
     el.addEventListener('click', handleClick)
     return () => el.removeEventListener('click', handleClick)
-  }, [])
+  }, [viewer])
 
   // Assign IDs to content headings for TOC anchor links
   useEffect(() => {
@@ -132,14 +129,7 @@ export default function BlogDetailClient({ post, relatedPosts, prevPost, nextPos
                 className="object-cover"
                 loading="lazy"
                 sizes="(max-width: 768px) 100vw, 800px"
-              />      {/* Image Lightbox */}
-      {lightboxImage && (
-        <ImageLightbox
-          image={lightboxImage}
-          onClose={() => setLightboxImage(null)}
-        />
-      )}
-    </div>
+              />    </div>
   )
 }
 

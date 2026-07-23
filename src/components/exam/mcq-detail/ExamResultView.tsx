@@ -25,7 +25,8 @@ import {
   Trophy,
   XCircle,
 } from 'lucide-react'
-import { memo, useState } from 'react'
+import { useImageViewer } from '@/providers/ImageViewerProvider'
+import { memo, useCallback, useState } from 'react'
 import type {
   ExamQuestion,
   ExamResult,
@@ -288,13 +289,23 @@ function ExamResultView({
         <div className="flex justify-center gap-3">
           {(() => {
             const setStatus = examSetStatuses.find(s => s.setId === activeSetId)
+            const isPracticeMode = setStatus?.practiceMode
             const retakeAllowed = setStatus?.allowRetake
             const canRetakeNow = setStatus?.retakeRequestStatus === 'approved' || setStatus?.canRetake
             const hasPending = setStatus?.retakeRequestStatus === 'pending'
             const wasRejected = setStatus?.retakeRequestStatus === 'rejected'
             return (
               <>
-                {retakeAllowed && canRetakeNow && (
+                {isPracticeMode && (
+                  <Button
+                    className="gap-2 bg-violet-600 hover:bg-violet-700"
+                    onClick={() => onStartExam(activeSetId)}
+                  >
+                    <RotateCcw className="size-4" />
+                    আবার প্র্যাকটিস করুন
+                  </Button>
+                )}
+                {!isPracticeMode && retakeAllowed && canRetakeNow && (
                   <Button
                     className="gap-2 bg-emerald-600 hover:bg-emerald-700"
                     onClick={() => onStartExam(activeSetId)}
@@ -303,12 +314,12 @@ function ExamResultView({
                     পুনরায় পরীক্ষা দিন
                   </Button>
                 )}
-                {retakeAllowed && hasPending && (
+                {!isPracticeMode && retakeAllowed && hasPending && (
                   <Badge className="text-xs bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 py-2">
                     <RefreshCw className="size-3 mr-1" /> অনুরোধ অপেক্ষমাণ
                   </Badge>
                 )}
-                {retakeAllowed && !canRetakeNow && !hasPending && (
+                {!isPracticeMode && retakeAllowed && !canRetakeNow && !hasPending && (
                   <Button
                     variant="outline"
                     className="gap-2"
@@ -353,6 +364,11 @@ function QuestionReviewItem({
   isSkipped: boolean
 }) {
   const [isOpen, setIsOpen] = useState(false)
+  const viewer = useImageViewer()
+
+  const openLightbox = useCallback((src: string, alt?: string) => {
+    viewer?.openViewer([{ src, alt }])
+  }, [viewer])
 
   const options = [
     { key: 'A', text: question.optionA, image: question.optionAImage },
@@ -412,11 +428,16 @@ function QuestionReviewItem({
                 className="text-sm leading-relaxed"
               />
               {question.questionImage && (
-                <SafeImage
-                  src={question.questionImage}
-                  alt="প্রশ্নের ছবি"
-                  className="mt-2 max-w-full rounded-lg border max-h-40"
-                />
+                <div
+                  className="cursor-pointer mt-2 max-w-full rounded-lg border overflow-hidden"
+                  onClick={() => openLightbox(question.questionImage!, 'প্রশ্নের ছবি')}
+                >
+                  <SafeImage
+                    src={question.questionImage}
+                    alt="প্রশ্নের ছবি"
+                    className="max-h-40 object-contain mx-auto"
+                  />
+                </div>
               )}
             </div>
 
@@ -453,7 +474,12 @@ function QuestionReviewItem({
                     <span className="flex-1 min-w-0">
                       <RichContentRenderer content={opt.text || ''} inline className="text-xs" />
                       {opt.image && (
-                        <SafeImage src={opt.image} alt={`অপশন ${opt.key}`} className="mt-1 max-w-full rounded-lg border max-h-16" />
+                        <div
+                          className="cursor-pointer mt-1 max-w-full rounded-lg border overflow-hidden"
+                          onClick={() => openLightbox(opt.image!, `অপশন ${opt.key}`)}
+                        >
+                          <SafeImage src={opt.image} alt={`অপশন ${opt.key}`} className="max-h-16 object-contain mx-auto" />
+                        </div>
                       )}
                     </span>
                     {isCorrectAnswer && (
@@ -472,13 +498,19 @@ function QuestionReviewItem({
                 <span className="text-xs font-medium text-emerald-700 dark:text-emerald-400 shrink-0">ব্যাখ্যা:</span>
                 <RichContentRenderer content={question.explanation} className="text-xs text-muted-foreground inline" />
                 {question.explanationImage && (
-                  <SafeImage src={question.explanationImage} alt="ব্যাখ্যা চিত্র" className="mt-2 max-w-full rounded-lg border max-h-32" />
+                  <div
+                    className="cursor-pointer mt-2 max-w-full rounded-lg border overflow-hidden"
+                    onClick={() => openLightbox(question.explanationImage!, 'ব্যাখ্যা চিত্র')}
+                  >
+                    <SafeImage src={question.explanationImage} alt="ব্যাখ্যা চিত্র" className="max-h-32 object-contain mx-auto" />
+                  </div>
                 )}
               </div>
             )}
           </div>
         </CollapsibleContent>
       </Card>
+
     </Collapsible>
   )
 }

@@ -104,6 +104,7 @@ function ExamSetList({
               const isCompleted = statusInfo.label === 'সম্পন্ন'
               const apiStatusData = examSetStatuses.find((s) => s.setId === set.id)
               const isAvailable = isToday(set.scheduledDate) || isPast(set.scheduledDate)
+              const isPracticeAvailable = apiStatusData?.status === 'practice-available'
 
               return (
                 <motion.div
@@ -216,7 +217,17 @@ function ExamSetList({
                                 <Medal className="size-3" />
                                 লিডারবোর্ড
                               </Button>
-                              {apiStatusData?.allowRetake && (
+                              {/* Practice mode retake: always show retake button */}
+                              {apiStatusData?.practiceMode ? (
+                                <Button
+                                  size="sm"
+                                  className="gap-1 text-xs bg-violet-600 hover:bg-violet-700 text-white"
+                                  onClick={() => onStartExam(set.id)}
+                                >
+                                  <RotateCcw className="size-3" />
+                                  পুনরায় দিন
+                                </Button>
+                              ) : apiStatusData?.allowRetake ? (
                                 <>
                                   {apiStatusData.retakeRequestStatus === 'approved' || apiStatusData.canRetake ? (
                                     <Button
@@ -253,7 +264,31 @@ function ExamSetList({
                                     </Button>
                                   )}
                                 </>
-                              )}
+                              ) : null}
+                            </>
+                          ) : isPracticeAvailable ? (
+                            <>
+                              <Button
+                                size="sm"
+                                className="gap-1 bg-gradient-to-r from-violet-500 to-purple-500 hover:from-violet-600 hover:to-purple-600 text-white text-xs"
+                                disabled={examLoading}
+                                onClick={() => onStartExam(set.id)}
+                              >
+                                <Play className="size-3" />
+                                প্র্যাকটিস শুরু করুন
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="gap-1 text-xs"
+                                onClick={() => {
+                                  onSetDetailTab('leaderboard')
+                                  onFetchLeaderboard(set.id)
+                                }}
+                              >
+                                <Medal className="size-3" />
+                                লিডারবোর্ড
+                              </Button>
                             </>
                           ) : isAvailable ? (
                             <Button
