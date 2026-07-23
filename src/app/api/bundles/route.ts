@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { paginatedApiResponse } from '@/lib/api-utils'
 import { toDecimal } from '@/lib/decimal'
 import { verifyAuth } from '@/lib/auth'
+import { handleApiError } from '@/lib/errors'
 
 export async function GET(request: Request) {
   try {
@@ -123,8 +124,7 @@ export async function GET(request: Request) {
       totalPages: Math.ceil(total / limit),
     })
   } catch (error) {
-    console.error('Get Bundles error:', error)
-    return NextResponse.json(
+    return handleApiError(error, 'Get Bundles error:')
       { error: 'বান্ডেল এর তথ্য আনতে সমস্যা হয়েছে' },
       { status: 500 }
     )

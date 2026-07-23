@@ -1,6 +1,7 @@
 import { db } from '@/lib/db'
 import { apiError } from '@/lib/api-utils'
 import { NextResponse } from 'next/server'
+import { handleApiError } from '@/lib/errors'
 
 export async function GET() {
   try {
@@ -11,7 +12,6 @@ export async function GET() {
 
     return NextResponse.json({ success: true, data: { teachers } })
   } catch (error) {
-    console.error('Get teacher-moderators error:', error)
-    return apiError('টিচার/মডারেটর আনতে সমস্যা হয়েছে', 500)
+    return handleApiError(error, 'Get teacher-moderators error:')
   }
 }

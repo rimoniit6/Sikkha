@@ -1,6 +1,7 @@
 import { db } from '@/lib/db'
 import { apiError, withAdmin } from '@/lib/api-utils'
 import { NextResponse } from 'next/server'
+import { handleApiError } from '@/lib/errors'
 import {
   getFeaturedRegistration,
 } from '@/lib/featured-content-registry'
@@ -64,7 +65,6 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ success: true, data: items })
   } catch (error) {
-    console.error('Admin Search Content error:', error)
-    return apiError('কন্টেন্ট খুঁজতে সমস্যা হয়েছে', 500)
+    return handleApiError(error, 'Admin Search Content error:')
   }
 }

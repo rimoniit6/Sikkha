@@ -1,5 +1,6 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { handleApiError } from '@/lib/errors'
 
 // GET /api/board-questions/search-suggestions?q=math
 // Returns search suggestions grouped by category
@@ -96,7 +97,6 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ suggestions })
   } catch (error) {
-    console.error('Search suggestions error:', error)
-    return NextResponse.json({ suggestions: [] })
+    return handleApiError(error, 'Search suggestions error:')
   }
 }

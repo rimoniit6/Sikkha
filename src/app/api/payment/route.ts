@@ -7,6 +7,7 @@ import { apiLimiter } from '@/lib/rate-limit'
 import { createPaymentSchema, paginationSchema } from '@/lib/validations'
 import { getContentTypeLabels, getValidContentTypes } from '@/lib/content-type-labels'
 import { resolveContentTitle } from '@/services/server/content.service'
+import { resolveContentClassLevel } from '@/lib/payment-helpers'
 
 export async function GET(request: Request) {
   try {
@@ -207,29 +208,20 @@ export async function POST(request: Request) {
       }
 
       // ===== Also check if content is accessible via active SUBSCRIPTION =====
-      if (['mcq', 'cq', 'board-mcq', 'board-cq'].includes(contentType)) {
-        let contentClassLevel: string | null = null
-        if (contentType === 'mcq' || contentType === 'board-mcq') {
-          const mcq = await db.mCQ.findUnique({ where: { id: contentId }, select: { classLevel: true } })
-          contentClassLevel = mcq?.classLevel || null
-        } else {
-          const cq = await db.cQ.findUnique({ where: { id: contentId }, select: { classLevel: true } })
-          contentClassLevel = cq?.classLevel || null
-        }
+      // Uses shared helper for consistent class-level resolution
+      const contentClassLevel = await resolveContentClassLevel(contentType, contentId)
+      if (contentClassLevel) {
+        const activeSubscription = await db.userSubscription.findFirst({
+          where: {
+            userId,
+            classLevel: contentClassLevel,
+            isActive: true,
+            endDate: { gte: new Date() },
+          },
+        })
 
-        if (contentClassLevel) {
-          const activeSubscription = await db.userSubscription.findFirst({
-            where: {
-              userId,
-              classLevel: contentClassLevel,
-              isActive: true,
-              endDate: { gte: new Date() },
-            },
-          })
-
-          if (activeSubscription) {
-            return apiError('আপনার সাবস্ক্রিপশনে এই কন্টেন্ট ইতিমধ্যে অন্তর্ভুক্ত', 400, undefined, { alreadyPurchased: true, reason: 'active_subscription' })
-          }
+        if (activeSubscription) {
+          return apiError('আপনার সাবস্ক্রিপশনে এই কন্টেন্ট ইতিমধ্যে অন্তর্ভুক্ত', 400, undefined, { alreadyPurchased: true, reason: 'active_subscription' })
         }
       }
     }

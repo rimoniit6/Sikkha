@@ -2,6 +2,7 @@ import { db } from '@/lib/db'
 import { apiError, applyRateLimit } from '@/lib/api-utils'
 import { NextRequest, NextResponse } from 'next/server'
 import { apiLimiter } from '@/lib/rate-limit'
+import { handleApiError } from '@/lib/errors'
 
 // GET /api/board-questions/filters?classLevel=ssc&year=2024
 // Returns available filter options filtered by given params
@@ -128,7 +129,6 @@ export async function GET(request: NextRequest) {
       },
     })
   } catch (error) {
-    console.error('Board questions filters error:', error)
-    return apiError('ফিল্টার অপশন লোড করতে সমস্যা হয়েছে', 500)
+    return handleApiError(error, 'Board questions filters error:')
   }
 }

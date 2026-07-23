@@ -1,6 +1,7 @@
 import { db } from '@/lib/db'
 import { apiError } from '@/lib/api-utils'
 import { NextResponse } from 'next/server'
+import { handleApiError } from '@/lib/errors'
 
 export async function GET(request: Request) {
   try {
@@ -19,7 +20,6 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ success: true, data })
   } catch (error) {
-    console.error('Public Get BoardYears error:', error)
-    return apiError('বোর্ড সাল আনতে সমস্যা হয়েছে', 500)
+    return handleApiError(error, 'Public Get BoardYears error:')
   }
 }

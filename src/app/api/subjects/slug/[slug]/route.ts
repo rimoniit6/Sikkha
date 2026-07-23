@@ -1,5 +1,6 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { handleApiError } from '@/lib/errors'
 
 /**
  * GET /api/subjects/slug/[slug]
@@ -62,8 +63,7 @@ export async function GET(
       data: subject,
     })
   } catch (error) {
-    console.error('[/api/subjects/slug] Error:', error)
-    return NextResponse.json(
+    return handleApiError(error, '[/api/subjects/slug] Error:')
       { error: 'সার্ভার ত্রুটি' },
       { status: 500 }
     )

@@ -2,6 +2,7 @@ import { db } from '@/lib/db'
 import { apiError } from '@/lib/api-utils'
 import { NextResponse } from 'next/server'
 import { cacheHeaders } from '@/lib/cache-headers'
+import { handleApiError } from '@/lib/errors'
 
 /**
  * GET /api/hierarchy/metadata
@@ -17,8 +18,7 @@ export async function GET() {
   try {
     // Validate database connection
     if (!db) {
-      console.error('[/api/hierarchy/metadata] Database client is not available')
-      return apiError('ডাটাবেজ সংযোগ পাওয়া যায়নি', 500)
+    return handleApiError(error, '[/api/hierarchy/metadata] Database client is not available')
     }
 
     // Fetch all data in parallel
@@ -111,21 +111,6 @@ export async function GET() {
     }, { headers: cacheHeaders.public.long })
   } catch (error) {
     // Log full error details for server-side debugging
-    console.error('[/api/hierarchy/metadata] Error fetching metadata:', error)
-
-    // Determine if this is a database connection error
-    const isDbError = error instanceof Error && (
-      error.message.includes('connect') ||
-      error.message.includes('timeout') ||
-      error.message.includes('ECONNREFUSED') ||
-      error.message.includes('P1001') ||
-      error.message.includes('P1002')
-    )
-
-    const errorMessage = isDbError
-      ? 'ডাটাবেজ সংযোগে সমস্যা হয়েছে, পরে আবার চেষ্টা করুন'
-      : 'মেটাডাটা লোড করতে সমস্যা হয়েছে'
-
-    return apiError(errorMessage, 500)
+    return handleApiError(error, '[/api/hierarchy/metadata] Error fetching metadata:')
   }
 }

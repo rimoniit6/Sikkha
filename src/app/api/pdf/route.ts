@@ -4,6 +4,7 @@ import { verifyAuth } from '@/lib/auth'
 import { apiLimiter, getClientIdentifier, rateLimitHeaders } from '@/lib/rate-limit'
 import { checkContentAccess } from '@/lib/access-control'
 import { db } from '@/lib/db'
+import { handleApiError } from '@/lib/errors'
 
 /**
  * Check if a hostname resolves to a private/internal IP address
@@ -230,7 +231,6 @@ export async function GET(request: NextRequest) {
       headers,
     })
   } catch (error) {
-    console.error('PDF proxy error:', error)
-    return apiError('Failed to download PDF.', 500)
+    return handleApiError(error, 'PDF proxy error:')
   }
 }

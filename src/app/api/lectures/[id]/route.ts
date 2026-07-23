@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server'
 import { verifyAuth } from '@/lib/auth'
 import { checkContentAccess } from '@/lib/access-control'
 import { cacheHeaders } from '@/lib/cache-headers'
+import { handleApiError } from '@/lib/errors'
 
 export async function GET(
   _request: Request,
@@ -183,7 +184,6 @@ export async function GET(
 
     return NextResponse.json({ success: true, data: result }, { headers: cacheHeaders.noCache })
   } catch (error) {
-    console.error('Get lecture detail error:', error)
-    return apiError('লেকচারের বিস্তারিত তথ্য আনতে সমস্যা হয়েছে', 500)
+    return handleApiError(error, 'Get lecture detail error:')
   }
 }

@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server'
 import { verifyAuth } from '@/lib/auth'
 import { toDecimal } from '@/lib/decimal'
 import { getClassLevelForUserId } from '@/lib/class-filter'
+import { handleApiError } from '@/lib/errors'
 
 export async function GET(request: Request) {
   try {
@@ -81,7 +82,6 @@ export async function GET(request: Request) {
       },
     })
   } catch (error) {
-    console.error('Get user dashboard error:', error)
-    return apiError('ড্যাশবোর্ড ডাটা আনতে সমস্যা হয়েছে', 500)
+    return handleApiError(error, 'Get user dashboard error:')
   }
 }

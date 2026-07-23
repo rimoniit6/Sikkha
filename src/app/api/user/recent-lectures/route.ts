@@ -3,6 +3,7 @@ import { apiError } from '@/lib/api-utils'
 import { NextResponse } from 'next/server'
 import { verifyAuth } from '@/lib/auth'
 import { getClassLevelForUserId } from '@/lib/class-filter'
+import { handleApiError } from '@/lib/errors'
 
 export async function GET(request: Request) {
   try {
@@ -80,7 +81,6 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ success: true, data: result })
   } catch (error) {
-    console.error('Recent lectures error:', error)
-    return apiError('তথ্য আনতে সমস্যা হয়েছে', 500)
+    return handleApiError(error, 'Recent lectures error:')
   }
 }

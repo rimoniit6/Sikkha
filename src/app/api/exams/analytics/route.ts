@@ -2,6 +2,7 @@ import { verifyAuth } from '@/lib/auth'
 import { NextResponse } from 'next/server'
 import { apiError } from '@/lib/api-utils'
 import { getExamAnalytics, ExamError } from '@/services/exam-service'
+import { handleApiError } from '@/lib/errors'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,7 +26,6 @@ export async function GET(request: Request) {
     if (error instanceof ExamError) {
       return apiError(error.message, error.statusCode)
     }
-    console.error('Get exam analytics error:', error)
-    return apiError('বিশ্লেষণ লোড করতে সমস্যা হয়েছে', 500)
+    return handleApiError(error, 'Get exam analytics error:')
   }
 }

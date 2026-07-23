@@ -2,6 +2,7 @@ import { db } from '@/lib/db'
 import { apiError } from '@/lib/api-utils'
 import { NextResponse } from 'next/server'
 import { verifyAuth } from '@/lib/auth'
+import { handleApiError } from '@/lib/errors'
 
 // GET: Check if specific content is bookmarked
 export async function GET(request: Request) {
@@ -41,7 +42,6 @@ export async function GET(request: Request) {
       data: { isBookmarked: !!bookmark },
     })
   } catch (error) {
-    console.error('Check bookmark error:', error)
-    return apiError('বুকমার্ক যাচাই করতে সমস্যা হয়েছে', 500)
+    return handleApiError(error, 'Check bookmark error:')
   }
 }

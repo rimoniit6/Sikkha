@@ -1,6 +1,7 @@
 import { db } from '@/lib/db'
 import { toDecimal } from '@/lib/decimal'
 import { apiResponse, apiError } from '@/lib/api-utils'
+import { handleApiError } from '@/lib/errors'
 
 export async function GET(
   request: Request,
@@ -76,7 +77,6 @@ export async function GET(
       createdAt: pkg.createdAt,
     })
   } catch (error) {
-    console.error('Get Package Detail error:', error)
-    return apiError('প্যাকেজের তথ্য আনতে সমস্যা হয়েছে', 500)
+    return handleApiError(error, 'Get Package Detail error:')
   }
 }

@@ -2,6 +2,7 @@ import { db } from '@/lib/db'
 import { apiError } from '@/lib/api-utils'
 import { NextResponse } from 'next/server'
 import { getContentTypeLabels, getValidContentTypes } from '@/lib/content-type-labels'
+import { handleApiError } from '@/lib/errors'
 
 export async function GET(request: Request) {
   try {
@@ -337,7 +338,6 @@ export async function GET(request: Request) {
       },
     })
   } catch (error) {
-    console.error('Get content info error:', error)
-    return apiError('কন্টেন্টের তথ্য আনতে সমস্যা হয়েছে', 500)
+    return handleApiError(error, 'Get content info error:')
   }
 }

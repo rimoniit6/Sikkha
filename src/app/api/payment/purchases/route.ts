@@ -5,6 +5,7 @@ import { verifyAuth } from '@/lib/auth'
 import { apiLimiter, getClientIdentifier, rateLimitHeaders } from '@/lib/rate-limit'
 import { getContentTypeLabels } from '@/lib/content-type-labels'
 import { logError } from '@/lib/errors'
+import { handleApiError } from '@/lib/errors'
 
 async function resolveContentTitle(
   contentType: string,
@@ -101,7 +102,6 @@ export async function GET(request: Request) {
       },
     })
   } catch (error) {
-    console.error('Get purchases error:', error)
-    return apiError('ক্রয়ের তথ্য আনতে সমস্যা হয়েছে', 500)
+    return handleApiError(error, 'Get purchases error:')
   }
 }

@@ -1,5 +1,6 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { handleApiError } from '@/lib/errors'
 
 export async function GET(
   _request: Request,
@@ -136,8 +137,7 @@ export async function GET(
 
     return NextResponse.json(result)
   } catch (error) {
-    console.error('Get chapter detail error:', error)
-    return NextResponse.json(
+    return handleApiError(error, 'Get chapter detail error:')
       { error: 'অধ্যায়ের বিস্তারিত তথ্য আনতে সমস্যা হয়েছে' },
       { status: 500 }
     )

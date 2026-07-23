@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { apiError, applyRateLimit, withCsrf } from '@/lib/api-utils'
 import { apiLimiter } from '@/lib/rate-limit'
 import { deleteExam, ExamError } from '@/services/exam-service'
+import { handleApiError } from '@/lib/errors'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,7 +31,6 @@ export async function DELETE(
     if (error instanceof ExamError) {
       return apiError(error.message, error.statusCode)
     }
-    console.error('Delete exam error:', error)
-    return apiError('পরীক্ষা মুছতে সমস্যা হয়েছে', 500)
+    return handleApiError(error, 'Delete exam error:')
   }
 }

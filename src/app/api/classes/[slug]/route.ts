@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { handleApiError } from '@/lib/errors'
 
 export async function GET(
   _request: Request,
@@ -129,8 +130,7 @@ export async function GET(
 
     return NextResponse.json(result)
   } catch (error) {
-    console.error('Get class detail error:', error)
-    return NextResponse.json(
+    return handleApiError(error, 'Get class detail error:')
       { error: 'ক্লাসের বিস্তারিত তথ্য আনতে সমস্যা হয়েছে' },
       { status: 500 }
     )

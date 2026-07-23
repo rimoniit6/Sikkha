@@ -4,6 +4,7 @@ import { apiError, applyRateLimit } from '@/lib/api-utils'
 import { apiLimiter } from '@/lib/rate-limit'
 import { getExamWithQuestions, ExamError } from '@/services/exam-service'
 import { checkContentAccess } from '@/lib/access-control'
+import { handleApiError } from '@/lib/errors'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,7 +31,6 @@ export async function GET(
     if (error instanceof ExamError) {
       return apiError(error.message, error.statusCode)
     }
-    console.error('Get exam detail error:', error)
-    return apiError('পরীক্ষার বিস্তারিত তথ্য আনতে সমস্যা হয়েছে', 500)
+    return handleApiError(error, 'Get exam detail error:')
   }
 }

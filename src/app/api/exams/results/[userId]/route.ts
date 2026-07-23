@@ -2,6 +2,7 @@ import { db } from '@/lib/db'
 import { apiError } from '@/lib/api-utils'
 import { verifyAuth } from '@/lib/auth'
 import { NextResponse } from 'next/server'
+import { handleApiError } from '@/lib/errors'
 
 export async function GET(
   request: Request,
@@ -58,7 +59,6 @@ export async function GET(
       },
     })
   } catch (error) {
-    console.error('Get User Exam Results error:', error)
-    return apiError('পরীক্ষার ফলাফল আনতে সমস্যা হয়েছে', 500)
+    return handleApiError(error, 'Get User Exam Results error:')
   }
 }

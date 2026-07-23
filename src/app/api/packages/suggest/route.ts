@@ -2,6 +2,7 @@ import { apiError,applyRateLimit } from '@/lib/api-utils'
 import { db } from '@/lib/db'
 import { apiLimiter } from '@/lib/rate-limit'
 import { NextRequest,NextResponse } from 'next/server'
+import { handleApiError } from '@/lib/errors'
 
 export async function GET(request: NextRequest) {
   try {
@@ -51,7 +52,6 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: { packages: packagesWithCounts } })
   } catch (error) {
-    console.error('Suggest packages error:', error)
-    return apiError('প্যাকেজ সাজেশন লোড করতে সমস্যা হয়েছে', 500)
+    return handleApiError(error, 'Suggest packages error:')
   }
 }

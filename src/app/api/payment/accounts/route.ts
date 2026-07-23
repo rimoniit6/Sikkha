@@ -1,5 +1,6 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { handleApiError } from '@/lib/errors'
 
 // Public endpoint — returns only payment-related account numbers
 // This is needed so the PaymentPage can show real bKash/Nagad/Rocket numbers
@@ -39,9 +40,7 @@ export async function GET() {
 
     return NextResponse.json({ success: true, data: { accounts } })
   } catch (error) {
-    console.error('Get payment accounts error:', error)
-    // Return fallback accounts even on error
-    return NextResponse.json({
+    return handleApiError(error, 'Get payment accounts error:')
       success: true,
       data: {
         accounts: {

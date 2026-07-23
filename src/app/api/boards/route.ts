@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { cacheHeaders } from '@/lib/cache-headers'
+import { handleApiError } from '@/lib/errors'
 
 // GET /api/boards - Public: list active boards
 export async function GET() {
@@ -12,7 +13,6 @@ export async function GET() {
     })
     return NextResponse.json({ success: true, data: boards }, { headers: cacheHeaders.public.long })
   } catch (error) {
-    console.error('Boards list error:', error)
-    return NextResponse.json({ success: true, data: [] })
+    return handleApiError(error, 'Boards list error:')
   }
 }

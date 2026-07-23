@@ -1,6 +1,7 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { withAdmin } from '@/lib/api-utils'
+import { handleApiError } from '@/lib/errors'
 
 // Fetch available MCQ/CQ questions for adding to an exam
 export async function GET(request: Request) {
@@ -77,8 +78,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json(result)
   } catch (error) {
-    console.error('Fetch question bank error:', error)
-    return NextResponse.json(
+    return handleApiError(error, 'Fetch question bank error:')
       { error: 'প্রশ্ন আনতে সমস্যা হয়েছে' },
       { status: 500 }
     )

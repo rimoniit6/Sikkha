@@ -1,5 +1,6 @@
 import { db } from '@/lib/db'
 import { NextRequest, NextResponse } from 'next/server'
+import { handleApiError } from '@/lib/errors'
 
 // GET /api/favicon - Serves the site favicon from the database
 // Falls back to the default CDN icon if no custom favicon is set
@@ -17,9 +18,5 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(faviconUrl)
     }
   } catch (error) {
-    console.error('Favicon API error:', error)
-  }
-
-  // Fallback to the default icon
-  return NextResponse.redirect('https://z-cdn.chatglm.cn/z-ai/static/logo.svg')
+    return handleApiError(error, 'Favicon API error:')
 }

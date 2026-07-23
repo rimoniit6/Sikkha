@@ -6,6 +6,7 @@ import { apiLimiter } from '@/lib/rate-limit'
 import { Prisma } from '@prisma/client'
 import { NextResponse } from 'next/server'
 import { getClassLevelForRequest } from '@/lib/class-filter'
+import { handleApiError } from '@/lib/errors'
 
 // ----------------------------------------------------------------
 // Analytics helper — builds a Prisma.Sql WHERE clause from filter
@@ -423,26 +424,6 @@ export async function GET(request: Request) {
       analytics,
     })
   } catch (error) {
-    console.error('Board questions API error:', error)
-    return NextResponse.json(
-      {
-        error: 'বোর্ড প্রশ্নের তথ্য আনতে সমস্যা হয়েছে',
-        data: [],
-        pagination: { page: 1, limit: 50, total: 0, totalPages: 0 },
-        analytics: {
-          totalQuestions: 0,
-          accessibleQuestions: 0,
-          premiumQuestions: 0,
-          unlockedQuestions: 0,
-          availableBoards: 0,
-          availableSubjects: 0,
-          availableChapters: 0,
-          questionsPracticed: 0,
-          questionsRemaining: 0,
-          accuracyRate: 0,
-        },
-      },
-      { status: 500 },
-    )
+    return handleApiError(error, 'Board questions API error')
   }
 }

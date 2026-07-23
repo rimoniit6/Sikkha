@@ -1,6 +1,7 @@
 import { db } from '@/lib/db'
 import { apiError, withAdmin } from '@/lib/api-utils'
 import { NextResponse } from 'next/server'
+import { handleApiError } from '@/lib/errors'
 
 // GET /api/admin/bundles/content — Search for content items to add to a bundle
 export async function GET(request: Request) {
@@ -164,7 +165,6 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ success: true, data: results })
   } catch (error) {
-    console.error('Admin Bundle Content Search error:', error)
-    return apiError('কন্টেন্ট অনুসন্ধানে সমস্যা হয়েছে', 500)
+    return handleApiError(error, 'Admin Bundle Content Search error:')
   }
 }

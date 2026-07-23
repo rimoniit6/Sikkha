@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { verifyAuth } from '@/lib/auth'
 import { checkContentAccess } from '@/lib/access-control'
 import { cacheHeaders } from '@/lib/cache-headers'
+import { handleApiError } from '@/lib/errors'
 
 export async function GET(
   request: NextRequest,
@@ -84,7 +85,6 @@ export async function GET(
     // No access — return basic info without content
     return NextResponse.json({ success: true, ...base, content: null }, { headers: cacheHeaders.noCache })
   } catch (error) {
-    console.error('Get Suggestion detail error:', error)
-    return apiError('সাজেশনের বিস্তারিত তথ্য আনতে সমস্যা হয়েছে', 500)
+    return handleApiError(error, 'Get Suggestion detail error:')
   }
 }
