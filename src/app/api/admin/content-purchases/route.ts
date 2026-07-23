@@ -1,17 +1,14 @@
 import { db } from '@/lib/db'
-import { apiError, withCsrf } from '@/lib/api-utils'
+import { apiError, withAdmin, withCsrf } from '@/lib/api-utils'
 import { NextResponse } from 'next/server'
-import { requireAdmin } from '@/lib/auth'
 import { getContentTypeLabels } from '@/lib/content-type-labels'
 import { handleApiError } from '@/lib/errors'
-import { auditFromRequest, AuditActions } from '@/lib/audit'
+import { auditFromRequest } from '@/lib/audit'
 
 export async function GET(request: Request) {
   try {
-    const auth = await requireAdmin(request)
-    if (!auth) {
-      return apiError('অ্যাডমিন অনুমতি প্রয়োজন।', 403, 'FORBIDDEN')
-    }
+    const auth = await withAdmin(request)
+    if (auth instanceof NextResponse) return auth
 
     const { searchParams } = new URL(request.url)
     const contentType = searchParams.get('contentType')
@@ -112,10 +109,8 @@ export async function GET(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
-    const auth = await requireAdmin(request)
-    if (!auth) {
-      return apiError('অ্যাডমিন অনুমতি প্রয়োজন।', 403, 'FORBIDDEN')
-    }
+    const auth = await withAdmin(request)
+    if (auth instanceof NextResponse) return auth
     const csrfCheck = await withCsrf(request)
     if ('error' in csrfCheck) return csrfCheck.error
 

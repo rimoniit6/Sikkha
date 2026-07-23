@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { verifyAuth } from '@/lib/auth'
 import { apiError, withCsrf } from '@/lib/api-utils'
 import { getClassLevelForUserId } from '@/lib/class-filter'
+import { handleApiError } from '@/lib/errors'
 
 const VALID_CONTENT_TYPES = ['lecture', 'mcq', 'cq']
 
@@ -110,8 +111,7 @@ export async function GET(request: Request) {
       data: { items: enrichedItems },
     })
   } catch (error) {
-    console.error('Get recently viewed error:', error)
-    return apiError('সাম্প্রতিক দেখা আইটেম আনতে সমস্যা হয়েছে', 500)
+    return handleApiError(error, 'Get recently viewed error:')
   }
 }
 
@@ -174,7 +174,6 @@ export async function POST(request: Request) {
       success: true,
     })
   } catch (error) {
-    console.error('Record recently viewed error:', error)
-    return apiError('সাম্প্রতিক দেখা রেকর্ড করতে সমস্যা হয়েছে', 500)
+    return handleApiError(error, 'Get recently viewed error:')
   }
 }

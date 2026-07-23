@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { apiError, applyRateLimit, withCsrf } from '@/lib/api-utils'
 import { apiLimiter } from '@/lib/rate-limit'
 import { createCustomExam, ExamError } from '@/services/exam-service'
+import { handleApiError } from '@/lib/errors'
 
 export const dynamic = 'force-dynamic'
 
@@ -38,7 +39,6 @@ export async function POST(request: Request) {
     if (error instanceof ExamError) {
       return apiError(error.message, error.statusCode)
     }
-    console.error('Create Exam error:', error)
-    return apiError('পরীক্ষা তৈরি করতে সমস্যা হয়েছে', 500)
+    return handleApiError(error, 'Create Exam error:')
   }
 }

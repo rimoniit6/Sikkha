@@ -2,6 +2,7 @@ import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { verifyAuth } from '@/lib/auth'
 import { apiError, withCsrf } from '@/lib/api-utils'
+import { handleApiError } from '@/lib/errors'
 
 export async function GET(request: Request) {
   try {
@@ -41,8 +42,7 @@ export async function GET(request: Request) {
       pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
     })
   } catch (error) {
-    console.error('Get User Feedback error:', error)
-    return apiError('ফিডব্যাক তথ্য আনতে সমস্যা হয়েছে', 500)
+    return handleApiError(error, 'Get User Feedback error:')
   }
 }
 
@@ -93,7 +93,6 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true, data: feedback }, { status: 201 })
   } catch (error) {
-    console.error('Create Feedback error:', error)
-    return apiError('ফিডব্যাক তৈরি করতে সমস্যা হয়েছে', 500)
+    return handleApiError(error, 'Get User Feedback error:')
   }
 }

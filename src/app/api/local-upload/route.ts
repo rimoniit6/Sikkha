@@ -3,6 +3,7 @@ import { writeFile, mkdir } from 'fs/promises'
 import { join } from 'path'
 import crypto from 'crypto'
 import { verifyAuth } from '@/lib/auth'
+import { handleApiError } from '@/lib/errors'
 
 export async function POST(request: Request) {
   try {

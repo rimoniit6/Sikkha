@@ -3,6 +3,7 @@ import { withCsrf } from '@/lib/api-utils'
 import { verifyAuth } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { handleApiError } from '@/lib/errors'
 
 
 // Transform raw MCQ Prisma object to frontend-expected format
@@ -128,10 +129,6 @@ export async function POST(request: Request) {
       },
     })
   } catch (error) {
-    console.error('Generate exam error:', error)
-    return NextResponse.json(
-      { error: 'পরীক্ষা তৈরি করতে সমস্যা হয়েছে' },
-      { status: 500 }
-    )
+    return handleApiError(error, 'Generate exam error:')
   }
 }

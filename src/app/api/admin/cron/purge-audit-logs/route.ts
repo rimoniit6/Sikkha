@@ -2,6 +2,7 @@ import { db } from '@/lib/db'
 import { apiResponse, apiError, withAdmin } from '@/lib/api-utils'
 import { NextResponse } from 'next/server'
 import { purgeOldAuditLogs } from '@/lib/audit-retention'
+import { handleApiError } from '@/lib/errors'
 
 /**
  * GET /api/admin/cron/purge-audit-logs

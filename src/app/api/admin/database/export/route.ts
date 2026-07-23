@@ -1,17 +1,14 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
-import { requireSuperAdmin } from '@/lib/auth'
-import { apiError, applyRateLimit } from '@/lib/api-utils'
+import { applyRateLimit, withSuperAdmin } from '@/lib/api-utils'
 import { apiLimiter } from '@/lib/rate-limit'
 import { handleApiError } from '@/lib/errors'
 import { auditFromRequest } from '@/lib/audit'
 
 export async function GET(request: Request) {
   try {
-    const auth = await requireSuperAdmin(request)
-    if (!auth) {
-      return apiError('সুপার অ্যাডমিন অনুমতি প্রয়োজন।', 403, 'FORBIDDEN')
-    }
+    const auth = await withSuperAdmin(request)
+    if (auth instanceof NextResponse) return auth
 
     const rateCheck = await applyRateLimit(apiLimiter, request)
     if ('error' in rateCheck) return rateCheck.error

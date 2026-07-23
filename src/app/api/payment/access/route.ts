@@ -6,6 +6,7 @@ import { apiError } from '@/lib/api-utils'
 import { getValidContentTypes } from '@/lib/content-type-labels'
 import { handleApiError } from '@/lib/errors'
 import { resolveCourseLayerAccess } from '@/lib/course-access-resolver'
+import { resolveContentClassLevel } from '@/lib/payment-helpers'
 
 export async function GET(request: Request) {
   try {
@@ -50,44 +51,8 @@ export async function GET(request: Request) {
     // The isPremium flag is kept for UI display purposes only.
 
     // ===== Check active subscription for this content's class =====
-    let contentClassLevel: string | null = null
-
-    if (['mcq', 'cq', 'board-mcq', 'board-cq'].includes(contentType)) {
-      if (contentType === 'mcq' || contentType === 'board-mcq') {
-        const mcq = await db.mCQ.findUnique({ where: { id: contentId }, select: { classLevel: true } })
-        contentClassLevel = mcq?.classLevel || null
-      } else {
-        const cq = await db.cQ.findUnique({ where: { id: contentId }, select: { classLevel: true } })
-        contentClassLevel = cq?.classLevel || null
-      }
-    } else if (contentType === 'lecture') {
-      const lecture = await db.lecture.findUnique({
-        where: { id: contentId },
-        select: { chapter: { select: { subject: { select: { classId: true } } } } },
-      })
-      if (lecture) {
-        const classCat = await db.classCategory.findUnique({
-          where: { id: lecture.chapter.subject.classId },
-          select: { slug: true },
-        })
-        contentClassLevel = classCat?.slug || null
-      }
-    } else if (contentType === 'exam') {
-      const exam = await db.exam.findUnique({ where: { id: contentId }, select: { classLevel: true } })
-      contentClassLevel = exam?.classLevel || null
-    } else if (contentType === 'suggestion') {
-      const suggestion = await db.suggestion.findUnique({ where: { id: contentId }, select: { classId: true } })
-      if (suggestion?.classId) {
-        const classCat = await db.classCategory.findUnique({
-          where: { id: suggestion.classId },
-          select: { slug: true },
-        })
-        contentClassLevel = classCat?.slug || null
-      }
-    } else if (contentType === 'mcq-exam-package') {
-      const pkg = await db.mCQExamPackage.findUnique({ where: { id: contentId }, select: { class: { select: { slug: true } } } })
-      contentClassLevel = pkg?.class?.slug || null
-    }
+    // Uses shared helper for consistent class-level resolution across access and batch-check
+    const contentClassLevel = await resolveContentClassLevel(contentType, contentId)
 
     // Check subscription access
     if (contentClassLevel) {
@@ -127,6 +92,8 @@ export async function GET(request: Request) {
       }
     }
 
+    // ===== Dedicated purchase checks (not subscription-based) =====
+
     // CQ exam packages — dedicated purchase only (never subscription/bundle unlock)
     if (contentType === 'cq-exam-package') {
       const examPkgPurchase = await db.cQExamPackagePurchase.findFirst({
@@ -152,7 +119,7 @@ export async function GET(request: Request) {
     }
 
     // ===== Check course-granted access (Layer 2) =====
-    // Only reachable if no MCQ/CQ direct purchase or subscription was found
+    // Only reachable if no dedicated purchase or subscription was found
     if (['mcq-exam-package', 'cq-exam-package'].includes(contentType)) {
       const courseAccess = await resolveCourseLayerAccess(userId, contentType, contentId)
       if (courseAccess.hasAccess) {
@@ -188,7 +155,7 @@ export async function GET(request: Request) {
 
     let hasAccess = !!approvedPayment
 
-    // For bundles, also check individual items
+    // For bundles, check if all bundle items are individually purchased
     if (contentType === 'bundle' && !hasAccess) {
       const bundle = await db.contentBundle.findUnique({
         where: { id: contentId },
@@ -224,7 +191,7 @@ export async function GET(request: Request) {
       }
     }
 
-    // For packages, check active subscription
+    // For packages, check active subscription by packageId + classLevel
     if (contentType === 'package' && !hasAccess) {
       const classLevel = searchParams.get('classLevel')
       if (classLevel) {

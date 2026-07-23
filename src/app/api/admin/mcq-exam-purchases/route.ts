@@ -1,16 +1,13 @@
 import { db } from '@/lib/db'
-import { apiError, withCsrf } from '@/lib/api-utils'
+import { apiError, withAdmin, withCsrf } from '@/lib/api-utils'
 import { NextRequest, NextResponse } from 'next/server'
-import { requireAdmin } from '@/lib/auth'
 import { handleApiError } from '@/lib/errors'
 import { auditFromRequest } from '@/lib/audit'
 
 export async function GET(request: NextRequest) {
   try {
-    const auth = await requireAdmin(request)
-    if (!auth) {
-      return apiError('অনুমতি নেই', 403)
-    }
+    const auth = await withAdmin(request)
+    if (auth instanceof NextResponse) return auth
 
     const { searchParams } = new URL(request.url)
     const packageId = searchParams.get('packageId') || ''
@@ -72,10 +69,8 @@ export async function GET(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const auth = await requireAdmin(request)
-    if (!auth) {
-      return apiError('অনুমতি নেই', 403)
-    }
+    const auth = await withAdmin(request)
+    if (auth instanceof NextResponse) return auth
 
     const csrfCheck = await withCsrf(request)
     if ('error' in csrfCheck) return csrfCheck.error

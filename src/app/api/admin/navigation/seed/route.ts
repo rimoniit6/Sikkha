@@ -1,8 +1,8 @@
 import { db } from '@/lib/db'
-import { apiError, withCsrf } from '@/lib/api-utils'
-import { requireSuperAdmin } from '@/lib/auth'
+import { apiError, withCsrf, withSuperAdmin } from '@/lib/api-utils'
 import { NextResponse } from 'next/server'
 import { auditFromRequest, AuditActions } from '@/lib/audit'
+import { handleApiError } from '@/lib/errors'
 
 const DEFAULT_NAVIGATION_ITEMS = [
   // Header nav items
@@ -35,10 +35,8 @@ const DEFAULT_NAVIGATION_ITEMS = [
 // POST /api/admin/navigation/seed — seed default navigation items (super_admin only)
 export async function POST(request: Request) {
   try {
-    const auth = await requireSuperAdmin(request)
-    if (!auth) {
-      return apiError('অনুমতি নেই', 403)
-    }
+    const auth = await withSuperAdmin(request)
+    if (auth instanceof NextResponse) return auth
 
     const csrfCheck = await withCsrf(request)
     if ('error' in csrfCheck) return csrfCheck.error
@@ -72,7 +70,6 @@ export async function POST(request: Request) {
       skipped: result.skipped,
     })
   } catch (error) {
-    console.error('[Admin Navigation Seed] POST error:', error)
-    return apiError('নেভিগেশন seed করতে সমস্যা হয়েছে', 500)
+    return handleApiError(error, '[Admin Navigation Seed] POST error:')
   }
 }

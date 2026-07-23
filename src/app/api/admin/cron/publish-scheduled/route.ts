@@ -3,6 +3,7 @@ import { publishScheduledContent } from '@/lib/scheduled-publish'
 import { apiResponse, apiError, withAdmin } from '@/lib/api-utils'
 import { auditFromRequest } from '@/lib/audit'
 import { NextResponse } from 'next/server'
+import { handleApiError } from '@/lib/errors'
 
 /**
  * GET /api/admin/cron/publish-scheduled

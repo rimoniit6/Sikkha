@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { apiError, applyRateLimit, withCsrf } from '@/lib/api-utils'
 import { apiLimiter } from '@/lib/rate-limit'
 import { startExamSession, ExamError } from '@/services/exam-service'
+import { handleApiError } from '@/lib/errors'
 
 export const dynamic = 'force-dynamic'
 
@@ -33,7 +34,6 @@ export async function POST(request: Request) {
     if (error instanceof ExamError) {
       return apiError(error.message, error.statusCode)
     }
-    console.error('Start session error:', error)
-    return apiError('সেশন শুরু করতে সমস্যা হয়েছে', 500)
+    return handleApiError(error, 'Start session error:')
   }
 }

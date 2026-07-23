@@ -2,6 +2,7 @@ import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { verifyAuth } from '@/lib/auth'
 import { apiError, withCsrf } from '@/lib/api-utils'
+import { handleApiError } from '@/lib/errors'
 
 // GET /api/notes/[id] — Get single note by id (must belong to auth user)
 export async function GET(
@@ -27,8 +28,7 @@ export async function GET(
 
     return NextResponse.json({ success: true, data: note })
   } catch (error) {
-    console.error('Get Note error:', error)
-    return apiError('নোট এর তথ্য আনতে সমস্যা হয়েছে', 500)
+    return handleApiError(error, 'Get Note error:')
   }
 }
 
@@ -70,8 +70,7 @@ export async function PUT(
 
     return NextResponse.json({ success: true, data: updated })
   } catch (error) {
-    console.error('Update Note error:', error)
-    return apiError('নোট আপডেট করতে সমস্যা হয়েছে', 500)
+    return handleApiError(error, 'Get Note error:')
   }
 }
 
@@ -104,7 +103,6 @@ export async function DELETE(
 
     return NextResponse.json({ success: true, data: { id }, message: 'নোট সফলভাবে মুছে ফেলা হয়েছে' })
   } catch (error) {
-    console.error('Delete Note error:', error)
-    return apiError('নোট মুছে ফেলতে সমস্যা হয়েছে', 500)
+    return handleApiError(error, 'Get Note error:')
   }
 }

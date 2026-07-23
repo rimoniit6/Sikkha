@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { guardDeleteDependencies } from '@/lib/delete-guard'
 import { softDelete } from '@/lib/soft-delete'
 import { auditFromRequest, AuditActions } from '@/lib/audit'
+import { handleApiError } from '@/lib/errors'
 
 const createBoardYearSchema = z.object({
   board: z.string().min(1, 'বোর্ড আবশ্যক'),
@@ -31,8 +32,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ success: true, data })
   } catch (error) {
-    console.error('Admin Get BoardYears error:', error)
-    return apiError('বোর্ড সাল এর তথ্য আনতে সমস্যা হয়েছে', 500)
+    return handleApiError(error, 'Admin Get BoardYears error:')
   }
 }
 
@@ -61,8 +61,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true, data }, { status: 201 })
   } catch (error) {
-    console.error('Admin Create BoardYear error:', error)
-    return apiError('বোর্ড সাল তৈরি করতে সমস্যা হয়েছে', 500)
+    return handleApiError(error, 'Admin Get BoardYears error:')
   }
 }
 
@@ -104,8 +103,7 @@ export async function PUT(request: Request) {
 
     return NextResponse.json({ success: true, data: updated })
   } catch (error) {
-    console.error('Admin Update BoardYear error:', error)
-    return apiError('বোর্ড সাল আপডেট করতে সমস্যা হয়েছে', 500)
+    return handleApiError(error, 'Admin Get BoardYears error:')
   }
 }
 
@@ -147,7 +145,6 @@ export async function DELETE(request: Request) {
 
     return NextResponse.json({ success: true, data: { id }, message: 'বোর্ড সাল সফলভাবে মুছে ফেলা হয়েছে' })
   } catch (error) {
-    console.error('Admin Delete BoardYear error:', error)
-    return apiError('বোর্ড সাল মুছে ফেলতে সমস্যা হয়েছে', 500)
+    return handleApiError(error, 'Admin Get BoardYears error:')
   }
 }

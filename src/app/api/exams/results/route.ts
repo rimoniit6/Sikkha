@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { apiError, applyRateLimit, withCsrf } from '@/lib/api-utils'
 import { apiLimiter } from '@/lib/rate-limit'
 import { submitExam, getUserResults, ExamError } from '@/services/exam-service'
+import { handleApiError } from '@/lib/errors'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,8 +21,7 @@ export async function GET(request: Request) {
     const data = await getUserResults(auth.user.id, page, limit)
     return NextResponse.json({ success: true, ...data })
   } catch (error) {
-    console.error('Get user results error:', error)
-    return apiError('ফলাফল আনতে সমস্যা হয়েছে', 500)
+    return handleApiError(error, 'Get user results error:')
   }
 }
 

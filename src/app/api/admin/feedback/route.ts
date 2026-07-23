@@ -3,6 +3,7 @@ import { apiError, validateBody, withAdmin, withCsrf } from '@/lib/api-utils'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { auditFromRequest, AuditActions } from '@/lib/audit'
+import { handleApiError } from '@/lib/errors'
 
 const updateFeedbackSchema = z.object({
   id: z.string().min(1, 'id আবশ্যক'),
@@ -56,8 +57,7 @@ export async function GET(request: Request) {
       pagination: { page, limit, total: q ? filtered.length : total, totalPages: Math.ceil((q ? filtered.length : total) / limit) },
     })
   } catch (error) {
-    console.error('Admin Get Feedback error:', error)
-    return apiError('ফিডব্যাক তথ্য আনতে সমস্যা হয়েছে', 500)
+    return handleApiError(error, 'Admin Get Feedback error:')
   }
 }
 
@@ -85,7 +85,6 @@ export async function PUT(request: Request) {
 
     return NextResponse.json({ success: true, data: updated })
   } catch (error) {
-    console.error('Admin Update Feedback error:', error)
-    return apiError('ফিডব্যাক আপডেট করতে সমস্যা হয়েছে', 500)
+    return handleApiError(error, 'Admin Get Feedback error:')
   }
 }

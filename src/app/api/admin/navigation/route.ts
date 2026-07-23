@@ -1,7 +1,6 @@
 import { db } from '@/lib/db'
-import { apiError, validateBody, withCsrf } from '@/lib/api-utils'
+import { apiError, validateBody, withAdmin, withCsrf } from '@/lib/api-utils'
 import { handleApiError } from '@/lib/errors'
-import { requireAdmin } from '@/lib/auth'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { auditFromRequest, AuditActions } from '@/lib/audit'
@@ -20,10 +19,8 @@ const createNavigationSchema = z.object({
 // GET /api/admin/navigation — fetch ALL navigation items (including inactive) ordered by location, then order
 export async function GET(request: Request) {
   try {
-    const auth = await requireAdmin(request)
-    if (!auth) {
-      return apiError('অনুমতি নেই', 403)
-    }
+    const auth = await withAdmin(request)
+    if (auth instanceof NextResponse) return auth
 
     const items = await db.navigation.findMany({
       orderBy: [{ location: 'asc' }, { order: 'asc' }],
@@ -40,10 +37,8 @@ export async function POST(request: Request) {
   try {
     const csrfCheck = await withCsrf(request)
     if ('error' in csrfCheck) return csrfCheck.error
-    const auth = await requireAdmin(request)
-    if (!auth) {
-      return apiError('অনুমতি নেই', 403)
-    }
+    const auth = await withAdmin(request)
+    if (auth instanceof NextResponse) return auth
 
     const body = await request.json()
     const validation = validateBody(createNavigationSchema, body)
@@ -78,10 +73,8 @@ export async function PUT(request: Request) {
   try {
     const csrfCheck = await withCsrf(request)
     if ('error' in csrfCheck) return csrfCheck.error
-    const auth = await requireAdmin(request)
-    if (!auth) {
-      return apiError('অনুমতি নেই', 403)
-    }
+    const auth = await withAdmin(request)
+    if (auth instanceof NextResponse) return auth
 
     const body = await request.json()
     const { id, ...updates } = body
@@ -110,10 +103,8 @@ export async function DELETE(request: Request) {
   try {
     const csrfCheck = await withCsrf(request)
     if ('error' in csrfCheck) return csrfCheck.error
-    const auth = await requireAdmin(request)
-    if (!auth) {
-      return apiError('অনুমতি নেই', 403)
-    }
+    const auth = await withAdmin(request)
+    if (auth instanceof NextResponse) return auth
 
     const { searchParams } = new URL(request.url)
     const id = searchParams.get('id')

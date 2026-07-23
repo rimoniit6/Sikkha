@@ -5,6 +5,7 @@ import { NextResponse } from 'next/server'
 import { toDecimal } from '@/lib/decimal'
 import { validateExamAccess, getExamTimeWindow } from '@/features/shared/exam-engine'
 import logger from '@/lib/logger'
+import { handleApiError } from '@/lib/errors'
 
 function getMaxPracticeAttempts(set: { allowUnlimitedAttempts: boolean; maxAttempts: number | null }): number | null {
   if (set.allowUnlimitedAttempts) return null // unlimited

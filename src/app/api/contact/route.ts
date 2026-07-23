@@ -1,6 +1,7 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { withCsrf } from '@/lib/api-utils'
+import { handleApiError } from '@/lib/errors'
 
 export async function POST(request: Request) {
   try {
@@ -43,7 +44,6 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true, data: contactMessage }, { status: 201 })
   } catch (error) {
-    console.error('Contact message error:', error)
-    return NextResponse.json({ error: 'বার্তা পাঠাতে সমস্যা হয়েছে' }, { status: 500 })
+    return handleApiError(error, 'Contact message error:')
   }
 }

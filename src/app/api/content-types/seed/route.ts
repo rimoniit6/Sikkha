@@ -2,6 +2,7 @@ import { db } from '@/lib/db'
 import { verifyAuth } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 import { apiError, withCsrf } from '@/lib/api-utils'
+import { handleApiError } from '@/lib/errors'
 
 const DEFAULT_CONTENT_TYPES = [
   {
@@ -264,7 +265,6 @@ export async function POST(request: NextRequest) {
       skipped,
     })
   } catch (error) {
-    console.error('Seed content types error:', error)
-    return apiError('কন্টেন্ট টাইপ seed করতে সমস্যা হয়েছে', 500)
+    return handleApiError(error, 'Seed content types error:')
   }
 }

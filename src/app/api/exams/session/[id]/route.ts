@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { apiError, applyRateLimit, withCsrf } from '@/lib/api-utils'
 import { apiLimiter } from '@/lib/rate-limit'
 import { getSessionState, updateSessionActivity, ExamError } from '@/services/exam-service'
+import { handleApiError } from '@/lib/errors'
 
 export const dynamic = 'force-dynamic'
 
@@ -24,8 +25,7 @@ export async function GET(
     if (error instanceof ExamError) {
       return apiError(error.message, error.statusCode)
     }
-    console.error('Get session error:', error)
-    return apiError('সেশন লোড করতে সমস্যা হয়েছে', 500)
+    return handleApiError(error, 'Get session error:')
   }
 }
 
@@ -60,7 +60,6 @@ export async function PATCH(
     if (error instanceof ExamError) {
       return apiError(error.message, error.statusCode)
     }
-    console.error('Update session error:', error)
-    return apiError('সেশন আপডেট করতে সমস্যা হয়েছে', 500)
+    return handleApiError(error, 'Get session error:')
   }
 }

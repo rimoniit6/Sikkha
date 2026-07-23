@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { verifyAuth } from '@/lib/auth'
 import { z } from 'zod'
 import { apiError, withCsrf } from '@/lib/api-utils'
+import { handleApiError } from '@/lib/errors'
 
 const VALID_CONTENT_TYPES = ['mcq', 'cq', 'lecture']
 
@@ -79,7 +80,6 @@ export async function POST(request: Request) {
       data: { items: results },
     })
   } catch (error) {
-    console.error('Batch check bookmarks error:', error)
-    return apiError('বুকমার্ক যাচাই করতে সমস্যা হয়েছে', 500)
+    return handleApiError(error, 'Batch check bookmarks error:')
   }
 }

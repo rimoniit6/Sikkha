@@ -19,26 +19,28 @@ async function checkGradingDeadline(setId: string): Promise<void> {
   }
 }
 
-async function recalculateSetTotals(setId: string) {
-  const result = await db.cQExamSetQuestion.aggregate({
+// When called inside $transaction, pass the tx client so queries run on the
+// same connection and see uncommitted writes from the transaction.
+async function recalculateSetTotals(setId: string, client: typeof db = db) {
+  const result = await client.cQExamSetQuestion.aggregate({
     where: { setId },
     _count: { id: true },
     _sum: { marks: true },
   })
   const totalQuestions = result._count.id
   const totalMarks = result._sum.marks || 0
-  await db.cQExamSet.update({
+  await client.cQExamSet.update({
     where: { id: setId },
     data: { totalQuestions, totalMarks },
   })
   return { totalQuestions, totalMarks }
 }
 
-async function recalculatePackageTotalSets(packageId: string) {
-  const count = await db.cQExamSet.count({
+async function recalculatePackageTotalSets(packageId: string, client: typeof db = db) {
+  const count = await client.cQExamSet.count({
     where: { packageId },
   })
-  await db.cQExamPackage.update({
+  await client.cQExamPackage.update({
     where: { id: packageId },
     data: { totalSets: count },
   })
@@ -361,7 +363,7 @@ export async function POST(request: Request) {
           },
         })
         await db.$transaction(async (tx) => {
-          await recalculatePackageTotalSets(packageId)
+          await recalculatePackageTotalSets(packageId, tx)
           await auditFromRequest(request, auth.user.id, AuditActions.CQ_EXAM_SET_CREATE, 'cq_exam_set', set.id, body, { title: set.title }, tx as never)
         })
         return apiResponse({ set }, 201)
@@ -409,7 +411,7 @@ export async function POST(request: Request) {
           orderBy: { order: 'asc' },
         })
         await db.$transaction(async (tx) => {
-          await recalculateSetTotals(setId)
+          await recalculateSetTotals(setId, tx)
           await auditFromRequest(request, auth.user.id, AuditActions.CQ_EXAM_SET_QUESTIONS_ADD, 'cq_exam_set', setId, undefined, { cqIds: newCqIds, count: newCqIds.length }, tx as never)
         })
         return apiResponse({ created })
@@ -447,7 +449,7 @@ export async function POST(request: Request) {
           },
         })
         await db.$transaction(async (tx) => {
-          await recalculateSetTotals(setId)
+          await recalculateSetTotals(setId, tx)
           await auditFromRequest(request, auth.user.id, AuditActions.CQ_EXAM_SET_QUESTIONS_ADD, 'cq_exam_set', setId, undefined, { questionId: question.id }, tx as never)
         })
         return apiResponse({ question }, 201)
@@ -478,7 +480,7 @@ export async function POST(request: Request) {
           },
         })
         await db.$transaction(async (tx) => {
-          await recalculateSetTotals(setId)
+          await recalculateSetTotals(setId, tx)
           await auditFromRequest(request, auth.user.id, AuditActions.CQ_EXAM_SET_QUESTIONS_ADD, 'cq_exam_set', setId, undefined, { questionId: question.id }, tx as never)
         })
         return apiResponse({ question }, 201)

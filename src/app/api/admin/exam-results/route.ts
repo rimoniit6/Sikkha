@@ -1,15 +1,12 @@
 import { db } from '@/lib/db'
-import { apiError } from '@/lib/api-utils'
+import { withAdmin } from '@/lib/api-utils'
 import { NextRequest, NextResponse } from 'next/server'
-import { requireAdmin } from '@/lib/auth'
 import { handleApiError } from '@/lib/errors'
 
 export async function GET(request: NextRequest) {
   try {
-    const auth = await requireAdmin(request)
-    if (!auth) {
-      return apiError('অনুমতি নেই', 403)
-    }
+    const auth = await withAdmin(request)
+    if (auth instanceof NextResponse) return auth
 
     const { searchParams } = new URL(request.url)
     const examId = searchParams.get('examId') || ''

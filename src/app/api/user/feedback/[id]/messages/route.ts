@@ -2,6 +2,7 @@ import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { verifyAuth } from '@/lib/auth'
 import { apiError, withCsrf } from '@/lib/api-utils'
+import { handleApiError } from '@/lib/errors'
 
 export async function GET(
   request: Request,
@@ -33,8 +34,7 @@ export async function GET(
 
     return NextResponse.json({ success: true, data: { feedback, messages } })
   } catch (error) {
-    console.error('Get Feedback Messages error:', error)
-    return apiError('বার্তা আনতে সমস্যা হয়েছে', 500)
+    return handleApiError(error, 'Get Feedback Messages error:')
   }
 }
 
@@ -87,7 +87,6 @@ export async function POST(
 
     return NextResponse.json({ success: true, data: msg }, { status: 201 })
   } catch (error) {
-    console.error('Reply Feedback error:', error)
-    return apiError('উত্তর দিতে সমস্যা হয়েছে', 500)
+    return handleApiError(error, 'Get Feedback Messages error:')
   }
 }

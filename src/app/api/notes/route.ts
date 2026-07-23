@@ -3,6 +3,7 @@ import { apiLimiter } from '@/lib/rate-limit'
 import { verifyAuth } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { handleApiError } from '@/lib/errors'
 
 // GET /api/notes — List notes for authenticated user
 export async function GET(request: Request) {
@@ -46,11 +47,7 @@ export async function GET(request: Request) {
       },
     })
   } catch (error) {
-    console.error('Get Notes error:', error)
-    return NextResponse.json(
-      { error: 'নোট এর তথ্য আনতে সমস্যা হয়েছে' },
-      { status: 500 }
-    )
+    return handleApiError(error, 'Get Notes error:')
   }
 }
 
@@ -110,10 +107,6 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true, data }, { status: 201 })
   } catch (error) {
-    console.error('Create Note error:', error)
-    return NextResponse.json(
-      { error: 'নোট তৈরি করতে সমস্যা হয়েছে' },
-      { status: 500 }
-    )
+    return handleApiError(error, 'Get Notes error:')
   }
 }

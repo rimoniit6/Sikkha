@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getSessionCookieName, verifyToken } from '@/lib/auth/jwt'
 import { apiError } from '@/lib/api-utils'
 import { createAuditLog, AuditActions } from '@/lib/audit'
+import { handleApiError } from '@/lib/errors'
 
 /**
  * Parse a named cookie from a raw Cookie header.

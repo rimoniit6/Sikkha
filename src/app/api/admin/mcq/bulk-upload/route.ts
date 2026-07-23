@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
 import { safeParseExcelFromFile, ExcelParseError } from '@/lib/excel-parse'
 import { auditFromRequest, AuditActions } from '@/lib/audit'
+import { handleApiError } from '@/lib/errors'
 
 // Excel column mapping (Bengali headers → DB fields)
 const COLUMN_MAP: Record<string, string> = {
@@ -228,8 +229,7 @@ export async function POST(request: Request) {
     if (error instanceof ExcelParseError) {
       return apiError(error.message, 400)
     }
-    console.error('Bulk upload error:', error)
-    return apiError('Excel ফাইল প্রসেস করতে সমস্যা হয়েছে', 500)
+    return handleApiError(error, 'Bulk upload error:')
   }
 }
 
@@ -343,7 +343,6 @@ export async function GET(request: Request) {
       },
     })
   } catch (error) {
-    console.error('Template download error:', error)
-    return apiError('টেমপ্লেট তৈরি করতে সমস্যা হয়েছে', 500)
+    return handleApiError(error, 'Bulk upload error:')
   }
 }

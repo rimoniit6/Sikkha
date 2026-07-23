@@ -5,6 +5,7 @@ import { checkContentAccess } from '@/lib/access-control'
 import { apiError, withCsrf } from '@/lib/api-utils'
 import { buildPremiumUpdatePayload } from '@/lib/premium'
 import { cacheHeaders } from '@/lib/cache-headers'
+import { handleApiError } from '@/lib/errors'
 
 
 function transformMCQ(mcq: {
@@ -112,8 +113,7 @@ export async function GET(
 
     return NextResponse.json({ success: true, data: transformMCQ(mcq as unknown as Parameters<typeof transformMCQ>[0]) }, { headers: cacheHeaders.noCache })
   } catch (error) {
-    console.error('Get MCQ detail error:', error)
-    return apiError('MCQ এর বিস্তারিত তথ্য আনতে সমস্যা হয়েছে', 500)
+    return handleApiError(error, 'Get MCQ detail error:')
   }
 }
 
@@ -146,8 +146,7 @@ export async function PUT(
 
     return NextResponse.json({ success: true, data: { message: 'MCQ আপডেট হয়েছে', mcq: transformMCQ(mcq as unknown as Parameters<typeof transformMCQ>[0]) } })
   } catch (error) {
-    console.error('Update MCQ error:', error)
-    return apiError('MCQ আপডেট করতে সমস্যা হয়েছে', 500)
+    return handleApiError(error, 'Get MCQ detail error:')
   }
 }
 
@@ -178,7 +177,6 @@ export async function DELETE(
 
     return NextResponse.json({ success: true, data: { message: 'MCQ সফলভাবে মুছে ফেলা হয়েছে' } })
   } catch (error) {
-    console.error('Delete MCQ error:', error)
-    return apiError('MCQ মুছে ফেলতে সমস্যা হয়েছে', 500)
+    return handleApiError(error, 'Get MCQ detail error:')
   }
 }

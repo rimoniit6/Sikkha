@@ -1,11 +1,11 @@
-import { apiError, withCsrf } from '@/lib/api-utils'
-import { requireAdmin } from '@/lib/auth'
+import { apiError, withAdmin, withCsrf } from '@/lib/api-utils'
 import { db } from '@/lib/db'
 import { ExcelParseError,safeParseExcelFromFile } from '@/lib/excel-parse'
 import { NextResponse } from 'next/server'
 import { toDecimal } from '@/lib/decimal'
 import * as XLSX from 'xlsx'
 import { auditFromRequest, AuditActions } from '@/lib/audit'
+import { handleApiError } from '@/lib/errors'
 
 // Excel column mapping (Bengali + English headers → DB fields)
 const COLUMN_MAP: Record<string, string> = {
@@ -48,10 +48,8 @@ const COLUMN_MAP: Record<string, string> = {
 export async function POST(request: Request) {
   try {
     // Auth check
-    const auth = await requireAdmin(request)
-    if (!auth) {
-      return apiError('Unauthorized. Admin access required.', 401)
-    }
+    const auth = await withAdmin(request)
+    if (auth instanceof NextResponse) return auth
 
     const csrfCheck = await withCsrf(request)
     if ('error' in csrfCheck) return csrfCheck.error
@@ -292,18 +290,15 @@ export async function POST(request: Request) {
     if (error instanceof ExcelParseError) {
       return apiError(error.message, 400)
     }
-    console.error('Bulk upload questions error:', error)
-    return apiError('Excel ফাইল প্রসেস করতে সমস্যা হয়েছে', 500)
+    return handleApiError(error, 'Bulk upload questions error:')
   }
 }
 
 // GET: Download Excel template for bulk upload
 export async function GET(request: Request) {
   try {
-    const auth = await requireAdmin(request)
-    if (!auth) {
-      return apiError('Unauthorized. Admin access required.', 401)
-    }
+    const auth = await withAdmin(request)
+    if (auth instanceof NextResponse) return auth
 
     const headers = [
       'প্রশ্ন',
@@ -402,7 +397,6 @@ export async function GET(request: Request) {
       },
     })
   } catch (error) {
-    console.error('Template download error:', error)
-    return apiError('টেমপ্লেট তৈরি করতে সমস্যা হয়েছে', 500)
+    return handleApiError(error, 'Bulk upload questions error:')
   }
 }

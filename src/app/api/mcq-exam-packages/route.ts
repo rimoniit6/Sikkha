@@ -5,6 +5,7 @@ import { apiError, withCsrf } from '@/lib/api-utils'
 import { toDecimal } from '@/lib/decimal'
 import { validateExamAccess, getExamTimeWindow, calculateTimeRemaining, parseSubjectIds } from '@/features/shared/exam-engine'
 import logger from '@/lib/logger'
+import { handleApiError } from '@/lib/errors'
 
 // ============================================================================
 // GET handler — all read operations for MCQ Exam Packages (public-facing)

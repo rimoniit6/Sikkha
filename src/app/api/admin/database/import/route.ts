@@ -1,6 +1,5 @@
-import { apiError, withCsrf, applyRateLimit } from '@/lib/api-utils'
+import { apiError, withCsrf, applyRateLimit, withSuperAdmin } from '@/lib/api-utils'
 import { auditFromRequest } from '@/lib/audit'
-import { requireSuperAdmin } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { handleApiError } from '@/lib/errors'
 import { apiLimiter } from '@/lib/rate-limit'
@@ -61,10 +60,8 @@ const modelMap: Record<string, any> = {
 
 export async function POST(request: NextRequest) {
   try {
-    const auth = await requireSuperAdmin(request)
-    if (!auth) {
-      return apiError('সুপার অ্যাডমিন অনুমতি প্রয়োজন।', 403, 'FORBIDDEN')
-    }
+    const auth = await withSuperAdmin(request)
+    if (auth instanceof NextResponse) return auth
 
     const csrfCheck = await withCsrf(request)
     if ('error' in csrfCheck) return csrfCheck.error
